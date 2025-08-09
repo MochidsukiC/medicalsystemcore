@@ -1,0 +1,132 @@
+---- Minecraft Crash Report ----
+// Ooh. Shiny.
+
+Time: 2025-08-08 23:50:16
+Description: Ticking player
+
+java.lang.ArithmeticException: / by zero
+	at jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents.lambda$onPlayerTick$3(ModEvents.java:150) ~[%23189!/:?] {re:classloading}
+	at net.minecraftforge.common.util.LazyOptional.ifPresent(LazyOptional.java:137) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23183%23190!/:?] {re:classloading}
+	at jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents.onPlayerTick(ModEvents.java:108) ~[%23189!/:?] {re:classloading}
+	at jp.houlab.mochidsuki.medicalsystemcore.core.__ModEvents_onPlayerTick_PlayerTickEvent.invoke(.dynamic) ~[%23189!/:?] {re:classloading,pl:eventbus:B}
+	at net.minecraftforge.eventbus.ASMEventHandler.invoke(ASMEventHandler.java:73) ~[eventbus-6.0.5.jar%23107!/:?] {}
+	at net.minecraftforge.eventbus.EventBus.post(EventBus.java:315) ~[eventbus-6.0.5.jar%23107!/:?] {}
+	at net.minecraftforge.eventbus.EventBus.post(EventBus.java:296) ~[eventbus-6.0.5.jar%23107!/:?] {}
+	at net.minecraftforge.event.ForgeEventFactory.onPlayerPostTick(ForgeEventFactory.java:945) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23183%23190!/:?] {re:classloading}
+	at net.minecraft.world.entity.player.Player.tick(Player.java:285) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.server.level.ServerPlayer.doTick(ServerPlayer.java:467) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.server.network.ServerGamePacketListenerImpl.tick(ServerGamePacketListenerImpl.java:262) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.network.Connection.tick(Connection.java:263) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading}
+	at net.minecraft.server.network.ServerConnectionListener.tick(ServerConnectionListener.java:142) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading}
+	at net.minecraft.server.MinecraftServer.tickChildren(MinecraftServer.java:907) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.server.MinecraftServer.tickServer(MinecraftServer.java:814) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.client.server.IntegratedServer.tickServer(IntegratedServer.java:89) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:runtimedistcleaner:A}
+	at net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:661) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.server.MinecraftServer.lambda$spin$2(MinecraftServer.java:251) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at java.lang.Thread.run(Thread.java:833) ~[?:?] {}
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+Thread: Server thread
+Suspected Mod: 
+	MedicalSystemCore (medicalsystemcore), Version: 1.0-SNAPSHOT
+		at TRANSFORMER/medicalsystemcore@1.0-SNAPSHOT/jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents.lambda$onPlayerTick$3(ModEvents.java:150)
+Stacktrace:
+	at jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents.lambda$onPlayerTick$3(ModEvents.java:150) ~[%23189!/:?] {re:classloading}
+	at net.minecraftforge.common.util.LazyOptional.ifPresent(LazyOptional.java:137) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23183%23190!/:?] {re:classloading}
+	at jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents.onPlayerTick(ModEvents.java:108) ~[%23189!/:?] {re:classloading}
+	at jp.houlab.mochidsuki.medicalsystemcore.core.__ModEvents_onPlayerTick_PlayerTickEvent.invoke(.dynamic) ~[%23189!/:?] {re:classloading,pl:eventbus:B}
+	at net.minecraftforge.eventbus.ASMEventHandler.invoke(ASMEventHandler.java:73) ~[eventbus-6.0.5.jar%23107!/:?] {}
+	at net.minecraftforge.eventbus.EventBus.post(EventBus.java:315) ~[eventbus-6.0.5.jar%23107!/:?] {}
+	at net.minecraftforge.eventbus.EventBus.post(EventBus.java:296) ~[eventbus-6.0.5.jar%23107!/:?] {}
+	at net.minecraftforge.event.ForgeEventFactory.onPlayerPostTick(ForgeEventFactory.java:945) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23183%23190!/:?] {re:classloading}
+	at net.minecraft.world.entity.player.Player.tick(Player.java:285) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+-- Player being ticked --
+Details:
+	Entity Type: minecraft:player (net.minecraft.server.level.ServerPlayer)
+	Entity ID: 196
+	Entity Name: Dev
+	Entity's Exact location: -146.50, 69.00, 7.50
+	Entity's Block location: World: (-147,69,7), Section: (at 13,5,7 in -10,4,0; chunk contains blocks -160,-64,0 to -145,319,15), Region: (-1,0; contains chunks -32,0 to -1,31, blocks -512,-64,0 to -1,319,511)
+	Entity's Momentum: 0.00, -0.08, 0.00
+	Entity's Passengers: []
+	Entity's Vehicle: null
+Stacktrace:
+	at net.minecraft.server.level.ServerPlayer.doTick(ServerPlayer.java:467) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.server.network.ServerGamePacketListenerImpl.tick(ServerGamePacketListenerImpl.java:262) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.network.Connection.tick(Connection.java:263) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading}
+	at net.minecraft.server.network.ServerConnectionListener.tick(ServerConnectionListener.java:142) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading}
+	at net.minecraft.server.MinecraftServer.tickChildren(MinecraftServer.java:907) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.server.MinecraftServer.tickServer(MinecraftServer.java:814) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.client.server.IntegratedServer.tickServer(IntegratedServer.java:89) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:runtimedistcleaner:A}
+	at net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:661) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at net.minecraft.server.MinecraftServer.lambda$spin$2(MinecraftServer.java:251) ~[forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.jar%23184!/:?] {re:classloading,pl:accesstransformer:B}
+	at java.lang.Thread.run(Thread.java:833) ~[?:?] {}
+
+
+-- System Details --
+Details:
+	Minecraft Version: 1.20.1
+	Minecraft Version ID: 1.20.1
+	Operating System: Mac OS X (aarch64) version 15.6
+	Java Version: 18.0.2, Amazon.com Inc.
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode, sharing), Amazon.com Inc.
+	Memory: 1863234568 bytes (1776 MiB) / 2915041280 bytes (2780 MiB) up to 8589934592 bytes (8192 MiB)
+	CPUs: 10
+	Processor Vendor: Apple Inc.
+	Processor Name: Apple M4
+	Identifier: Apple Inc. Family 0x6f5129ac Model 0 Stepping 0
+	Microarchitecture: unknown
+	Frequency (GHz): -0.00
+	Number of physical packages: 1
+	Number of physical CPUs: 10
+	Number of logical CPUs: 10
+	Graphics card #0 name: Apple M4
+	Graphics card #0 vendor: Apple (0x106b)
+	Graphics card #0 VRAM (MB): 0.00
+	Graphics card #0 deviceId: unknown
+	Graphics card #0 versionInfo: unknown
+	Memory slot #0 capacity (MB): 0.00
+	Memory slot #0 clockSpeed (GHz): 0.00
+	Memory slot #0 type: unknown
+	Virtual memory max (MB): 34816.00
+	Virtual memory used (MB): 23260.20
+	Swap memory total (MB): 2048.00
+	Swap memory used (MB): 595.19
+	JVM Flags: 0 total; 
+	Server Running: true
+	Player Count: 1 / 8; [ServerPlayer['Dev'/196, l='ServerLevel[新規ワールド]', x=-146.50, y=69.00, z=7.50]]
+	Data Packs: vanilla, mod:medicalsystemcore, mod:forge
+	Enabled Feature Flags: minecraft:vanilla
+	World Generation: Stable
+	Type: Integrated Server (map_client.txt)
+	Is Modded: Definitely; Client brand changed to 'forge'; Server brand changed to 'forge'
+	Launched Version: MOD_DEV
+	ModLauncher: 10.0.9+10.0.9+main.dcd20f30
+	ModLauncher launch target: forgeclientuserdev
+	ModLauncher naming: mcp
+	ModLauncher services: 
+		mixin-0.8.5.jar mixin PLUGINSERVICE 
+		eventbus-6.0.5.jar eventbus PLUGINSERVICE 
+		fmlloader-1.20.1-47.4.6.jar slf4jfixer PLUGINSERVICE 
+		fmlloader-1.20.1-47.4.6.jar object_holder_definalize PLUGINSERVICE 
+		fmlloader-1.20.1-47.4.6.jar runtime_enum_extender PLUGINSERVICE 
+		fmlloader-1.20.1-47.4.6.jar capability_token_subclass PLUGINSERVICE 
+		accesstransformers-8.0.4.jar accesstransformer PLUGINSERVICE 
+		fmlloader-1.20.1-47.4.6.jar runtimedistcleaner PLUGINSERVICE 
+		modlauncher-10.0.9.jar mixin TRANSFORMATIONSERVICE 
+		modlauncher-10.0.9.jar fml TRANSFORMATIONSERVICE 
+	FML Language Providers: 
+		minecraft@1.0
+		lowcodefml@null
+		javafml@null
+	Mod List: 
+		forge-1.20.1-47.4.6_mapped_official_1.20.1-recomp.|Minecraft                     |minecraft                     |1.20.1              |DONE      |Manifest: a1:d4:5e:04:4f:d3:d6:e0:7b:37:97:cf:77:b0:de:ad:4a:47:ce:8c:96:49:5f:0a:cf:8c:ae:b2:6d:4b:8a:3f
+		main                                              |MedicalSystemCore             |medicalsystemcore             |1.0-SNAPSHOT        |DONE      |Manifest: NOSIGNATURE
+		                                                  |Forge                         |forge                         |47.4.6              |DONE      |Manifest: NOSIGNATURE
+	Crash Report UUID: a0c8736f-8704-4a5d-9ef4-6439e9051a46
+	FML: 47.4
+	Forge: net.minecraftforge:47.4.6

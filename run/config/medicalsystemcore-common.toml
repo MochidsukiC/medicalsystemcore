@@ -1,0 +1,44 @@
+
+["Bleeding Intervals (in seconds)"]
+	#各出血レベルでのHP(体力)とBlood(血液量)が1ずつ減少する間隔（秒）
+	#Range: 0.1 ~ 3600.0
+	lvl1_hp_interval = 30.0
+	#Range: 0.1 ~ 3600.0
+	lvl1_blood_interval = 30.0
+	#Range: 0.1 ~ 3600.0
+	lvl2_hp_interval = 15.0
+	#Range: 0.1 ~ 3600.0
+	lvl2_blood_interval = 10.0
+	#Range: 0.1 ~ 3600.0
+	lvl3_hp_interval = 10.0
+	#Range: 0.1 ~ 3600.0
+	lvl3_blood_interval = 2.0
+	#Range: 0.1 ~ 3600.0
+	lvl4_hp_interval = 4.0
+	#Range: 0.1 ~ 3600.0
+	lvl4_blood_interval = 0.1
+
+["Recovery Settings"]
+	#出血していない時に血液量が1%回復する間隔（秒）
+	#Range: 0.1 ~ 3600.0
+	blood_recovery_interval = 2.0
+
+["Damage to Bleed Chances (0"]
+
+	["Damage to Bleed Chances (0"."0 to 1"]
+
+		["Damage to Bleed Chances (0"."0 to 1"."0)"]
+			#ダメージ量に応じた出血発生確率
+			#1-5ダメージを受けた時の出血発生確率
+			#Range: 0.0 ~ 1.0
+			chance_low_damage = 0.1
+			#6-10ダメージを受けた時の出血発生確率
+			#Range: 0.0 ~ 1.0
+			chance_mid_damage = 0.5
+			#10以上のダメージを受けた時に出血レベルが1上がる確率
+			#Range: 0.0 ~ 1.0
+			chance_high_damage_lvl1 = 0.5
+			#10以上のダメージを受けた時に出血レベルが2上がる確率（lvl1の確率と合わせて1.0になるように調整してください）
+			#Range: 0.0 ~ 1.0
+			chance_high_damage_lvl2 = 0.5
+
