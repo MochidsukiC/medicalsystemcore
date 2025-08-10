@@ -91,10 +91,10 @@ public class DefibrillatorItem extends Item {
                 player.sendSystemMessage(Component.literal("§a蘇生成功！"));
 
                 // 全てのクライアントに状態の更新とポーズ解除を通知
-                ModPackets.sendToPlayer(new ClientboundMedicalDataSyncPacket(targetPlayer.getUUID(), HeartStatus.NORMAL), targetPlayer);
+                ModPackets.sendToPlayer(new ClientboundMedicalDataSyncPacket(targetPlayer.getUUID(), HeartStatus.NORMAL,medicalData), targetPlayer);
             } else {
                 // 失敗した場合も、状態が変化した可能性があるのでデータを同期
-                ModPackets.sendToPlayer(new ClientboundMedicalDataSyncPacket(targetPlayer.getUUID(), medicalData.getHeartStatus()), targetPlayer);
+                ModPackets.sendToPlayer(new ClientboundMedicalDataSyncPacket(targetPlayer.getUUID(), medicalData.getHeartStatus(),medicalData), targetPlayer);
             }
         });
 

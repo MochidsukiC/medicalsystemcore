@@ -1,11 +1,18 @@
 package jp.houlab.mochidsuki.medicalsystemcore;
 
 import com.mojang.logging.LogUtils;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
+import jp.houlab.mochidsuki.medicalsystemcore.item.BandageItem;
 import jp.houlab.mochidsuki.medicalsystemcore.item.DefibrillatorItem;
+import jp.houlab.mochidsuki.medicalsystemcore.item.FluidPackItem;
+import jp.houlab.mochidsuki.medicalsystemcore.item.TubeItem;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
+import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
+import jp.houlab.mochidsuki.medicalsystemcore.effect.TransfusionEffect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -13,6 +20,7 @@ import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
@@ -45,16 +53,62 @@ public class Medicalsystemcore {
     public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
     // Create a Deferred Register to hold Items which will all be registered under the "medicalsystemcore" namespace
     public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MODID);
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
+            DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, MODID);
+    public static final DeferredRegister<MobEffect> MOB_EFFECTS =
+            DeferredRegister.create(ForgeRegistries.MOB_EFFECTS, MODID);
     // Create a Deferred Register to hold CreativeModeTabs which will all be registered under the "medicalsystemcore" namespace
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
+    //Effect
+    public static final RegistryObject<MobEffect> TRANSFUSION = MOB_EFFECTS.register("transfusion",
+            TransfusionEffect::new);
+
+    //Block
+    public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);
+
+    //BlockEntity
+    public static final RegistryObject<BlockEntityType<IVStandBlockEntity>> IV_STAND_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("iv_stand_block_entity", () ->
+                    BlockEntityType.Builder.of(IVStandBlockEntity::new, IV_STAND.get()).build(null));
+    //Item
     public static final RegistryObject<Item> DEFIBRILLATOR = ITEMS.register("defibrillator",
             () -> new DefibrillatorItem(new Item.Properties().stacksTo(1)));
 
+    public static final RegistryObject<Item> BANDAGE = ITEMS.register("bandage",
+            () -> new BandageItem(new Item.Properties().stacksTo(16)));
+
+    public static final RegistryObject<Item> IV_STAND_ITEM = ITEMS.register("iv_stand",
+            () -> new BlockItem(IV_STAND.get(), new Item.Properties()));
+    // 各種パック
+    public static final RegistryObject<Item> BLOOD_PACK = ITEMS.register("blood_pack",
+            () -> new FluidPackItem(new Item.Properties()));
+    public static final RegistryObject<Item> ADRENALINE_PACK = ITEMS.register("adrenaline_pack",
+            () -> new FluidPackItem(new Item.Properties()));
+    public static final RegistryObject<Item> TRANEXAMIC_ACID_PACK = ITEMS.register("tranexamic_acid_pack",
+            () -> new FluidPackItem(new Item.Properties()));
+    public static final RegistryObject<Item> FIBRINOGEN_PACK = ITEMS.register("fibrinogen_pack",
+            () -> new FluidPackItem(new Item.Properties()));
+    public static final RegistryObject<Item> NORADRENALINE_PACK = ITEMS.register("noradrenaline_pack",
+            () -> new FluidPackItem(new Item.Properties()));
+
+    public static final RegistryObject<Item> TUBE = ITEMS.register("tube",
+            () -> new TubeItem(new Item.Properties()));
+
     // Creates a creative tab with the id "medicalsystemcore:example_tab" for the example item, that is placed after the combat tab
     public static final RegistryObject<CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder().withTabsBefore(CreativeModeTabs.COMBAT).icon(() -> DEFIBRILLATOR.get().getDefaultInstance()).displayItems((parameters, output) -> {
-        output.accept(DEFIBRILLATOR.get()); // Add the example item to the tab. For your own tabs, this method is preferred over the event
+        output.accept(DEFIBRILLATOR.get());
+        output.accept(BANDAGE.get());// Add the example item to the tab. For your own tabs, this method is preferred over the event
+        output.accept(IV_STAND_ITEM.get());
+        output.accept(BLOOD_PACK.get());
+        output.accept(ADRENALINE_PACK.get());
+        output.accept(TRANEXAMIC_ACID_PACK.get());
+        output.accept(FIBRINOGEN_PACK.get());
+        output.accept(NORADRENALINE_PACK.get());
+        output.accept(TUBE.get());
+
     }).build());
+
 
     public Medicalsystemcore() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -68,6 +122,11 @@ public class Medicalsystemcore {
         BLOCKS.register(modEventBus);
         // Register the Deferred Register to the mod event bus so items get registered
         ITEMS.register(modEventBus);
+
+        BLOCK_ENTITIES.register(modEventBus);
+
+        MOB_EFFECTS.register(modEventBus);
+
         // Register the Deferred Register to the mod event bus so tabs get registered
         CREATIVE_MODE_TABS.register(modEventBus);
 
@@ -97,6 +156,7 @@ public class Medicalsystemcore {
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(DEFIBRILLATOR);
+            event.accept(BANDAGE);
         }
     }
 

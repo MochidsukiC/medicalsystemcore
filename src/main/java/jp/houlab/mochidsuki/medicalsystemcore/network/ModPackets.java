@@ -32,11 +32,21 @@ public class ModPackets {
                 .encoder(ClientboundMedicalDataSyncPacket::toBytes)
                 .consumerMainThread(ClientboundMedicalDataSyncPacket::handle)
                 .add();
+
+        net.messageBuilder(ServerboundFinishHealPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
+                .decoder(ServerboundFinishHealPacket::new)
+                .encoder(ServerboundFinishHealPacket::toBytes)
+                .consumerMainThread(ServerboundFinishHealPacket::handle)
+                .add();
     }
 
     // 特定のプレイヤーにパケットを送信するヘルパーメソッド
     public static <MSG> void sendToPlayer(MSG message, ServerPlayer player) {
         INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), message);
+    }
+
+    public static <MSG> void sendToServer(MSG message) {
+        INSTANCE.sendToServer(message);
     }
 
     /**

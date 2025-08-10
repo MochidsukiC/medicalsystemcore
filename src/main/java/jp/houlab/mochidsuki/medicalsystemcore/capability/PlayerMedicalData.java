@@ -1,7 +1,10 @@
 package jp.houlab.mochidsuki.medicalsystemcore.capability;
 
 import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+
+import java.util.Optional;
 
 public class PlayerMedicalData implements IPlayerMedicalData {
 
@@ -15,7 +18,7 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     private float resuscitationChance = 100.0f;
     private int cardiacArrestTimer = 0;
     private HeartStatus previousHeartStatus = HeartStatus.NORMAL;
-
+    private Optional<BlockPos> blockPos = Optional.empty();
 
     @Override
     public float getBloodLevel() {
@@ -116,6 +119,17 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     public void setPreviousHeartStatus(HeartStatus status) {
         this.previousHeartStatus = status;
     }
+
+    @Override
+    public Optional<BlockPos> getTransfusingFromStandPos(){
+        return blockPos;
+    }
+
+    @Override
+    public void setTransfusingFromStandPos(Optional<BlockPos> pos) {
+        this.blockPos = pos;
+    }
+
 
     /**
      * このデータをNBT形式（Minecraftのデータ保存形式）に変換して保存します。

@@ -22,6 +22,9 @@ public class ClientInputHandler {
         if (event.side.isClient() && event.phase == TickEvent.Phase.END) {
             // Minecraftの姿勢計算ロジックが実行された後に、私たちのロジックで上書きする
             Player player = event.player;
+
+            ClientHealingManager.tick();
+
             if (player != null && ClientMedicalDataManager.isPlayerIncapacitated(player)) {
                 // 行動不能状態の場合、姿勢がSWIMMINGでなければ強制的に設定する
                 if (player.getPose() != Pose.SWIMMING) {

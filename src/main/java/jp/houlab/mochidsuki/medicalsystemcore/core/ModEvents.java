@@ -2,21 +2,28 @@ package jp.houlab.mochidsuki.medicalsystemcore.core;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundMedicalDataSyncPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+
+import java.util.Optional;
 
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID) // MODIDはあなたのMod IDに合わせてください
 public class ModEvents {
@@ -37,6 +44,7 @@ public class ModEvents {
     /**
      * プレイヤーが死亡してリスポーンした際に、データを引き継ぐためのイベント
      */
+    /*
     @SubscribeEvent
     public static void onPlayerClone(PlayerEvent.Clone event) {
         // プレイヤーが死亡によるリスポーンの場合のみ処理
@@ -55,6 +63,8 @@ public class ModEvents {
             });
         }
     }
+
+     */
 
     /**
      * エンティティがダメージを受けた時に呼び出されるイベント
@@ -114,6 +124,47 @@ public class ModEvents {
 
 
         serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
+
+            medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
+                boolean connectionValid = false;
+                BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
+
+                if (be instanceof IVStandBlockEntity standEntity) {
+                    ItemStack packStack = standEntity.itemHandler.getStackInSlot(0);
+                    // スタンドにパックがあり、プレイヤーが範囲内にいるかチェック
+                    if (!packStack.isEmpty() && serverPlayer.position().distanceToSqr(standPos.getX(), standPos.getY(), standPos.getZ()) < 100.0) {
+                        connectionValid = true;
+
+                        // パックのNBTから残量を取得
+                        CompoundTag nbt = packStack.getOrCreateTag();
+                        int ticksLeft = nbt.getInt("FluidVolumeTicks");
+
+                        if (ticksLeft > 0) {
+                            // 残量を1減らす
+                            nbt.putInt("FluidVolumeTicks", ticksLeft - 1);
+                            // 輸血エフェクトをかけ続ける
+                            serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), 40, 0, true, false));
+                        } else {
+                            // 残量が0になったらパックを消滅させる
+                            standEntity.itemHandler.setStackInSlot(0, ItemStack.EMPTY);
+                            connectionValid = false; // 接続を無効にする
+                            serverPlayer.sendSystemMessage(Component.literal("§eパックが空になりました。"));
+                        }
+                    }
+                }
+
+                if (!connectionValid) {
+                    // 接続が無効になったら状態をリセット
+                    medicalData.setTransfusingFromStandPos(Optional.empty());
+                    if (be != null) { // beがnullでない（＝スタンドが壊されたわけではない）場合のみメッセージを出す
+                        serverPlayer.sendSystemMessage(Component.literal("§e点滴が外れた。"));
+                    }
+                }
+            });
+
+
+
+            //----------------------出血処理------------------------
             // --- 1. 変数の準備 ---
             int ticks = medicalData.getTickCounter();
             medicalData.setTickCounter(ticks + 1);
@@ -132,7 +183,7 @@ public class ModEvents {
                     serverPlayer.kill();
                     return;
                 }
-                if (currentStatus == HeartStatus.CARDIAC_ARREST && ticks % 20*60 == 0) {
+                if (currentStatus == HeartStatus.CARDIAC_ARREST && ticks % (20*60) == 0) {
                     medicalData.setResuscitationChance(medicalData.getResuscitationChance() - 5.0f);
                 }
             } else {
@@ -219,10 +270,13 @@ public class ModEvents {
                 serverPlayer.refreshDimensions(); // 当たり判定を更新
 
                 // 全クライアントに状態を同期
-
-
-                ModPackets.sendToAllTracking(new ClientboundMedicalDataSyncPacket(serverPlayer.getUUID(), newStatus), serverPlayer);
-
+            ModPackets.sendToAllTracking(new ClientboundMedicalDataSyncPacket(
+                    serverPlayer.getUUID(),
+                    medicalData.getBloodLevel(),
+                    newStatus,
+                    medicalData.getBleedingLevel(),
+                    medicalData.getResuscitationChance()
+            ), serverPlayer);
 
             // --- 4. 最後に、今の状態を「前の状態」として保存 ---
             //medicalData.setPreviousHeartStatus(newStatus);

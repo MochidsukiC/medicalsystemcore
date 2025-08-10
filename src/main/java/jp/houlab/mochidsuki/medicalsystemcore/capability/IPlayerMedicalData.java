@@ -1,7 +1,10 @@
 package jp.houlab.mochidsuki.medicalsystemcore.capability;
 
 import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+
+import java.util.Optional;
 
 public interface IPlayerMedicalData {
     // --- 血液量 ---
@@ -37,6 +40,10 @@ public interface IPlayerMedicalData {
 
     HeartStatus getPreviousHeartStatus();
     void setPreviousHeartStatus(HeartStatus status);
+
+    Optional<BlockPos> getTransfusingFromStandPos();
+    void setTransfusingFromStandPos(Optional<BlockPos> pos);
+
 
     // --- データの保存と読み込み ---
     void saveNBTData(CompoundTag nbt);
