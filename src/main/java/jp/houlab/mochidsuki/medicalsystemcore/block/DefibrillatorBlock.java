@@ -74,12 +74,16 @@ public class DefibrillatorBlock extends BaseEntityBlock {
      */
     private void handlePadInteraction(Player player, InteractionHand hand, DefibrillatorBlockEntity be) {
         ItemStack heldItem = player.getItemInHand(hand);
+        Level level = player.level();
+        BlockPos pos = be.getBlockPos();
 
         // 電極を戻す
         if (heldItem.is(Medicalsystemcore.ELECTRODE.get())) {
             be.arePadsTaken = false;
             heldItem.shrink(1);
             player.sendSystemMessage(Component.literal("§e電極を収納しました。"));
+            // ▼▼▼ ブロックの状態を「パッドあり」に更新 ▼▼▼
+            level.setBlock(pos, be.getBlockState().setValue(HAS_PADS, true), 3);
             be.setChanged();
         }
         // 電極を取り出す
@@ -87,13 +91,13 @@ public class DefibrillatorBlock extends BaseEntityBlock {
             be.arePadsTaken = true;
 
             ItemStack electrodeStack = new ItemStack(Medicalsystemcore.ELECTRODE.get());
-            // ★★★★★ これが以前抜けていた、最も重要な処理 ★★★★★
-            // NBTタグに、このブロックの座標を書き込む
             CompoundTag nbt = electrodeStack.getOrCreateTag();
             nbt.put("DefibrillatorPos", NbtUtils.writeBlockPos(be.getBlockPos()));
 
             player.setItemInHand(hand, electrodeStack);
             player.sendSystemMessage(Component.literal("§a電極を準備しました。"));
+            // ▼▼▼ ブロックの状態を「パッドなし」に更新 ▼▼▼
+            level.setBlock(pos, be.getBlockState().setValue(HAS_PADS, false), 3);
             be.setChanged();
         }
         // 電極がすでに取り出されている

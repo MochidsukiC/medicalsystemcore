@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "has_pads=true": {
+      "model": "medicalsystemcore:block/defibrillator_handle"
+    },
+    "has_pads=false": {
+      "model": "medicalsystemcore:block/defibrillator"
+    }
+  }
+}
