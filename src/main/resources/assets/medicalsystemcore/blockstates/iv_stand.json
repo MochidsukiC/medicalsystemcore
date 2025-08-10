@@ -1,7 +1,7 @@
 {
   "variants": {
     "half=lower": {
-      "model": "medicalsystemcore:block/iv_stand"
+      "model": "medicalsystemcore:block/iv_stand_lower"
     },
     "half=upper": {
       "model": "medicalsystemcore:block/iv_stand"

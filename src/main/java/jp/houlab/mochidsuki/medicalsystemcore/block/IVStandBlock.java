@@ -38,23 +38,17 @@ public class IVStandBlock extends BaseEntityBlock {
     protected static final VoxelShape SHAPE = Block.box(7.0D, 0.0D, 7.0D, 9.0D, 16.0D, 9.0D);
 
     public IVStandBlock() {
-        super(BlockBehaviour.Properties.of()
-                .mapColor(MapColor.METAL)
-                .strength(1.5f)
-                .sound(SoundType.METAL)
-                .noOcclusion()
-        );
+        super(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(1.5f).sound(SoundType.METAL).noOcclusion());
         this.registerDefaultState(this.stateDefinition.any().setValue(HALF, DoubleBlockHalf.LOWER));
     }
 
-    // onBreakを追加して、破壊時にアイテムをドロップするようにする
+    // --- onRemoveメソッドを追加 (破壊時にアイテムをドロップ) ---
     @Override
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
         if (!pState.is(pNewState.getBlock())) {
             BlockPos bePos = pState.getValue(HALF) == DoubleBlockHalf.LOWER ? pPos : pPos.below();
             BlockEntity blockEntity = pLevel.getBlockEntity(bePos);
             if (blockEntity instanceof IVStandBlockEntity ivStandEntity) {
-                // インベントリの中身をワールドにドロップ
                 for(int i = 0; i < ivStandEntity.itemHandler.getSlots(); ++i) {
                     ItemStack itemStack = ivStandEntity.itemHandler.getStackInSlot(i);
                     if (!itemStack.isEmpty()) {
@@ -62,78 +56,67 @@ public class IVStandBlock extends BaseEntityBlock {
                     }
                 }
             }
-            super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
         }
+        super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
     }
 
-
-    // useメソッドを全面的に再設計
+    // --- useメソッドを再設計 ---
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
-        // 上半身をクリックした場合のみ反応するようにする
+        // このブロックのインタラクションは上半身でのみ受け付ける
         if (pState.getValue(HALF) != DoubleBlockHalf.UPPER) {
             return InteractionResult.PASS;
         }
 
-        BlockPos bePos = pPos.below(); // ブロックエンティティは必ず下にある
-        BlockEntity entity = pLevel.getBlockEntity(bePos);
-
-        if (!(entity instanceof IVStandBlockEntity blockEntity)) {
-            return InteractionResult.FAIL;
-        }
-
         ItemStack heldItem = pPlayer.getItemInHand(pHand);
 
-        // 手にアイテムを持っている場合：設置を試みる
-        if (!heldItem.isEmpty()) {
-            handleItemPlacement(pPlayer, heldItem, blockEntity);
-        }
-        // 素手の場合：回収を試みる
-        else {
-            handleItemRemoval(pPlayer, blockEntity);
+        // 手に持っているのがパック類か、あるいは素手の場合のみ、このブロックが反応する
+        if (heldItem.isEmpty() || heldItem.is(ModTags.Items.BLOOD_PACKS) || heldItem.is(ModTags.Items.DRUG_PACKS)) {
+            BlockPos bePos = pPos.below();
+            BlockEntity entity = pLevel.getBlockEntity(bePos);
+            if (entity instanceof IVStandBlockEntity blockEntity) {
+                // サーバーサイドでのみ実際のインベントリ操作を行う
+                if (!pLevel.isClientSide) {
+                    if (!heldItem.isEmpty()) { // アイテムを持っている場合: 設置
+                        handleItemPlacement(pPlayer, heldItem, blockEntity);
+                    } else { // 素手の場合: 回収
+                        handleItemRemoval(pPlayer, blockEntity);
+                    }
+                }
+                // クライアント・サーバー両方でSUCCESSを返し、アクションがここで完了したことを示す
+                return InteractionResult.SUCCESS;
+            }
         }
 
-        // クライアント側でもSUCCESSを返すことで、腕を振るアニメーションが再生され、同期ズレを防ぐ
-        return InteractionResult.SUCCESS;
+        // 手にチューブなど、関係ないアイテムを持っている場合はPASSを返し、アイテム側の処理を優先させる
+        return InteractionResult.PASS;
     }
 
     private void handleItemPlacement(Player player, ItemStack heldItem, IVStandBlockEntity blockEntity) {
-        // サーバーサイドでのみ実際の処理を行う
-        if (!player.level().isClientSide()) {
-            ItemStack currentStack;
-            int targetSlot = -1;
+        int targetSlot = -1;
+        if (heldItem.is(ModTags.Items.BLOOD_PACKS)) {
+            targetSlot = 0;
+        } else if (heldItem.is(ModTags.Items.DRUG_PACKS)) {
+            targetSlot = blockEntity.itemHandler.getStackInSlot(1).isEmpty() ? 1 : 2;
+        }
 
-            if (heldItem.is(ModTags.Items.BLOOD_PACKS)) {
-                targetSlot = 0;
-            } else if (heldItem.is(ModTags.Items.DRUG_PACKS)) {
-                // 薬剤スロット1が空ならそこへ、そうでなければスロット2へ
-                targetSlot = blockEntity.itemHandler.getStackInSlot(1).isEmpty() ? 1 : 2;
+        if (targetSlot != -1) {
+            ItemStack currentStack = blockEntity.itemHandler.getStackInSlot(targetSlot);
+            if (!currentStack.isEmpty()) {
+                player.level().addFreshEntity(new ItemEntity(player.level(), player.getX(), player.getY(), player.getZ(), currentStack));
             }
-
-            if (targetSlot != -1) {
-                currentStack = blockEntity.itemHandler.getStackInSlot(targetSlot);
-                // 既に何かあれば、それをワールドにドロップする
-                if (!currentStack.isEmpty()) {
-                    player.level().addFreshEntity(new ItemEntity(player.level(), player.getX(), player.getY(), player.getZ(), currentStack));
-                }
-                // 新しいアイテムを設置
-                blockEntity.itemHandler.setStackInSlot(targetSlot, heldItem.split(1));
-            }
+            blockEntity.itemHandler.setStackInSlot(targetSlot, heldItem.split(1));
         }
     }
 
     private void handleItemRemoval(Player player, IVStandBlockEntity blockEntity) {
-        // サーバーサイドでのみ実際の処理を行う
-        if (!player.level().isClientSide()) {
-            for (int i = 2; i >= 0; i--) { // 2, 1, 0の順でチェック
-                if (!blockEntity.itemHandler.getStackInSlot(i).isEmpty()) {
-                    player.getInventory().add(blockEntity.itemHandler.extractItem(i, 1, false));
-                    break; // 1つ回収したらループを抜ける
-                }
+        for (int i = 2; i >= 0; i--) {
+            if (!blockEntity.itemHandler.getStackInSlot(i).isEmpty()) {
+                player.getInventory().add(blockEntity.itemHandler.extractItem(i, 1, false));
+                break;
             }
         }
     }
-
     // ブロックの状態定義にHALFプロパティを追加
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> pBuilder) {

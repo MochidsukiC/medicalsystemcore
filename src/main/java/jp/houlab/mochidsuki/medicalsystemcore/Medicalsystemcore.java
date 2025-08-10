@@ -1,12 +1,11 @@
 package jp.houlab.mochidsuki.medicalsystemcore;
 
 import com.mojang.logging.LogUtils;
+import jp.houlab.mochidsuki.medicalsystemcore.block.DefibrillatorBlock;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
-import jp.houlab.mochidsuki.medicalsystemcore.item.BandageItem;
-import jp.houlab.mochidsuki.medicalsystemcore.item.DefibrillatorItem;
-import jp.houlab.mochidsuki.medicalsystemcore.item.FluidPackItem;
-import jp.houlab.mochidsuki.medicalsystemcore.item.TubeItem;
+import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.TransfusionEffect;
@@ -66,14 +65,22 @@ public class Medicalsystemcore {
 
     //Block
     public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);
+    public static final RegistryObject<Block> DEFIBRILLATOR_BLOCK = BLOCKS.register("defibrillator_block",
+            () -> new DefibrillatorBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)));
 
     //BlockEntity
     public static final RegistryObject<BlockEntityType<IVStandBlockEntity>> IV_STAND_BLOCK_ENTITY =
             BLOCK_ENTITIES.register("iv_stand_block_entity", () ->
                     BlockEntityType.Builder.of(IVStandBlockEntity::new, IV_STAND.get()).build(null));
+
+    public static final RegistryObject<BlockEntityType<DefibrillatorBlockEntity>> DEFIBRILLATOR_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("defibrillator_block_entity", () ->
+                    BlockEntityType.Builder.of(DefibrillatorBlockEntity::new, DEFIBRILLATOR_BLOCK.get()).build(null));
+
+
     //Item
-    public static final RegistryObject<Item> DEFIBRILLATOR = ITEMS.register("defibrillator",
-            () -> new DefibrillatorItem(new Item.Properties().stacksTo(1)));
+    public static final RegistryObject<Item> DEFIBRILLATOR_BLOCK_ITEM = ITEMS.register("defibrillator_block",
+            () -> new BlockItem(DEFIBRILLATOR_BLOCK.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> BANDAGE = ITEMS.register("bandage",
             () -> new BandageItem(new Item.Properties().stacksTo(16)));
@@ -95,9 +102,12 @@ public class Medicalsystemcore {
     public static final RegistryObject<Item> TUBE = ITEMS.register("tube",
             () -> new TubeItem(new Item.Properties()));
 
+    public static final RegistryObject<Item> ELECTRODE = ITEMS.register("electrode",
+            () -> new ElectrodeItem(new Item.Properties().stacksTo(1)));
+
     // Creates a creative tab with the id "medicalsystemcore:example_tab" for the example item, that is placed after the combat tab
-    public static final RegistryObject<CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder().withTabsBefore(CreativeModeTabs.COMBAT).icon(() -> DEFIBRILLATOR.get().getDefaultInstance()).displayItems((parameters, output) -> {
-        output.accept(DEFIBRILLATOR.get());
+    public static final RegistryObject<CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder().withTabsBefore(CreativeModeTabs.COMBAT).icon(() -> DEFIBRILLATOR_BLOCK_ITEM.get().getDefaultInstance()).displayItems((parameters, output) -> {
+        output.accept(DEFIBRILLATOR_BLOCK_ITEM.get());
         output.accept(BANDAGE.get());// Add the example item to the tab. For your own tabs, this method is preferred over the event
         output.accept(IV_STAND_ITEM.get());
         output.accept(BLOOD_PACK.get());
@@ -155,7 +165,6 @@ public class Medicalsystemcore {
     // Add the example block item to the building blocks tab
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
-            event.accept(DEFIBRILLATOR);
             event.accept(BANDAGE);
         }
     }

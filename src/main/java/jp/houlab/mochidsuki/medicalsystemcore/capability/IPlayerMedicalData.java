@@ -24,9 +24,9 @@ public interface IPlayerMedicalData {
     void setGunshotWounds(int count);
     void addGunshotWounds(int amount); // 加算・減算用の便利なメソッド
 
-    // --- 出血レベル ---
-    int getBleedingLevel();
-    void setBleedingLevel(int level);
+    // --- 出血速度 ---
+    float getBleedingSpeed();
+    void setBleedingSpeed(float speed);
 
     // --- ティックカウンター ---
     int getTickCounter();
@@ -44,6 +44,9 @@ public interface IPlayerMedicalData {
     Optional<BlockPos> getTransfusingFromStandPos();
     void setTransfusingFromStandPos(Optional<BlockPos> pos);
 
+
+    boolean isDamageImmune();
+    void setDamageImmune(boolean immune);
 
     // --- データの保存と読み込み ---
     void saveNBTData(CompoundTag nbt);

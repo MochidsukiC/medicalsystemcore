@@ -18,6 +18,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -27,6 +29,53 @@ import java.util.Optional;
 
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID) // MODIDはあなたのMod IDに合わせてください
 public class ModEvents {
+
+    @SubscribeEvent
+    public static void onLivingDeath(LivingDeathEvent event) {
+        if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
+            player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
+                // 既に心停止状態の場合は、そのまま死亡させる
+                if (medicalData.getHeartStatus() != HeartStatus.NORMAL) {
+                    // 死亡時にステータスをリセット
+                    medicalData.setHeartStatus(HeartStatus.NORMAL);
+                    medicalData.setDamageImmune(false);
+                    return;
+                }
+
+                // --- 死亡をキャンセルし、心停止に移行させる ---
+                event.setCanceled(true); // 死亡をキャンセル
+                player.setHealth(0.1f); // HPを極微量で維持
+                medicalData.setHeartStatus(HeartStatus.CARDIAC_ARREST);
+                medicalData.setDamageImmune(true); // ダメージ無効状態にする
+
+                // クライアントに状態変化を通知
+                if (player instanceof ServerPlayer serverPlayer) {
+                    ModPackets.sendToAllTracking(new ClientboundMedicalDataSyncPacket(
+                            serverPlayer.getUUID(),
+                            medicalData.getBloodLevel(),
+                            HeartStatus.CARDIAC_ARREST,
+                            medicalData.getBleedingSpeed(), // 新しいbleedingSpeedを使用
+                            medicalData.getResuscitationChance()
+                    ), serverPlayer);
+                }
+            });
+        }
+    }
+
+    /**
+     * エンティティがダメージを受ける直前に呼ばれるイベント
+     */
+    @SubscribeEvent
+    public static void onLivingHurt(LivingHurtEvent event) {
+        if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
+            player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
+                // ダメージ無効フラグがtrueなら、いかなるダメージもキャンセルする
+                if (medicalData.isDamageImmune()) {
+                    event.setCanceled(true);
+                }
+            });
+        }
+    }
 
     /**
      * プレイヤーなどのエンティティにCapabilityをアタッチ（紐付け）するイベント
@@ -40,6 +89,7 @@ public class ModEvents {
             }
         }
     }
+
 
     /**
      * プレイヤーが死亡してリスポーンした際に、データを引き継ぐためのイベント
@@ -79,35 +129,25 @@ public class ModEvents {
         }
         float damageAmount = event.getAmount();
 
+        // 新しい出血速度の計算ロジック
         player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-            int currentBleedingLevel = medicalData.getBleedingLevel();
-            if (currentBleedingLevel >= 4) {
-                return;
-            }
-            int levelIncrease = 0;
-            double chance = Math.random();
-
-            // ハードコードされた数値をConfigから読み込むように変更
-            if (damageAmount >= 1 && damageAmount <= 5) {
-                if (chance < Config.BLEED_CHANCE_LOW) {
-                    levelIncrease = 1;
+            float speedIncrease = 0;
+            if (damageAmount > 0.1f && damageAmount <= 2f) {
+                if (Math.random() < 0.10) { // 10%の確率
+                    speedIncrease = 1.0f;
                 }
-            } else if (damageAmount > 5 && damageAmount <= 10) {
-                if (chance < Config.BLEED_CHANCE_MID) {
-                    levelIncrease = 1;
-                }
-            } else if (damageAmount > 10) {
-                if (chance < Config.BLEED_CHANCE_HIGH_LVL2) { // 先にレベル2の確率を判定
-                    levelIncrease = 2;
-                } else if (chance < (Config.BLEED_CHANCE_HIGH_LVL1 + Config.BLEED_CHANCE_HIGH_LVL2)) {
-                    levelIncrease = 1;
-                }
+            } else if (damageAmount > 2f && damageAmount <= 5f) {
+                speedIncrease = 3.0f;
+            } else if (damageAmount > 5f && damageAmount <= 10f) {
+                speedIncrease = 6.0f;
+            } else if (damageAmount > 10f) {
+                speedIncrease = 9.0f;
             }
 
-            if (levelIncrease > 0) {
-                int newBleedingLevel = Math.min(4, currentBleedingLevel + levelIncrease);
-                medicalData.setBleedingLevel(newBleedingLevel);
-                player.sendSystemMessage(net.minecraft.network.chat.Component.literal("出血レベルが " + newBleedingLevel + " になった。"));
+            if (speedIncrease > 0) {
+                float newSpeed = medicalData.getBleedingSpeed() + speedIncrease;
+                medicalData.setBleedingSpeed(newSpeed);
+                player.sendSystemMessage(Component.literal("出血速度が " + String.format("%.2f", newSpeed) + " になった。"));
             }
         });
     }
@@ -186,76 +226,56 @@ public class ModEvents {
                 if (currentStatus == HeartStatus.CARDIAC_ARREST && ticks % (20*60) == 0) {
                     medicalData.setResuscitationChance(medicalData.getResuscitationChance() - 5.0f);
                 }
-            } else {
-                // 正常時のリセット処理と、心停止への移行判定
-                medicalData.setCardiacArrestTimer(0);
-                medicalData.setResuscitationChance(100.0f);
-                if (bloodLevel < 60.0f) {
-                    medicalData.setHeartStatus(HeartStatus.CARDIAC_ARREST);
-                }
             }
 
             // 出血処理 (これは状態を直接変更しないので、ここに残す)
             // ... (出血ダメージと血液量減少のロジック) ...
 
-            int bleedingLevel = medicalData.getBleedingLevel();
-
-            if ( bleedingLevel > 0) {
-                int hpInterval = 0;
-                int bloodInterval = 0;
-
-                // ハードコードされた数値をConfigから読み込むように変更
-                switch (bleedingLevel) {
-                    case 1 -> {
-                        hpInterval = (int)(Config.BLEED_LVL1_HP_INTERVAL * 20);
-                        bloodInterval = (int)(Config.BLEED_LVL1_BLOOD_INTERVAL * 20);
-                    }
-                    case 2 -> {
-                        hpInterval = (int)(Config.BLEED_LVL2_HP_INTERVAL * 20);
-                        bloodInterval = (int)(Config.BLEED_LVL2_BLOOD_INTERVAL * 20);
-                    }
-                    case 3 -> {
-                        hpInterval = (int)(Config.BLEED_LVL3_HP_INTERVAL * 20);
-                        bloodInterval = (int)(Config.BLEED_LVL3_BLOOD_INTERVAL * 20);
-                    }
-                    case 4 -> {
-                        hpInterval = (int)(Config.BLEED_LVL4_HP_INTERVAL * 20);
-                        bloodInterval = (int)(Config.BLEED_LVL4_BLOOD_INTERVAL * 20);
-                    }
-                }
-
-                // --- ▼▼▼ 出血速度の低下処理を追加 ▼▼▼ ---
-                if (medicalData.getHeartStatus() != HeartStatus.NORMAL) {
-                    if (bloodLevel < 30.0f) {
-                        // 血液量30%未満の心停止中は、出血速度が1/200になる
-                        hpInterval *= 200;
-                        bloodInterval *= 200;
+            float currentSpeed = medicalData.getBleedingSpeed();
+            if (currentSpeed > 0) {
+                float bloodLossPerTick;
+                // 健康状態か心不全かで計算式を変更
+                if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
+                    bloodLossPerTick = currentSpeed / 60.0f / 20.0f; // 速度 / 60秒 / 20ticks
+                } else {
+                    if (medicalData.getBloodLevel() < 30.0f) {
+                        bloodLossPerTick = currentSpeed / 200.0f / 60.0f / 20.0f;
                     } else {
-                        // 通常の心停止中は、出血速度が1/20になる
-                        hpInterval *= 20;
-                        bloodInterval *= 20;
+                        bloodLossPerTick = currentSpeed / 20.0f / 60.0f / 20.0f;
                     }
                 }
-
-                if (hpInterval > 0 && ticks % hpInterval == 0) {
-                    if (serverPlayer.getHealth() > 1.0f) {
-                        serverPlayer.hurt(ModDamageTypes.bleeding(serverPlayer.level()), 1.0f); //新しいコード
-                    }
-                    serverPlayer.sendSystemMessage(net.minecraft.network.chat.Component.literal("§c出血... §fHP: " + String.format("%.1f", serverPlayer.getHealth()) + ", 血液量: " + String.format("%.1f", medicalData.getBloodLevel()) + "%"));
-                }
-                if (bloodInterval > 0 && ticks % bloodInterval == 0) {
-                    medicalData.setBloodLevel(medicalData.getBloodLevel() - 1.0f);
-                }
-
+                medicalData.setBloodLevel(medicalData.getBloodLevel() - bloodLossPerTick);
             } else {
-                // ハードコードされた数値をConfigから読み込むように変更
-                int recoveryInterval = (int)(Config.BLOOD_RECOVERY_INTERVAL * 20);
-                if (ticks % recoveryInterval == 0) {
-                    if (medicalData.getBloodLevel() < 100.0f) {
-                        medicalData.setBloodLevel(medicalData.getBloodLevel() + 1.0f);
+                // 出血速度が0なら、血液量を回復
+                // 0.5/s = 1tickあたり 0.5/20
+                medicalData.setBloodLevel(medicalData.getBloodLevel() + 0.5f / 20.0f);
+            }
+
+            if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
+                // --- 低血液量による継続ダメージ ---
+                if (ticks % 100 == 0) { // 5秒 (100 ticks) ごとに実行
+                    float blood = medicalData.getBloodLevel();
+                    float damageAmount = 0;
+
+                    if (blood < 85 && blood >= 70) {
+                        damageAmount = 4.0f;
+                    } else if (blood < 70 && blood >= 65) {
+                        damageAmount = 8.0f;
+                    } else if (blood < 65 && blood >= 60) {
+                        damageAmount = 12.0f;
+                    } else if (blood < 60) {
+                        damageAmount = 99999f;
+                    }
+
+                    if (damageAmount > 0) {
+                        // ▼▼▼ ここを変更 ▼▼▼
+                        // lowBloodVolumeの代わりに、既存のbleedingダメージタイプを使用
+                        serverPlayer.hurt(ModDamageTypes.bleeding(serverPlayer.level()), damageAmount);
+                        System.out.println(medicalData.getHeartStatus());
                     }
                 }
             }
+
 
             // --- 3. 状態変化の検知と、それに伴う処理 ---
             // (このセクションでは、変更されたmedicalDataの値を見て、1回限りのアクションを実行する)
@@ -274,7 +294,7 @@ public class ModEvents {
                     serverPlayer.getUUID(),
                     medicalData.getBloodLevel(),
                     newStatus,
-                    medicalData.getBleedingLevel(),
+                    medicalData.getBleedingSpeed(),
                     medicalData.getResuscitationChance()
             ), serverPlayer);
 

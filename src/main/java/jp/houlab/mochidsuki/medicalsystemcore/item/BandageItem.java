@@ -36,10 +36,12 @@ public class BandageItem extends Item {
     public ItemStack finishUsingItem(ItemStack pStack, Level pLevel, LivingEntity pLivingEntity) {
         if (!pLevel.isClientSide() && pLivingEntity instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                if (data.getBleedingLevel() > 0) {
-                    data.setBleedingLevel(data.getBleedingLevel() - 1);
+                // ▼▼▼ このブロックを修正 ▼▼▼
+                float currentSpeed = data.getBleedingSpeed();
+                if (currentSpeed > 0) {
+                    // とりあえず1.0減少させる（将来的に「包帯エフェクト」で置き換え）
+                    data.setBleedingSpeed(currentSpeed - 1.0f);
                     pLevel.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.5f, 1.5f);
-                    // アイテムを1つ消費する
                     pStack.shrink(1);
                 }
             });

@@ -13,12 +13,14 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     private HeartStatus heartStatus = HeartStatus.NORMAL;
     private boolean hasFracture = false;
     private int gunshotWounds = 0;
-    private int bleedingLevel = 0;
     private int tickCounter = 0;
+    private float bleedingSpeed = 0.0f;
     private float resuscitationChance = 100.0f;
     private int cardiacArrestTimer = 0;
     private HeartStatus previousHeartStatus = HeartStatus.NORMAL;
     private Optional<BlockPos> blockPos = Optional.empty();
+    private boolean damageImmune = false;
+
 
     @Override
     public float getBloodLevel() {
@@ -68,14 +70,13 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     }
 
     @Override
-    public int getBleedingLevel() {
-        return this.bleedingLevel;
+    public float getBleedingSpeed() {
+        return this.bleedingSpeed;
     }
 
     @Override
-    public void setBleedingLevel(int level) {
-        // 0から4の間に収める
-        this.bleedingLevel = Math.max(0, Math.min(4, level));
+    public void setBleedingSpeed(float speed) {
+        this.bleedingSpeed = Math.max(0.0f, speed); // 0未満にならないように
     }
 
     @Override
@@ -130,6 +131,14 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.blockPos = pos;
     }
 
+    @Override
+    public boolean isDamageImmune() {
+        return this.damageImmune;
+    }
+    @Override
+    public void setDamageImmune(boolean immune) {
+        this.damageImmune = immune;
+    }
 
     /**
      * このデータをNBT形式（Minecraftのデータ保存形式）に変換して保存します。
@@ -141,7 +150,7 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         nbt.putInt("heartStatus", this.heartStatus.ordinal());
         nbt.putBoolean("hasFracture", this.hasFracture);
         nbt.putInt("gunshotWounds", this.gunshotWounds);
-        nbt.putInt("bleedingLevel", this.bleedingLevel);
+        nbt.putFloat("bleedingSpeed", this.bleedingSpeed);
     }
 
     /**
@@ -154,6 +163,6 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.heartStatus = HeartStatus.values()[nbt.getInt("heartStatus")];
         this.hasFracture = nbt.getBoolean("hasFracture");
         this.gunshotWounds = nbt.getInt("gunshotWounds");
-        this.bleedingLevel = nbt.getInt("bleedingLevel");
+        this.bleedingSpeed = nbt.getInt("bleedingSpeed");
     }
 }

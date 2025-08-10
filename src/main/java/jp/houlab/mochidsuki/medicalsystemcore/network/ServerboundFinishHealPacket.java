@@ -42,8 +42,8 @@ public class ServerboundFinishHealPacket {
                 // サーバー側で最終的な検証を行う (例: 距離が近いか、など)
                 if (healer.distanceToSqr(targetPlayer) < 25.0) { // 5ブロック以内
                     targetPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                        int newBleedingLevel = Math.max(0, data.getBleedingLevel() - 2);
-                        data.setBleedingLevel(newBleedingLevel);
+                        float newBleedingSpeed = Math.max(0, data.getBleedingSpeed() - 2);
+                        data.setBleedingSpeed(newBleedingSpeed);
 
                         // 治療者の包帯を1つ消費
                         // healer.getMainHandItem().shrink(1); // 注: 安全のためサーバー側でのアイテム消費は慎重に

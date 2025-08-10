@@ -23,15 +23,15 @@ public class ClientboundMedicalDataSyncPacket {
     private final UUID playerUUID;
     private final float bloodLevel;
     private final HeartStatus heartStatus;
-    private final int bleedingLevel;
+    private final float bleedingSpeed;
     private final float resuscitationChance;
 
     // コンストラクタを更新
-    public ClientboundMedicalDataSyncPacket(UUID playerUUID, float bloodLevel, HeartStatus heartStatus, int bleedingLevel, float resuscitationChance) {
+    public ClientboundMedicalDataSyncPacket(UUID playerUUID, float bloodLevel, HeartStatus heartStatus, float bleedingSpeed , float resuscitationChance) {
         this.playerUUID = playerUUID;
         this.bloodLevel = bloodLevel;
         this.heartStatus = heartStatus;
-        this.bleedingLevel = bleedingLevel;
+        this.bleedingSpeed = bleedingSpeed;
         this.resuscitationChance = resuscitationChance;
     }
 
@@ -39,7 +39,7 @@ public class ClientboundMedicalDataSyncPacket {
         this.playerUUID = playerUUID;
         this.bloodLevel = medicalData.getBloodLevel();
         this.heartStatus = heartStatus;
-        this.bleedingLevel = medicalData.getBleedingLevel();
+        this.bleedingSpeed = medicalData.getBleedingSpeed();
         this.resuscitationChance = medicalData.getResuscitationChance();
     }
 
@@ -48,7 +48,7 @@ public class ClientboundMedicalDataSyncPacket {
         this.playerUUID = buf.readUUID();
         this.bloodLevel = buf.readFloat();
         this.heartStatus = buf.readEnum(HeartStatus.class);
-        this.bleedingLevel = buf.readInt();
+        this.bleedingSpeed = buf.readFloat();
         this.resuscitationChance = buf.readFloat();
     }
 
@@ -57,7 +57,7 @@ public class ClientboundMedicalDataSyncPacket {
         buf.writeUUID(playerUUID);
         buf.writeFloat(bloodLevel);
         buf.writeEnum(heartStatus);
-        buf.writeInt(bleedingLevel);
+        buf.writeFloat(bleedingSpeed);
         buf.writeFloat(resuscitationChance);
     }
 
@@ -68,7 +68,7 @@ public class ClientboundMedicalDataSyncPacket {
             ClientMedicalData data = ClientMedicalDataManager.getPlayerData(this.playerUUID);
             data.bloodLevel = this.bloodLevel;
             data.heartStatus = this.heartStatus;
-            data.bleedingLevel = this.bleedingLevel;
+            data.bleedingSpeed = this.bleedingSpeed;
             data.resuscitationChance = this.resuscitationChance;
         });
         return true;

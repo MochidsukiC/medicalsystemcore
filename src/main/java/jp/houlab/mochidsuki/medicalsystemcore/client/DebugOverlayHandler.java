@@ -27,7 +27,7 @@ public class DebugOverlayHandler {
                 // 各ステータスをフォーマットして追加
                 leftStrings.add(String.format("Blood Level: %.1f%%", data.bloodLevel));
                 leftStrings.add("Heart Status: " + data.heartStatus.name());
-                leftStrings.add("Bleeding Level: " + data.bleedingLevel);
+                leftStrings.add(String.format("Bleeding Speed: %.2f", data.bleedingSpeed));
                 leftStrings.add(String.format("Resuscitation Chance: %.1f%%", data.resuscitationChance));
             });
         }
