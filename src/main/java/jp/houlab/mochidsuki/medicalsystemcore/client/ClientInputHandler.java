@@ -9,6 +9,7 @@ import net.minecraftforge.client.event.MovementInputUpdateEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * クライアントサイドの入力を監視し、必要に応じてブロックするクラス
@@ -22,6 +23,8 @@ public class ClientInputHandler {
         if (event.side.isClient() && event.phase == TickEvent.Phase.END) {
             // Minecraftの姿勢計算ロジックが実行された後に、私たちのロジックで上書きする
             Player player = event.player;
+
+            ClientQTEManager.tick();
 
             ClientHealingManager.tick();
 
@@ -47,6 +50,17 @@ public class ClientInputHandler {
             event.getInput().forwardImpulse = 0;
             event.getInput().leftImpulse = 0;
             event.getInput().jumping = false;
+        }
+    }
+
+    /**
+     * マウスボタンの入力イベント
+     */
+    @SubscribeEvent
+    public static void onMouseButton(InputEvent.MouseButton.Post event) {
+        // 右クリックが「離された」時、かつQTEがアクティブな場合
+        if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && event.getAction() == GLFW.GLFW_RELEASE && ClientQTEManager.isActive()) {
+            ClientQTEManager.stop();
         }
     }
 }

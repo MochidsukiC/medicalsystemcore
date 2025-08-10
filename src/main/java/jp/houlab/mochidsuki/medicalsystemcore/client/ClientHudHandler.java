@@ -29,8 +29,40 @@ public class ClientHudHandler {
             if (ClientHealingManager.isHealing()) {
                 float progress = ClientHealingManager.getProgress();
                 rendProgressBar(event,WOOL, progress);
+            } else if (ClientQTEManager.isActive()) {
+                event.setCanceled(true);
+                drawQTEHud(event.getGuiGraphics(), event.getWindow().getGuiScaledWidth(), event.getWindow().getGuiScaledHeight());
             }
         }
+    }
+
+    /**
+     * QTEミニゲーム用のHUDを描画する専用メソッド
+     */
+    private static void drawQTEHud(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
+        // --- バーのジオメトリ定義 ---
+        int barWidth = 182;
+        int barHeight = 20;
+        int barX = (screenWidth - barWidth) / 2;
+        int barY = (screenHeight - barHeight) / 2;
+
+        // --- 各ゾーンの描画 ---
+        // 1. 背景 (濃いグレー)
+        guiGraphics.fill(barX, barY, barX + barWidth, barY + barHeight, 0xFF333333);
+
+        // 2. 成功ゾーン (薄いグレー)
+        int successStartX = barX + (int) (barWidth * ClientQTEManager.getSuccessStart());
+        int successEndX = barX + (int) (barWidth * ClientQTEManager.getSuccessEnd());
+        guiGraphics.fill(successStartX, barY, successEndX, barY + barHeight, 0xFF888888);
+
+        // 3. 大成功ゾーン (黄色)
+        int greatSuccessStartX = barX + (int) (barWidth * ClientQTEManager.getGreatSuccessStart());
+        int greatSuccessEndX = barX + (int) (barWidth * ClientQTEManager.getGreatSuccessEnd());
+        guiGraphics.fill(greatSuccessStartX, barY, greatSuccessEndX, barY + barHeight, 0xFFFFFF55);
+
+        // 4. 動くアンカー (赤い縦線)
+        int anchorX = barX + (int) (barWidth * ClientQTEManager.getBarPosition());
+        guiGraphics.fill(anchorX - 1, barY - 2, anchorX + 1, barY + barHeight + 2, 0xFFFF0000);
     }
 
     private static void rendProgressBar(RenderGuiOverlayEvent.Pre event,ResourceLocation barTexture, float progress) {

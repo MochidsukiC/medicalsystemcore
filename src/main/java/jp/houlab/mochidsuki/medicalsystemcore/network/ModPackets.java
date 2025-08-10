@@ -33,11 +33,25 @@ public class ModPackets {
                 .consumerMainThread(ClientboundMedicalDataSyncPacket::handle)
                 .add();
 
+        net.messageBuilder(ClientboundStartQTEPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundStartQTEPacket::new)
+                .encoder(ClientboundStartQTEPacket::toBytes)
+                .consumerMainThread(ClientboundStartQTEPacket::handle)
+                .add();
+
+
         net.messageBuilder(ServerboundFinishHealPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
                 .decoder(ServerboundFinishHealPacket::new)
                 .encoder(ServerboundFinishHealPacket::toBytes)
                 .consumerMainThread(ServerboundFinishHealPacket::handle)
                 .add();
+
+        net.messageBuilder(ServerboundQTETResultPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
+                .decoder(ServerboundQTETResultPacket::new)
+                .encoder(ServerboundQTETResultPacket::toBytes)
+                .consumerMainThread(ServerboundQTETResultPacket::handle)
+                .add();
+
     }
 
     // 特定のプレイヤーにパケットを送信するヘルパーメソッド
