@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
+import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientHealingManager;
 import net.minecraft.sounds.SoundEvents;
@@ -7,6 +8,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -15,6 +17,9 @@ import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.level.Level;
 
 public class BandageItem extends Item {
+    private static final int MAX_EFFECT_LEVEL = 6;
+
+
     public BandageItem(Properties pProperties) {
         super(pProperties);
     }
@@ -30,23 +35,31 @@ public class BandageItem extends Item {
     }
 
     /**
-     * アイテムの使用が完了した時に呼ばれるメソッド (食事モデル)
+     * 自分への使用が完了した時に呼ばれるメソッド
      */
     @Override
     public ItemStack finishUsingItem(ItemStack pStack, Level pLevel, LivingEntity pLivingEntity) {
-        if (!pLevel.isClientSide() && pLivingEntity instanceof Player player) {
-            player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                // ▼▼▼ このブロックを修正 ▼▼▼
-                float currentSpeed = data.getBleedingSpeed();
-                if (currentSpeed > 0) {
-                    // とりあえず1.0減少させる（将来的に「包帯エフェクト」で置き換え）
-                    data.setBleedingSpeed(currentSpeed - 1.0f);
-                    pLevel.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.5f, 1.5f);
-                    pStack.shrink(1);
-                }
-            });
+        if (pLivingEntity instanceof Player player) {
+            // ▼▼▼ この行を変更 ▼▼▼
+            applyBandageEffect(player, 1); // 自分にはレベルIを付与
         }
-        return pStack;
+        // アイテム消費は自動で行われるのでshrinkは不要
+        return super.finishUsingItem(pStack, pLevel, pLivingEntity);
+    }
+
+    /**
+     * 包帯エフェクトをスタックさせるロジック
+     * @param target 対象プレイヤー
+     * @param levelToAdd 付与するエフェクトレベル
+     */
+    private void applyBandageEffect(Player target, int levelToAdd) {
+        MobEffectInstance existingEffect = target.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get());
+        int currentLevel = 0;
+        if (existingEffect != null) {
+            currentLevel = existingEffect.getAmplifier() + 1;
+        }
+        int newLevel = Math.min(MAX_EFFECT_LEVEL, currentLevel + levelToAdd);
+        target.addEffect(new MobEffectInstance(Medicalsystemcore.BANDAGE_EFFECT.get(), 60 * 20, newLevel - 1, true, true));
     }
 
     /**

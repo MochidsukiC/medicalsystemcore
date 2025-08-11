@@ -9,6 +9,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.TransfusionEffect;
+import jp.houlab.mochidsuki.medicalsystemcore.effect.BandageEffect;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.DefibrillatorBlockEntityRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
@@ -64,6 +65,8 @@ public class Medicalsystemcore {
     //Effect
     public static final RegistryObject<MobEffect> TRANSFUSION = MOB_EFFECTS.register("transfusion",
             TransfusionEffect::new);
+    public static final RegistryObject<MobEffect> BANDAGE_EFFECT = MOB_EFFECTS.register("bandage_effect",
+            BandageEffect::new);
 
     //Block
     public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);

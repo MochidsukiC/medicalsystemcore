@@ -59,7 +59,7 @@ public class DefibrillatorBlockEntityRenderer implements BlockEntityRenderer<Def
             int color = 0xFFFFFFFF; // 白色
 
             // 専用メソッドを呼び出してテキストを描画
-            renderTextOnDisplay(pPoseStack, pBuffer, 0xF000F0, text, color);
+            renderTextOnDisplay(pPoseStack, pBuffer, text);
         }
     }
 
@@ -149,44 +149,41 @@ public class DefibrillatorBlockEntityRenderer implements BlockEntityRenderer<Def
 
         poseStack.popPose(); // この描画専用の状態を終了
     }
-    /**
-     * モデルのディスプレイ部分にテキストを描画する専用メソッド
-     */
-    private void renderTextOnDisplay(PoseStack poseStack, MultiBufferSource buffer, int light, String text, int color) {
-        poseStack.pushPose(); // テキスト描画専用の状態を開始
+    private void renderTextOnDisplay(PoseStack poseStack, MultiBufferSource pBuffer, String text) {
+        poseStack.pushPose(); // テキスト描画専用の座標変換を開始
 
-        // --- Step 1: モデル全体の回転に合わせる ---
-        // あなたのモデルの主要なエレメントと同じ回転を適用し、描画空間を傾ける
-        poseStack.translate(0.5, 0.5, 0.5);
+        // --- Step 1: モデルの傾き(22.5度)に、描画空間全体を合わせる ---
+        // JSONの主要な回転基点 origin:[0, 2, 0] を反映
+        poseStack.translate(0.0/16.0, 2.0/16.0, 0.0/16.0);
         poseStack.mulPose(Axis.XP.rotationDegrees(22.5f));
-        poseStack.translate(-0.5, -0.5, -0.5);
+        poseStack.translate(0.0/16.0, -2.0/16.0, 0.0/16.0);
 
-        // --- Step 2: ディスプレイの位置へ移動 ---
-        // JSONの黒い画面エレメント from:[7, 4, 3.5] に基づき、描画の基準点を移動
-        // Z座標を少し手前に出す(0.001f)ことで、モデルとの表示のチラつきを防ぐ
-        poseStack.translate(7f/16f, 4f/16f, 3.5f/16f + 0.001f);
+        // --- Step 2: 傾いた空間の中で、ディスプレイの「中心点」に移動 ---
+        // JSONの黒い画面エレメント from:[7, 4, 3.5] to:[14, 10, 4.5]
+        float centerX = (7f + 14f) / 2f / 16f; // = 10.5 / 16
+        float centerY = (4f + 11f) / 2f / 16f; // = 7.0 / 16
+        float centerZ = (3.5f) / 2f / 16f; // = 4.0 / 16
+        // Zを少し手前に出して表示のチラつきを防ぐ
+        poseStack.translate(centerX, centerY, centerZ - 0.801f/16f);
 
-        // --- Step 3: テキスト描画用の設定 ---
-        // 描画の向きを調整
-        poseStack.mulPose(Axis.YP.rotationDegrees(180));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(180));
+        // --- Step 3: テキスト描画のために、空間を2Dスクリーンに変換 ---
+        // Y軸で180度回転させ、こちらを向ける
+        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
+        // スケールを調整し、Yをマイナスにすることで文字の上下を正しくする
+        float scale = 0.02f;
+        poseStack.scale(scale, -scale, scale);
 
-        // スケールを調整 (フォントはピクセル単位なので非常に小さくする)
-        float scale = 0.005f;
-        poseStack.scale(scale, scale, scale);
-
-        // --- Step 4: テキストの描画 ---
+        // --- Step 4: テキストを描画 ---
         Matrix4f matrix = poseStack.last().pose();
 
-        // テキストを中央に配置するためのオフセットを計算
-        // ディスプレイの幅 (14-7=7) をスケールで割ってピクセル幅に変換
-        float displayPixelWidth = (7f / 16f) / scale;
-        float textWidth = this.font.width(text);
-        float xOffset = (displayPixelWidth - textWidth) / 2f;
+        // 基準点がディスプレイの中心になったため、文字の幅と高さの半分だけオフセットすれば中央揃えになる
+        float xOffset = - (this.font.width(text) / 2f);
+        float yOffset = - (this.font.lineHeight / 2f);
+        int color = 0xFFFFFFFF; // 白色
+        int maxLight = 15728880; // 最大光量
 
-        // 実際にテキストを描画
-        this.font.drawInBatch(text, xOffset, 0, color, false, matrix, buffer, Font.DisplayMode.NORMAL, 0, light);
+        this.font.drawInBatch(text, xOffset, yOffset, color, false, matrix, pBuffer, Font.DisplayMode.NORMAL, 0, maxLight);
 
-        poseStack.popPose(); // テキスト描画の状態を終了
+        poseStack.popPose(); // テキスト描画の座標変換を終了
     }
 }

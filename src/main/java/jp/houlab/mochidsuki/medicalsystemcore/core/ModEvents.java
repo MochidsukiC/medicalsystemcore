@@ -233,6 +233,29 @@ public class ModEvents {
 
             float currentSpeed = medicalData.getBleedingSpeed();
             if (currentSpeed > 0) {
+                float recoveryRatePerSecond = 0.1f;
+
+                // 包帯エフェクトのレベルを確認
+                if (serverPlayer.hasEffect(Medicalsystemcore.BANDAGE_EFFECT.get())) {
+                    // Amplifierはレベル0から始まるので、実際のレベルは+1する
+                    int bandageLevel = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get()).getAmplifier() + 1;
+                    // 仕様の計算式を適用
+                    recoveryRatePerSecond += 0.1f * 5*bandageLevel;
+                }
+
+                // TODO: 将来的に血小板エフェクトの計算もここに追加
+
+                if (recoveryRatePerSecond > 0) {
+                    // 1秒あたりの回復量を、1tickあたりの回復量に変換 (1秒 = 20 tick)
+                    float recoveryPerTick = recoveryRatePerSecond / 20.0f/60;
+                    medicalData.setBleedingSpeed(currentSpeed - recoveryPerTick);
+
+                    currentSpeed = medicalData.getBleedingSpeed();
+                }
+            }
+
+
+            if (currentSpeed > 0) {
                 float bloodLossPerTick;
                 // 健康状態か心不全かで計算式を変更
                 if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
@@ -250,6 +273,7 @@ public class ModEvents {
                 // 0.5/s = 1tickあたり 0.5/20
                 medicalData.setBloodLevel(medicalData.getBloodLevel() + 0.5f / 20.0f);
             }
+
 
             if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
                 // --- 低血液量による継続ダメージ ---
