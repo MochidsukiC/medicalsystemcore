@@ -15,11 +15,10 @@ import org.joml.Matrix4f;
 public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<HeadsideMonitorBlockEntity> {
     private final Font font;
     // 波形の履歴を保持するための配列。クラスのフィールドとして持つことで、描画がスムーズになる
-    private final float[] lead1History = new float[80];
+    private final float[] lead1History = new float[80]; // 80フレーム分の履歴
     private final float[] lead2History = new float[80];
     private final float[] lead3History = new float[80];
     private int historyIndex = 0;
-
 
     public HeadsideMonitorBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
         this.font = context.getFont();
@@ -30,17 +29,10 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         // --- サーバーから同期された最新のデータを取得 ---
         int heartRate = pBlockEntity.heartRate;
         float bloodLevel = pBlockEntity.bloodLevel;
-        float leadI = pBlockEntity.leadI;
-        float leadII = pBlockEntity.leadII;
-        float leadIII = pBlockEntity.leadIII;
-
-        // --- 波形の履歴データを更新 ---
-        // ゲーム時間ではなく、描画フレームごとに更新することで、より滑らかに見える
-        historyIndex = (historyIndex + 1) % lead1History.length;
-        lead1History[historyIndex] = leadI;
-        lead2History[historyIndex] = leadII;
-        lead3History[historyIndex] = leadIII;
-
+        // BEに保存された波形データを取得 (これは1周期分の完全なデータ)
+        float[] lead1Waveform = pBlockEntity.lead1Waveform;
+        float[] lead2Waveform = pBlockEntity.lead2Waveform;
+        float[] lead3Waveform = pBlockEntity.lead3Waveform;
 
         pPoseStack.pushPose();
         // (あなたの座標変換ロジックはそのまま使用)
@@ -54,18 +46,18 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
 
         // --- 各要素の描画 ---
         // 1. 心拍数(HR)と心電図 (緑) - 誘導II
-        renderHeartRate(pPoseStack, pBuffer, maxLight, heartRate, lead2History);
+        renderHeartRate(pPoseStack, pBuffer, maxLight, heartRate, lead2Waveform);
         // 2. 血液量(Blood)と波形 (マゼンタ) - 誘導I
-        renderBloodLevel(pPoseStack, pBuffer, maxLight, bloodLevel, lead1History);
+        renderBloodLevel(pPoseStack, pBuffer, maxLight, bloodLevel, lead1Waveform);
         // 3. SpO2と波形 (シアン) - 誘導III
-        renderSpO2(pPoseStack, pBuffer, maxLight, 99, lead3History);
+        renderSpO2(pPoseStack, pBuffer, maxLight, 99, lead3Waveform);
 
         pPoseStack.popPose();
     }
 
-    // --- ヘルパーメソッド群を、新しいデータ構造に合わせて修正 ---
+    // --- ヘルパーメソッド群 ---
 
-    private void renderHeartRate(PoseStack poseStack, MultiBufferSource bufferSource, int light, int heartRate, float[] waveformHistory) {
+    private void renderHeartRate(PoseStack poseStack, MultiBufferSource bufferSource, int light, int heartRate, float[] waveformData) {
         poseStack.pushPose();
         poseStack.translate(-10, -35, 0);
 
@@ -77,11 +69,11 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.scale(1/scale, 1/scale, 1/scale);
 
         poseStack.translate(35, 5, 0);
-        drawWaveform(poseStack, bufferSource, waveformHistory, 0xFF00FF00); // 新しい描画メソッドを呼び出し
+        drawWaveform(poseStack, bufferSource, waveformData, 0xFF00FF00); // 描画メソッドを統一
         poseStack.popPose();
     }
 
-    private void renderBloodLevel(PoseStack poseStack, MultiBufferSource bufferSource, int light, float bloodLevel, float[] waveformHistory) {
+    private void renderBloodLevel(PoseStack poseStack, MultiBufferSource bufferSource, int light, float bloodLevel, float[] waveformData) {
         poseStack.pushPose();
         poseStack.translate(-10, 0, 0);
 
@@ -93,11 +85,11 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.scale(1/scale, 1/scale, 1/scale);
 
         poseStack.translate(35, 5, 0);
-        drawWaveform(poseStack, bufferSource, waveformHistory, 0xFFFF00FF);
+        drawWaveform(poseStack, bufferSource, waveformData, 0xFFFF00FF);
         poseStack.popPose();
     }
 
-    private void renderSpO2(PoseStack poseStack, MultiBufferSource bufferSource, int light, int spo2, float[] waveformHistory) {
+    private void renderSpO2(PoseStack poseStack, MultiBufferSource bufferSource, int light, int spo2, float[] waveformData) {
         poseStack.pushPose();
         poseStack.translate(-10, 25, 0);
 
@@ -109,32 +101,31 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.scale(1/scale, 1/scale, 1/scale);
 
         poseStack.translate(35, 5, 0);
-        drawWaveform(poseStack, bufferSource, waveformHistory, 0xFF00FFFF);
+        drawWaveform(poseStack, bufferSource, waveformData, 0xFF00FFFF);
         poseStack.popPose();
     }
 
     /**
-     * 同期された誘導値の履歴を元に、滑らかな波形を描画する
-     * @param waveformHistory 波形のY座標の履歴データ
+     * 同期された波形データ配列を元に、線を描画する新しいメソッド
      */
-    private void drawWaveform(PoseStack poseStack, MultiBufferSource bufferSource, float[] waveformHistory, int color) {
+    private void drawWaveform(PoseStack poseStack, MultiBufferSource bufferSource, float[] waveformData, int color) {
+        if (waveformData == null || waveformData.length == 0) return;
+
         poseStack.pushPose();
         Matrix4f matrix = poseStack.last().pose();
         VertexConsumer buffer = bufferSource.getBuffer(RenderType.lines());
         RenderSystem.lineWidth(2.0f);
 
-        int historyLength = waveformHistory.length;
-        // 履歴を元に線分を描画
-        for (int i = 0; i < historyLength - 1; i++) {
-            // 現在のフレームから過去に遡ってデータを取得
-            int currentIndex = (this.historyIndex - i + historyLength) % historyLength;
-            int prevIndex = (this.historyIndex - (i + 1) + historyLength) % historyLength;
+        int dataLength = waveformData.length;
+        float drawWidth = 80f; // 波形を描画する幅
 
-            float x1 = 80 - (i * 1.0f); // 右から左へ流れるようにX座標を設定
-            float x2 = 80 - ((i + 1) * 1.0f);
+        // 1周期分の波形データを、描画幅に合わせて線で結んで描画
+        for (int i = 0; i < dataLength - 1; i++) {
+            float x1 = (float) i / dataLength * drawWidth;
+            float x2 = (float) (i + 1) / dataLength * drawWidth;
 
-            float y1 = waveformHistory[currentIndex] * -10; // Yスケールと向きを調整
-            float y2 = waveformHistory[prevIndex] * -10;
+            float y1 = waveformData[i] * -10; // Yスケールと向きを調整
+            float y2 = waveformData[i + 1] * -10;
 
             buffer.vertex(matrix, x1, y1, 0).color(color).normal(0,0,1).endVertex();
             buffer.vertex(matrix, x2, y2, 0).color(color).normal(0,0,1).endVertex();

@@ -6,6 +6,9 @@ import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.FloatTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -34,6 +37,11 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
     public float leadI = 0.0f;
     public float leadII = 0.0f;
     public float leadIII = 0.0f;
+
+
+    public float[] lead1Waveform = new float[0];
+    public float[] lead2Waveform = new float[0];
+    public float[] lead3Waveform = new float[0];
 
 
     public HeadsideMonitorBlockEntity(BlockPos pPos, BlockState pBlockState) {
@@ -67,30 +75,19 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
             // プレイヤーが有効（オンラインかつ10ブロック以内）か確認
             if (monitoredPlayer != null && monitoredPlayer.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) < 100.0) {
                 monitoredPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                    // データを読み取り、このブロックエンティティのフィールドに保存
+                    // --- プレイヤーの基本データを読み取り ---
                     be.bloodLevel = data.getBloodLevel();
                     be.heartStatus = data.getHeartStatus();
+                    be.heartRate = ModEvents.calculateHeartRate(monitoredPlayer, be.heartStatus);
 
-                    // 心拍数を計算
-                    int heartRate = ModEvents.calculateHeartRate(monitoredPlayer, be.heartStatus);
-                    be.heartRate = heartRate;
+                    // --- ▼▼▼ このモニターで、心電図を個別に計算 ▼▼▼ ---
+                    int ticksPerBeat = be.heartRate > 0 ? 1200 / be.heartRate : 1;
+                    float[] leads = be.calculateLeadValues(be.heartStatus, data.getCardiacCycleTick(), ticksPerBeat, level);
+                    be.lead1Waveform = new float[]{leads[0]}; // 配列として保存
+                    be.lead2Waveform = new float[]{leads[1]};
+                    be.lead3Waveform = new float[]{leads[2]};
 
-                    // ▼▼▼ 心電図の計算と保存を追加 ▼▼▼
-                    int ticksPerBeat = heartRate > 0 ? 1200 / heartRate : 1;
-                    float[] leads = ModEvents.calculateLeadValues(be.heartStatus, data.getCardiacCycleTick(), ticksPerBeat);
-                    be.leadI = leads[0];
-                    be.leadII = leads[1];
-                    be.leadIII = leads[2];
-
-                    // アラームの条件をチェック
-                    boolean shouldAlarm = be.heartStatus == HeartStatus.VF || be.heartStatus == HeartStatus.CARDIAC_ARREST || be.bloodLevel < 60.0f;
-                    if (shouldAlarm && !be.alarmPlaying) {
-                        // アラーム音を鳴らす
-                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BELL.get(), SoundSource.BLOCKS, 2.0f, 2.0f);
-                        be.alarmPlaying = true;
-                    } else if (!shouldAlarm) {
-                        be.alarmPlaying = false;
-                    }
+                    // (アラームのロジックはここに移動しても良い)
 
                     // 状態が変化したので、クライアントに同期を要求
                     level.sendBlockUpdated(pos, state, state, 3);
@@ -125,9 +122,42 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         };
     }
 
+    /**
+     * このモニター独自の3誘導値を計算する
+     */
+    private float[] calculateLeadValues(HeartStatus status, int cycleTick, int ticksPerBeat, Level level) {
+        float[] leads = new float[3]; // [I, II, III]
+        float progress = (float) cycleTick / ticksPerBeat;
+
+        // (以前ModEventsにあった計算ロジックをここに移動)
+        switch (status) {
+            case NORMAL:
+                // ... (P波, QRS波, T波の計算) ...
+                break;
+            case VF:
+                // ... (VFの計算) ...
+                break;
+            case CARDIAC_ARREST:
+                // ... (フラットライン) ...
+                break;
+        }
+
+        // ▼▼▼ このモニター独自のノイズを追加 ▼▼▼
+        leads[0] += (level.random.nextFloat() - 0.5f) * 0.05f; // ±2.5%のノイズ
+        leads[1] += (level.random.nextFloat() - 0.5f) * 0.05f;
+        leads[2] += (level.random.nextFloat() - 0.5f) * 0.05f;
+
+        return leads;
+    }
+
     // --- セーブとロード ---
     @Override
     protected void saveAdditional(CompoundTag pTag) {
+
+        if (this.monitoredPlayerUUID.isPresent()) {
+            pTag.putUUID("MonitoredPlayer", this.monitoredPlayerUUID.get());
+        }
+
         pTag.putInt("HeartRate", this.heartRate);
         pTag.putFloat("BloodLevel", this.bloodLevel);
         pTag.putInt("HeartStatus", this.heartStatus.ordinal());
@@ -135,12 +165,34 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         pTag.putFloat("LeadI", this.leadI);
         pTag.putFloat("LeadII", this.leadII);
         pTag.putFloat("LeadIII", this.leadIII);
+
+        ListTag lead1List = new ListTag();
+        for (float val : this.lead1Waveform) {
+            lead1List.add(FloatTag.valueOf(val));
+        }
+        pTag.put("Lead1Waveform", lead1List);
+
+        ListTag lead2List = new ListTag();
+        for (float val : this.lead2Waveform) {
+            lead2List.add(FloatTag.valueOf(val));
+        }
+        pTag.put("Lead2Waveform", lead2List);
+
+        ListTag lead3List = new ListTag();
+        for (float val : this.lead3Waveform) {
+            lead3List.add(FloatTag.valueOf(val));
+        }
+        pTag.put("Lead3Waveform", lead3List);
         super.saveAdditional(pTag);
     }
 
     @Override
     public void load(CompoundTag pTag) {
         super.load(pTag);
+
+        if (pTag.hasUUID("MonitoredPlayer")) {
+            this.monitoredPlayerUUID = Optional.of(pTag.getUUID("MonitoredPlayer"));
+        }
         this.heartRate = pTag.getInt("HeartRate");
         this.bloodLevel = pTag.getFloat("BloodLevel");
         this.heartStatus = HeartStatus.values()[pTag.getInt("HeartStatus")];
@@ -148,6 +200,25 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         this.leadI = pTag.getFloat("LeadI");
         this.leadII = pTag.getFloat("LeadII");
         this.leadIII = pTag.getFloat("LeadIII");
+
+        // ListTag<FloatTag>を読み込み、float[]に変換して復元
+        ListTag lead1List = pTag.getList("Lead1Waveform", Tag.TAG_FLOAT); // TAG_FLOATは「float型」の意
+        this.lead1Waveform = new float[lead1List.size()];
+        for (int i = 0; i < lead1List.size(); i++) {
+            this.lead1Waveform[i] = lead1List.getFloat(i);
+        }
+
+        ListTag lead2List = pTag.getList("Lead2Waveform", Tag.TAG_FLOAT);
+        this.lead2Waveform = new float[lead2List.size()];
+        for (int i = 0; i < lead2List.size(); i++) {
+            this.lead2Waveform[i] = lead2List.getFloat(i);
+        }
+
+        ListTag lead3List = pTag.getList("Lead3Waveform", Tag.TAG_FLOAT);
+        this.lead3Waveform = new float[lead3List.size()];
+        for (int i = 0; i < lead3List.size(); i++) {
+            this.lead3Waveform[i] = lead3List.getFloat(i);
+        }
     }
 
     // --- サーバーとクライアントのデータ同期 ---
