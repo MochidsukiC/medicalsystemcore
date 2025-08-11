@@ -14,6 +14,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
@@ -166,14 +167,20 @@ public class ModEvents {
         serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
 
             medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
-                boolean connectionValid = false;
+                boolean connectionStillValid = false;
                 BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
 
-                if (be instanceof IVStandBlockEntity standEntity) {
-                    ItemStack packStack = standEntity.itemHandler.getStackInSlot(0);
-                    // スタンドにパックがあり、プレイヤーが範囲内にいるかチェック
-                    if (!packStack.isEmpty() && serverPlayer.position().distanceToSqr(standPos.getX(), standPos.getY(), standPos.getZ()) < 100.0) {
-                        connectionValid = true;
+                if (be instanceof IVStandBlockEntity standEntity && serverPlayer.distanceToSqr(standPos.getX() + 0.5, standPos.getY() + 0.5, standPos.getZ() + 0.5) < 100.0) {
+
+                    // 3つのスロットを全てループでチェック
+                    for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
+                        ItemStack packStack = standEntity.itemHandler.getStackInSlot(i);
+                        if (packStack.isEmpty()) {
+                            continue; // このスロットが空なら次へ
+                        }
+
+                        // 少なくとも1つ有効なパックがあれば、接続は維持される
+                        connectionStillValid = true;
 
                         // パックのNBTから残量を取得
                         CompoundTag nbt = packStack.getOrCreateTag();
@@ -182,23 +189,27 @@ public class ModEvents {
                         if (ticksLeft > 0) {
                             // 残量を1減らす
                             nbt.putInt("FluidVolumeTicks", ticksLeft - 1);
-                            // 輸血エフェクトをかけ続ける
-                            serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), 40, 0, true, false));
+
+                            // パックの種類を判別し、対応するエフェクトを付与
+                            Item packItem = packStack.getItem();
+                            if (packItem == Medicalsystemcore.BLOOD_PACK.get()) {
+                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), 40, 0, true, false));
+                            } else if (packItem == Medicalsystemcore.ADRENALINE_PACK.get()) {
+                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.ADRENALINE_EFFECT.get(), 40, 0, true, false));
+                            }
+                            // TODO: 他の薬剤パックの効果もここに追加
+
                         } else {
                             // 残量が0になったらパックを消滅させる
-                            standEntity.itemHandler.setStackInSlot(0, ItemStack.EMPTY);
-                            connectionValid = false; // 接続を無効にする
-                            serverPlayer.sendSystemMessage(Component.literal("§eパックが空になりました。"));
+                            standEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
                         }
                     }
                 }
 
-                if (!connectionValid) {
-                    // 接続が無効になったら状態をリセット
+                if (!connectionStillValid) {
+                    // 有効なパックが一つもなくなったら接続を解除
                     medicalData.setTransfusingFromStandPos(Optional.empty());
-                    if (be != null) { // beがnullでない（＝スタンドが壊されたわけではない）場合のみメッセージを出す
-                        serverPlayer.sendSystemMessage(Component.literal("§e点滴が外れた。"));
-                    }
+                    serverPlayer.sendSystemMessage(Component.literal("§e点滴が終了した。"));
                 }
             });
 

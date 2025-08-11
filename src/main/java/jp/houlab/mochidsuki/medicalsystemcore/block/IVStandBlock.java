@@ -5,6 +5,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.core.ModTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -30,6 +31,7 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 public class IVStandBlock extends BaseEntityBlock {
@@ -63,33 +65,18 @@ public class IVStandBlock extends BaseEntityBlock {
     // --- useメソッドを再設計 ---
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
-        // このブロックのインタラクションは上半身でのみ受け付ける
-        if (pState.getValue(HALF) != DoubleBlockHalf.UPPER) {
-            return InteractionResult.PASS;
-        }
-
-        ItemStack heldItem = pPlayer.getItemInHand(pHand);
-
-        // 手に持っているのがパック類か、あるいは素手の場合のみ、このブロックが反応する
-        if (heldItem.isEmpty() || heldItem.is(ModTags.Items.BLOOD_PACKS) || heldItem.is(ModTags.Items.DRUG_PACKS)) {
-            BlockPos bePos = pPos.below();
-            BlockEntity entity = pLevel.getBlockEntity(bePos);
-            if (entity instanceof IVStandBlockEntity blockEntity) {
-                // サーバーサイドでのみ実際のインベントリ操作を行う
-                if (!pLevel.isClientSide) {
-                    if (!heldItem.isEmpty()) { // アイテムを持っている場合: 設置
-                        handleItemPlacement(pPlayer, heldItem, blockEntity);
-                    } else { // 素手の場合: 回収
-                        handleItemRemoval(pPlayer, blockEntity);
-                    }
+        if (!pLevel.isClientSide) {
+            // 上半身をクリックした場合のみGUIを開く
+            if (pState.getValue(HALF) == DoubleBlockHalf.UPPER) {
+                BlockPos bePos = pPos.below();
+                BlockEntity entity = pLevel.getBlockEntity(bePos);
+                if (entity instanceof IVStandBlockEntity blockEntity) {
+                    // GUIを開く
+                    NetworkHooks.openScreen((ServerPlayer) pPlayer, blockEntity, bePos);
                 }
-                // クライアント・サーバー両方でSUCCESSを返し、アクションがここで完了したことを示す
-                return InteractionResult.SUCCESS;
             }
         }
-
-        // 手にチューブなど、関係ないアイテムを持っている場合はPASSを返し、アイテム側の処理を優先させる
-        return InteractionResult.PASS;
+        return InteractionResult.SUCCESS;
     }
 
     private void handleItemPlacement(Player player, ItemStack heldItem, IVStandBlockEntity blockEntity) {

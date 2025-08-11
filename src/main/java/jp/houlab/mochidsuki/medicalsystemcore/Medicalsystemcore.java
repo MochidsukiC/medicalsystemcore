@@ -6,16 +6,21 @@ import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEnti
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
+import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.TransfusionEffect;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.BandageEffect;
+import jp.houlab.mochidsuki.medicalsystemcore.effect.AdrenalineEffect;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.DefibrillatorBlockEntityRenderer;
+import jp.houlab.mochidsuki.medicalsystemcore.client.screen.IVStandScreen;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
@@ -28,6 +33,7 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.capabilities.RegisterCapabilitiesEvent;
+import net.minecraftforge.common.extensions.IForgeMenuType;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -61,12 +67,21 @@ public class Medicalsystemcore {
             DeferredRegister.create(ForgeRegistries.MOB_EFFECTS, MODID);
     // Create a Deferred Register to hold CreativeModeTabs which will all be registered under the "medicalsystemcore" namespace
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
+    public static final DeferredRegister<MenuType<?>> MENU_TYPES =
+            DeferredRegister.create(ForgeRegistries.MENU_TYPES, MODID);
+
+    //Menu
+    public static final RegistryObject<MenuType<IVStandMenu>> IV_STAND_MENU =
+            MENU_TYPES.register("iv_stand_menu", () -> IForgeMenuType.create(IVStandMenu::new));
+
 
     //Effect
     public static final RegistryObject<MobEffect> TRANSFUSION = MOB_EFFECTS.register("transfusion",
             TransfusionEffect::new);
     public static final RegistryObject<MobEffect> BANDAGE_EFFECT = MOB_EFFECTS.register("bandage_effect",
             BandageEffect::new);
+    public static final RegistryObject<MobEffect> ADRENALINE_EFFECT = MOB_EFFECTS.register("adrenaline_effect",
+            AdrenalineEffect::new);
 
     //Block
     public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);
@@ -141,6 +156,7 @@ public class Medicalsystemcore {
         BLOCK_ENTITIES.register(modEventBus);
 
         MOB_EFFECTS.register(modEventBus);
+        MENU_TYPES.register(modEventBus);
 
         // Register the Deferred Register to the mod event bus so tabs get registered
         CREATIVE_MODE_TABS.register(modEventBus);
@@ -188,6 +204,7 @@ public class Medicalsystemcore {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
             BlockEntityRenderers.register(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), DefibrillatorBlockEntityRenderer::new);
+            MenuScreens.register(IV_STAND_MENU.get(), IVStandScreen::new);
 
 
             // Some client setup code
