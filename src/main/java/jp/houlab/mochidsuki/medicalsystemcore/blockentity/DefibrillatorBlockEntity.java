@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -14,8 +15,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
+import javax.annotation.Nullable;
+
 public class DefibrillatorBlockEntity extends BlockEntity {
-    private static final int CHARGE_TIME_TICKS = 10 * 20;
+    private static final int CHARGE_TIME_TICKS = 2 * 20;
     private int chargeProgress = 0;
     public boolean arePadsTaken = false;
     private long cooldownEndTick = 0;
@@ -34,6 +37,8 @@ public class DefibrillatorBlockEntity extends BlockEntity {
     public void startCharge() {
         this.chargeProgress = 1;
         setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+
     }
 
     public void resetChargeAndStartCooldown() {
@@ -44,6 +49,8 @@ public class DefibrillatorBlockEntity extends BlockEntity {
             level.setBlock(getBlockPos(), getBlockState().setValue(DefibrillatorBlock.CHARGED, false), 3);
         }
         setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, DefibrillatorBlockEntity be) {
@@ -63,6 +70,8 @@ public class DefibrillatorBlockEntity extends BlockEntity {
                 be.chargeProgress = -1; // 充電完了
                 level.setBlock(pos, state.setValue(DefibrillatorBlock.CHARGED, true), 3);
                 level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BELL.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+                level.sendBlockUpdated(pos, state, state.setValue(DefibrillatorBlock.CHARGED, true), 3);
+
             }
         }
     }
@@ -73,6 +82,7 @@ public class DefibrillatorBlockEntity extends BlockEntity {
             level.setBlock(getBlockPos(), getBlockState().setValue(DefibrillatorBlock.CHARGED, false), 3);
         }
         setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
     }
 
     @Override
@@ -94,5 +104,37 @@ public class DefibrillatorBlockEntity extends BlockEntity {
     public void startCooldown() {
         this.cooldownEndTick = this.level.getGameTime() + (30 * 20); // 現在時間 + 30秒
         setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+    }
+    // ▼▼▼ このメソッドを追加 ▼▼▼
+    public float getChargeProgress() {
+        if (!isCharging()) return 0.0f;
+        return (float) this.chargeProgress / CHARGE_TIME_TICKS;
+    }
+
+    @Nullable
+    @Override
+    public ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    /**
+     * 同期用のNBTデータを作成する
+     */
+    @Override
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = new CompoundTag();
+        saveAdditional(tag); // 現在のデータを全て保存
+        return tag;
+    }
+
+    /**
+     * クライアント側で同期パケットを受け取った時に呼ばれる
+     */
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection net, ClientboundBlockEntityDataPacket pkt) {
+        if (pkt.getTag() != null) {
+            load(pkt.getTag());
+        }
     }
 }

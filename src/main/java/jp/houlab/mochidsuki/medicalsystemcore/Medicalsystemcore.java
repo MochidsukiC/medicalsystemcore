@@ -9,7 +9,9 @@ import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.TransfusionEffect;
+import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.DefibrillatorBlockEntityRenderer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.food.FoodProperties;
@@ -182,6 +184,9 @@ public class Medicalsystemcore {
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
+            BlockEntityRenderers.register(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), DefibrillatorBlockEntityRenderer::new);
+
+
             // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");
             LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
