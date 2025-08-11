@@ -10,15 +10,12 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.Optional;
 import java.util.function.Supplier;
 
 public class ServerboundQTETResultPacket {
@@ -117,7 +114,7 @@ public class ServerboundQTETResultPacket {
                 }
 
                 // 状態が変化したので、全クライアントに同期
-                ModPackets.sendToAllTracking(new ClientboundMedicalDataSyncPacket(
+                ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
                         targetPlayer.getUUID(),
                         medicalData.getBloodLevel(),
                         medicalData.getHeartStatus(),

@@ -1,15 +1,10 @@
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
-import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalDataManager;
 import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Pose;
-import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.UUID;
@@ -18,7 +13,7 @@ import java.util.function.Supplier;
 /**
  * サーバーからクライアントへ、プレイヤーのHeartStatusを同期するためのパケット
  */
-public class ClientboundMedicalDataSyncPacket {
+public class ClientboundCoreStatsPacket {
     // 送るデータを追加
     private final UUID playerUUID;
     private final float bloodLevel;
@@ -27,7 +22,7 @@ public class ClientboundMedicalDataSyncPacket {
     private final float resuscitationChance;
 
     // コンストラクタを更新
-    public ClientboundMedicalDataSyncPacket(UUID playerUUID, float bloodLevel, HeartStatus heartStatus, float bleedingSpeed , float resuscitationChance) {
+    public ClientboundCoreStatsPacket(UUID playerUUID, float bloodLevel, HeartStatus heartStatus, float bleedingSpeed , float resuscitationChance) {
         this.playerUUID = playerUUID;
         this.bloodLevel = bloodLevel;
         this.heartStatus = heartStatus;
@@ -35,7 +30,7 @@ public class ClientboundMedicalDataSyncPacket {
         this.resuscitationChance = resuscitationChance;
     }
 
-    public ClientboundMedicalDataSyncPacket(UUID playerUUID, HeartStatus heartStatus, IPlayerMedicalData medicalData) {
+    public ClientboundCoreStatsPacket(UUID playerUUID, HeartStatus heartStatus, IPlayerMedicalData medicalData) {
         this.playerUUID = playerUUID;
         this.bloodLevel = medicalData.getBloodLevel();
         this.heartStatus = heartStatus;
@@ -44,7 +39,7 @@ public class ClientboundMedicalDataSyncPacket {
     }
 
     // バイトデータからの復元処理を更新
-    public ClientboundMedicalDataSyncPacket(FriendlyByteBuf buf) {
+    public ClientboundCoreStatsPacket(FriendlyByteBuf buf) {
         this.playerUUID = buf.readUUID();
         this.bloodLevel = buf.readFloat();
         this.heartStatus = buf.readEnum(HeartStatus.class);

@@ -27,10 +27,10 @@ public class ModPackets {
         INSTANCE = net;
 
 
-        net.messageBuilder(ClientboundMedicalDataSyncPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(ClientboundMedicalDataSyncPacket::new)
-                .encoder(ClientboundMedicalDataSyncPacket::toBytes)
-                .consumerMainThread(ClientboundMedicalDataSyncPacket::handle)
+        net.messageBuilder(ClientboundCoreStatsPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundCoreStatsPacket::new)
+                .encoder(ClientboundCoreStatsPacket::toBytes)
+                .consumerMainThread(ClientboundCoreStatsPacket::handle)
                 .add();
 
         net.messageBuilder(ClientboundStartQTEPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
@@ -38,6 +38,7 @@ public class ModPackets {
                 .encoder(ClientboundStartQTEPacket::toBytes)
                 .consumerMainThread(ClientboundStartQTEPacket::handle)
                 .add();
+
 
 
         net.messageBuilder(ServerboundFinishHealPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)

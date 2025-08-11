@@ -20,6 +20,8 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     private HeartStatus previousHeartStatus = HeartStatus.NORMAL;
     private Optional<BlockPos> blockPos = Optional.empty();
     private boolean damageImmune = false;
+    private int cardiacCycleTick = 0;
+
 
 
     @Override
@@ -140,6 +142,15 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.damageImmune = immune;
     }
 
+
+    @Override
+    public int getCardiacCycleTick() {
+        return this.cardiacCycleTick;
+    }
+    @Override
+    public void setCardiacCycleTick(int ticks) {
+        this.cardiacCycleTick = ticks;
+    }
     /**
      * このデータをNBT形式（Minecraftのデータ保存形式）に変換して保存します。
      */

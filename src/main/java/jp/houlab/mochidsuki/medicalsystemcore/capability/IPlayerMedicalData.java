@@ -48,6 +48,10 @@ public interface IPlayerMedicalData {
     boolean isDamageImmune();
     void setDamageImmune(boolean immune);
 
+    //心臓の周期的タイマー
+    int getCardiacCycleTick();
+    void setCardiacCycleTick(int ticks);
+
     // --- データの保存と読み込み ---
     void saveNBTData(CompoundTag nbt);
     void loadNBTData(CompoundTag nbt);

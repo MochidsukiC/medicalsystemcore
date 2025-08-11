@@ -2,7 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.item;
 
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
-import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundMedicalDataSyncPacket;
+import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -91,10 +91,10 @@ public class DefibrillatorItem extends Item {
                 player.sendSystemMessage(Component.literal("§a蘇生成功！"));
 
                 // 全てのクライアントに状態の更新とポーズ解除を通知
-                ModPackets.sendToPlayer(new ClientboundMedicalDataSyncPacket(targetPlayer.getUUID(), HeartStatus.NORMAL,medicalData), targetPlayer);
+                ModPackets.sendToPlayer(new ClientboundCoreStatsPacket(targetPlayer.getUUID(), HeartStatus.NORMAL,medicalData), targetPlayer);
             } else {
                 // 失敗した場合も、状態が変化した可能性があるのでデータを同期
-                ModPackets.sendToPlayer(new ClientboundMedicalDataSyncPacket(targetPlayer.getUUID(), medicalData.getHeartStatus(),medicalData), targetPlayer);
+                ModPackets.sendToPlayer(new ClientboundCoreStatsPacket(targetPlayer.getUUID(), medicalData.getHeartStatus(),medicalData), targetPlayer);
             }
         });
 

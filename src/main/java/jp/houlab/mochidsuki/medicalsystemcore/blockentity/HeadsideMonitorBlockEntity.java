@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.blockentity;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -28,6 +29,11 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
     public HeartStatus heartStatus = HeartStatus.NORMAL;
     // アラーム音を鳴らしたかを記録するフラグ
     private boolean alarmPlaying = false;
+
+
+    public float leadI = 0.0f;
+    public float leadII = 0.0f;
+    public float leadIII = 0.0f;
 
 
     public HeadsideMonitorBlockEntity(BlockPos pPos, BlockState pBlockState) {
@@ -66,7 +72,15 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
                     be.heartStatus = data.getHeartStatus();
 
                     // 心拍数を計算
-                    be.heartRate = calculateHeartRate(monitoredPlayer, data.getHeartStatus());
+                    int heartRate = ModEvents.calculateHeartRate(monitoredPlayer, be.heartStatus);
+                    be.heartRate = heartRate;
+
+                    // ▼▼▼ 心電図の計算と保存を追加 ▼▼▼
+                    int ticksPerBeat = heartRate > 0 ? 1200 / heartRate : 1;
+                    float[] leads = ModEvents.calculateLeadValues(be.heartStatus, data.getCardiacCycleTick(), ticksPerBeat);
+                    be.leadI = leads[0];
+                    be.leadII = leads[1];
+                    be.leadIII = leads[2];
 
                     // アラームの条件をチェック
                     boolean shouldAlarm = be.heartStatus == HeartStatus.VF || be.heartStatus == HeartStatus.CARDIAC_ARREST || be.bloodLevel < 60.0f;
@@ -117,6 +131,10 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         pTag.putInt("HeartRate", this.heartRate);
         pTag.putFloat("BloodLevel", this.bloodLevel);
         pTag.putInt("HeartStatus", this.heartStatus.ordinal());
+
+        pTag.putFloat("LeadI", this.leadI);
+        pTag.putFloat("LeadII", this.leadII);
+        pTag.putFloat("LeadIII", this.leadIII);
         super.saveAdditional(pTag);
     }
 
@@ -126,6 +144,10 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         this.heartRate = pTag.getInt("HeartRate");
         this.bloodLevel = pTag.getFloat("BloodLevel");
         this.heartStatus = HeartStatus.values()[pTag.getInt("HeartStatus")];
+
+        this.leadI = pTag.getFloat("LeadI");
+        this.leadII = pTag.getFloat("LeadII");
+        this.leadIII = pTag.getFloat("LeadIII");
     }
 
     // --- サーバーとクライアントのデータ同期 ---
@@ -138,5 +160,9 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
     @Override
     public CompoundTag getUpdateTag() {
         return this.saveWithoutMetadata();
+    }
+
+    public Optional<UUID> getMonitoredPlayerUUID() {
+        return this.monitoredPlayerUUID;
     }
 }

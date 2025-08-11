@@ -1,16 +1,16 @@
 package jp.houlab.mochidsuki.medicalsystemcore.core;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
-import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundMedicalDataSyncPacket;
+import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
@@ -21,7 +21,6 @@ import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -51,7 +50,7 @@ public class ModEvents {
 
                 // クライアントに状態変化を通知
                 if (player instanceof ServerPlayer serverPlayer) {
-                    ModPackets.sendToAllTracking(new ClientboundMedicalDataSyncPacket(
+                    ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
                             serverPlayer.getUUID(),
                             medicalData.getBloodLevel(),
                             HeartStatus.CARDIAC_ARREST,
@@ -333,7 +332,7 @@ public class ModEvents {
                 serverPlayer.refreshDimensions(); // 当たり判定を更新
 
                 // 全クライアントに状態を同期
-            ModPackets.sendToAllTracking(new ClientboundMedicalDataSyncPacket(
+            ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
                     serverPlayer.getUUID(),
                     medicalData.getBloodLevel(),
                     newStatus,
@@ -343,6 +342,33 @@ public class ModEvents {
 
             // --- 4. 最後に、今の状態を「前の状態」として保存 ---
             //medicalData.setPreviousHeartStatus(newStatus);
+
+            HeartStatus status = medicalData.getHeartStatus();
+            int cycleTick = medicalData.getCardiacCycleTick();
+
+            switch (status) {
+                case NORMAL -> {
+                    int heartRate = calculateHeartRate(serverPlayer, status);
+                    if (heartRate > 0) {
+                        // 1分 = 60秒 * 20tick/秒 = 1200 ticks
+                        // 1拍あたりのtick数 = 1200 / 1分あたりの拍数(heartRate)
+                        int ticksPerBeat = 1200 / heartRate;
+                        if (cycleTick >= ticksPerBeat) {
+                            medicalData.setCardiacCycleTick(0); // 1周期が完了したらリセット
+                        } else {
+                            medicalData.setCardiacCycleTick(cycleTick + 1); // 周期タイマーを進める
+                        }
+                    }
+                }
+                case VF -> {
+                    // VF中は非常に速く不規則に進むタイマーをシミュレート (例: 4倍速)
+                    medicalData.setCardiacCycleTick(cycleTick + 4);
+                }
+                case CARDIAC_ARREST -> {
+                    // 心停止中は電気活動がないのでタイマーを0にリセット
+                    medicalData.setCardiacCycleTick(0);
+                }
+            }
         });
     }
 
@@ -374,5 +400,63 @@ public class ModEvents {
             // イベントをキャンセルしてアイテムドロップを防ぐ
             event.setCanceled(true);
         }
+    }
+
+    public static int calculateHeartRate(Player player, HeartStatus status) {
+        return switch (status) {
+            case NORMAL -> {
+                int base = 60 + player.level().random.nextInt(10);
+                if (player.hasEffect(MobEffects.MOVEMENT_SPEED)) {
+                    base += (player.getEffect(MobEffects.MOVEMENT_SPEED).getAmplifier() + 1) * 10;
+                }
+                if (player.hasEffect(MobEffects.JUMP)) {
+                    base += (player.getEffect(MobEffects.JUMP).getAmplifier() + 1) * 10;
+                }
+                yield base;
+            }
+            case VF -> 300 + player.level().random.nextInt(100);
+            case CARDIAC_ARREST -> 0;
+        };
+    }
+
+    public static float[] calculateLeadValues(HeartStatus status, int cycleTick, int ticksPerBeat) {
+        float[] leads = new float[3]; // [I, II, III]
+        float progress = (float) cycleTick / ticksPerBeat;
+
+        switch (status) {
+            case NORMAL -> {
+                // P波 (0.0 - 0.15)
+                if (progress > 0.05 && progress < 0.15) {
+                    leads[1] = (float) (Math.sin((progress - 0.05) * (Math.PI / 0.1)) * 0.2);
+                }
+                // QRS波 (0.25 - 0.35)
+                else if (progress > 0.25 && progress < 0.35) {
+                    float qrsProgress = (progress - 0.25f) / 0.1f;
+                    if (qrsProgress < 0.5) {
+                        leads[1] = -0.4f + (1.8f * (qrsProgress * 2)); // QからRへ
+                    } else {
+                        leads[1] = 1.4f - (1.8f * ((qrsProgress - 0.5f) * 2)); // RからSへ
+                    }
+                }
+                // T波 (0.55 - 0.75)
+                else if (progress > 0.55 && progress < 0.75) {
+                    leads[1] = (float) (Math.sin((progress - 0.55) * (Math.PI / 0.2)) * 0.4);
+                }
+                // アイントーベンの法則 (I + III = II) を単純化して適用
+                leads[0] = leads[1] * 0.5f;
+                leads[2] = leads[1] * 0.5f;
+            }
+            case VF -> {
+                // 不規則なノイズを生成
+                leads[0] = (float) (Math.random() - 0.5) * 1.5f;
+                leads[1] = (float) (Math.random() - 0.5) * 1.5f;
+                leads[2] = (float) (Math.random() - 0.5) * 1.5f;
+            }
+            case CARDIAC_ARREST -> {
+                // フラットライン
+                leads[0] = leads[1] = leads[2] = 0.0f;
+            }
+        }
+        return leads;
     }
 }

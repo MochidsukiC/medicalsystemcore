@@ -1,11 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
 import jp.houlab.mochidsuki.medicalsystemcore.block.DefibrillatorBlock;
-import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
-import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
-import jp.houlab.mochidsuki.medicalsystemcore.client.ClientQTEManager;
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
-import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundMedicalDataSyncPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundStartQTEPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import net.minecraft.core.BlockPos;
@@ -13,16 +8,12 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
 
 public class ElectrodeItem extends Item {
     public ElectrodeItem(Properties pProperties) {
