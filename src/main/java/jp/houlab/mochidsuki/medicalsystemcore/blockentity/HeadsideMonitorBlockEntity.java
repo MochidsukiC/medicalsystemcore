@@ -39,11 +39,6 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
     public float leadIII = 0.0f;
 
 
-    public float[] lead1Waveform = new float[0];
-    public float[] lead2Waveform = new float[0];
-    public float[] lead3Waveform = new float[0];
-
-
     public HeadsideMonitorBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK_ENTITY.get(), pPos, pBlockState);
     }
@@ -80,14 +75,27 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
                     be.heartStatus = data.getHeartStatus();
                     be.heartRate = ModEvents.calculateHeartRate(monitoredPlayer, be.heartStatus);
 
-                    // --- ▼▼▼ このモニターで、心電図を個別に計算 ▼▼▼ ---
-                    int ticksPerBeat = be.heartRate > 0 ? 1200 / be.heartRate : 1;
-                    float[] leads = be.calculateLeadValues(be.heartStatus, data.getCardiacCycleTick(), ticksPerBeat, level);
-                    be.lead1Waveform = new float[]{leads[0]}; // 配列として保存
-                    be.lead2Waveform = new float[]{leads[1]};
-                    be.lead3Waveform = new float[]{leads[2]};
+                    // --- ▼▼▼ このモニターで、3誘導を個別に計算 ▼▼▼ ---
+                    // プレイヤーの心電位ベクトル（角度と強さ）を取得
+                    float vectorAngleRad = (float) Math.toRadians(data.getHeartVectorAngle());
+                    float vectorMagnitude = data.getHeartVectorMagnitude();
 
-                    // (アラームのロジックはここに移動しても良い)
+                    // アイントーベンの法則に基づき、ベクトルを各誘導軸に投影
+                    // Lead I = mag * cos(angle)
+                    // Lead II = mag * cos(angle - 60deg)
+                    // Lead III = mag * cos(angle - 120deg)
+                    float leadI = vectorMagnitude * (float) Math.cos(vectorAngleRad);
+                    float leadII = vectorMagnitude * (float) Math.cos(vectorAngleRad - Math.toRadians(60));
+                    float leadIII = vectorMagnitude * (float) Math.cos(vectorAngleRad - Math.toRadians(120));
+
+                    // 仕様通り、モニターごとに微妙なノイズを追加
+                    float noise = (level.random.nextFloat() - 0.5f) * 0.05f; // ±2.5%のノイズ
+
+                    // 計算結果をこのBEのフィールドに保存
+                    be.leadI = leadI + noise;
+                    be.leadII = leadII + noise;
+                    be.leadIII = leadIII + noise;
+
 
                     // 状態が変化したので、クライアントに同期を要求
                     level.sendBlockUpdated(pos, state, state, 3);
@@ -166,23 +174,6 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         pTag.putFloat("LeadII", this.leadII);
         pTag.putFloat("LeadIII", this.leadIII);
 
-        ListTag lead1List = new ListTag();
-        for (float val : this.lead1Waveform) {
-            lead1List.add(FloatTag.valueOf(val));
-        }
-        pTag.put("Lead1Waveform", lead1List);
-
-        ListTag lead2List = new ListTag();
-        for (float val : this.lead2Waveform) {
-            lead2List.add(FloatTag.valueOf(val));
-        }
-        pTag.put("Lead2Waveform", lead2List);
-
-        ListTag lead3List = new ListTag();
-        for (float val : this.lead3Waveform) {
-            lead3List.add(FloatTag.valueOf(val));
-        }
-        pTag.put("Lead3Waveform", lead3List);
         super.saveAdditional(pTag);
     }
 
@@ -201,24 +192,6 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         this.leadII = pTag.getFloat("LeadII");
         this.leadIII = pTag.getFloat("LeadIII");
 
-        // ListTag<FloatTag>を読み込み、float[]に変換して復元
-        ListTag lead1List = pTag.getList("Lead1Waveform", Tag.TAG_FLOAT); // TAG_FLOATは「float型」の意
-        this.lead1Waveform = new float[lead1List.size()];
-        for (int i = 0; i < lead1List.size(); i++) {
-            this.lead1Waveform[i] = lead1List.getFloat(i);
-        }
-
-        ListTag lead2List = pTag.getList("Lead2Waveform", Tag.TAG_FLOAT);
-        this.lead2Waveform = new float[lead2List.size()];
-        for (int i = 0; i < lead2List.size(); i++) {
-            this.lead2Waveform[i] = lead2List.getFloat(i);
-        }
-
-        ListTag lead3List = pTag.getList("Lead3Waveform", Tag.TAG_FLOAT);
-        this.lead3Waveform = new float[lead3List.size()];
-        for (int i = 0; i < lead3List.size(); i++) {
-            this.lead3Waveform[i] = lead3List.getFloat(i);
-        }
     }
 
     // --- サーバーとクライアントのデータ同期 ---

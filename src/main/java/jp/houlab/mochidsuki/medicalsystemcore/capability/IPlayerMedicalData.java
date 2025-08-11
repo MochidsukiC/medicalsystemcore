@@ -52,6 +52,12 @@ public interface IPlayerMedicalData {
     int getCardiacCycleTick();
     void setCardiacCycleTick(int ticks);
 
+    float getHeartVectorAngle();
+    void setHeartVectorAngle(float angle);
+
+    float getHeartVectorMagnitude();
+    void setHeartVectorMagnitude(float magnitude);
+
     // --- データの保存と読み込み ---
     void saveNBTData(CompoundTag nbt);
     void loadNBTData(CompoundTag nbt);

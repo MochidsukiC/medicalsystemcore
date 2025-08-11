@@ -21,6 +21,8 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     private Optional<BlockPos> blockPos = Optional.empty();
     private boolean damageImmune = false;
     private int cardiacCycleTick = 0;
+    private float heartVectorAngle;
+    private float heartVectorMagnitude;
 
 
 
@@ -151,6 +153,25 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     public void setCardiacCycleTick(int ticks) {
         this.cardiacCycleTick = ticks;
     }
+
+    @Override
+    public float getHeartVectorAngle(){
+        return this.heartVectorAngle;
+    }
+    @Override
+    public void setHeartVectorAngle(float angle){
+        this.heartVectorAngle = angle;
+    }
+
+    @Override
+    public float getHeartVectorMagnitude(){
+        return this.heartVectorMagnitude;
+    }
+    @Override
+    public void setHeartVectorMagnitude(float magnitude){
+        this.heartVectorMagnitude = magnitude;
+    }
+
     /**
      * このデータをNBT形式（Minecraftのデータ保存形式）に変換して保存します。
      */

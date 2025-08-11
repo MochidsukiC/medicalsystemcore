@@ -342,6 +342,47 @@ public class ModEvents {
 
             // --- 4. 最後に、今の状態を「前の状態」として保存 ---
             //medicalData.setPreviousHeartStatus(newStatus);
+
+            HeartStatus status = medicalData.getHeartStatus();
+            int cycleTick = medicalData.getCardiacCycleTick();
+
+            switch (status) {
+                case NORMAL -> {
+                    int heartRate = calculateHeartRate(serverPlayer, status);
+                    if (heartRate > 0) {
+                        int ticksPerBeat = 1200 / heartRate;
+                        float progress = (float) cycleTick / ticksPerBeat; // 1心拍における進捗(0.0～1.0)
+
+                        // 各波形フェーズに応じて、心電位ベクトルの角度と強さを変化させる
+                        // P波 (心房の興奮)
+                        if (progress > 0.05 && progress < 0.15) {
+                            medicalData.setHeartVectorAngle(60f); // 正常なP波の平均的な電気軸
+                            medicalData.setHeartVectorMagnitude((float) (Math.sin((progress - 0.05) * (Math.PI / 0.1)) * 0.2f));
+                        }
+                        // QRS波 (心室の興奮)
+                        else if (progress > 0.25 && progress < 0.35) {
+                            medicalData.setHeartVectorAngle(50f + (progress * 20f)); // 興奮が伝わるにつれて軸が少し変化
+                            float qrsProgress = (progress - 0.25f) / 0.1f;
+                            if (qrsProgress < 0.5)
+                                medicalData.setHeartVectorMagnitude(-0.4f + (1.8f * (qrsProgress * 2)));
+                            else
+                                medicalData.setHeartVectorMagnitude(1.4f - (1.8f * ((qrsProgress - 0.5f) * 2)));
+                        }
+                        // T波 (心室の回復)
+                        else if (progress > 0.55 && progress < 0.75) {
+                            medicalData.setHeartVectorAngle(60f); // 正常なT波の平均的な電気軸
+                            medicalData.setHeartVectorMagnitude((float) (Math.sin((progress - 0.55) * (Math.PI / 0.2)) * 0.4f));
+                        }
+                        // 平坦な部分
+                        else {
+                            medicalData.setHeartVectorMagnitude(0.0f);
+                        }
+
+                        if (cycleTick >= ticksPerBeat) medicalData.setCardiacCycleTick(0);
+                        else medicalData.setCardiacCycleTick(cycleTick + 1);
+                    }
+                }
+            }
         });
     }
 
