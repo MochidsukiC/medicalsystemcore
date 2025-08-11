@@ -197,7 +197,12 @@ public class ModEvents {
                             } else if (packItem == Medicalsystemcore.ADRENALINE_PACK.get()) {
                                 serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.ADRENALINE_EFFECT.get(), 40, 0, true, false));
                             }
-                            // TODO: 他の薬剤パックの効果もここに追加
+                            // ▼▼▼ 以下のelse ifブロックを追加 ▼▼▼
+                            else if (packItem == Medicalsystemcore.FIBRINOGEN_PACK.get()) {
+                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.FIBRINOGEN_EFFECT.get(), 40, 0, true, false));
+                            } else if (packItem == Medicalsystemcore.TRANEXAMIC_ACID_PACK.get()) {
+                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), 40, 0, true, false));
+                            }
 
                         } else {
                             // 残量が0になったらパックを消滅させる
@@ -244,23 +249,32 @@ public class ModEvents {
 
             float currentSpeed = medicalData.getBleedingSpeed();
             if (currentSpeed > 0) {
-                float recoveryRatePerSecond = 0.1f;
+                float recoveryRatePerSecond = 0.0f;
+                int bandageLevel = 0;
+                int plateletEffectLevel = 0;
 
                 // 包帯エフェクトのレベルを確認
                 if (serverPlayer.hasEffect(Medicalsystemcore.BANDAGE_EFFECT.get())) {
-                    // Amplifierはレベル0から始まるので、実際のレベルは+1する
-                    int bandageLevel = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get()).getAmplifier() + 1;
-                    // 仕様の計算式を適用
-                    recoveryRatePerSecond += 0.1f * 5*bandageLevel;
+                    bandageLevel = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get()).getAmplifier() + 3;
                 }
 
-                // TODO: 将来的に血小板エフェクトの計算もここに追加
+                // ▼▼▼ 新しいエフェクトのチェックを追加 ▼▼▼
+                // フィブリノゲンエフェクトのレベルを確認
+                if (serverPlayer.hasEffect(Medicalsystemcore.FIBRINOGEN_EFFECT.get())) {
+                    plateletEffectLevel += 5; // 効果は重複するので加算
+                }
+                // トラネキサム酸エフェクトのレベルを確認
+                if (serverPlayer.hasEffect(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get())) {
+                    plateletEffectLevel += 5; // 効果は重複するので加算
+                }
+
+                // 仕様の計算式を適用
+                // 出血回復 = 0.1 * (包帯レベル + 5 * (フィブリノゲン有無 + トラネキサム酸有無))
+                recoveryRatePerSecond = 0.1f * (bandageLevel + 5 * plateletEffectLevel);
 
                 if (recoveryRatePerSecond > 0) {
-                    // 1秒あたりの回復量を、1tickあたりの回復量に変換 (1秒 = 20 tick)
-                    float recoveryPerTick = recoveryRatePerSecond / 20.0f/60;
+                    float recoveryPerTick = recoveryRatePerSecond /60.0f/ 20.0f;
                     medicalData.setBleedingSpeed(currentSpeed - recoveryPerTick);
-
                     currentSpeed = medicalData.getBleedingSpeed();
                 }
             }

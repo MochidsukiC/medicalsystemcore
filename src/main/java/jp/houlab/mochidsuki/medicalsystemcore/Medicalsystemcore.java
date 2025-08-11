@@ -12,6 +12,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.TransfusionEffect;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.BandageEffect;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.AdrenalineEffect;
+import jp.houlab.mochidsuki.medicalsystemcore.effect.*;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.DefibrillatorBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.IVStandScreen;
 import net.minecraft.client.Minecraft;
@@ -82,6 +83,10 @@ public class Medicalsystemcore {
             BandageEffect::new);
     public static final RegistryObject<MobEffect> ADRENALINE_EFFECT = MOB_EFFECTS.register("adrenaline_effect",
             AdrenalineEffect::new);
+    public static final RegistryObject<MobEffect> FIBRINOGEN_EFFECT = MOB_EFFECTS.register("fibrinogen_effect",
+            FibrinogenEffect::new);
+    public static final RegistryObject<MobEffect> TRANEXAMIC_ACID_EFFECT = MOB_EFFECTS.register("tranexamic_acid_effect",
+            TranexamicAcidEffect::new);
 
     //Block
     public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);
