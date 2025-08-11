@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "medicalsystemcore:block/head_side_monitor" }
+  }
+}

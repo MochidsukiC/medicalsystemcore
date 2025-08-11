@@ -2,6 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -139,6 +140,7 @@ public class DefibrillatorBlock extends BaseEntityBlock {
         be.startCharge();
         player.sendSystemMessage(Component.literal("§eチャージを開始します..."));
     }
+
 
     @Override
     public void onPlace(BlockState pState, Level pLevel, BlockPos pPos, BlockState pOldState, boolean pIsMoving) {

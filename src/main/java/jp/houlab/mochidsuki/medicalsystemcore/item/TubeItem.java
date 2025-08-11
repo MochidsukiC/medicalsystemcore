@@ -61,39 +61,38 @@ public class TubeItem extends Item {
     @Override
     public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pTarget, InteractionHand pHand) {
         Level level = pPlayer.level();
-        if (!pPlayer.level().isClientSide && pTarget instanceof Player targetPlayer) {
+        if (!level.isClientSide && pTarget instanceof Player targetPlayer) {
             CompoundTag nbt = pStack.getTag();
 
-            // NBTに始点が設定されているか確認
-
+            // ▼▼▼ ここのキー名を修正 ▼▼▼
             if (nbt != null && nbt.contains(TAG_START_POS)) {
+                // ▼▼▼ ここのキー名を修正 ▼▼▼
                 BlockPos startPos = NbtUtils.readBlockPos(nbt.getCompound(TAG_START_POS));
-
-                // ▼▼▼ ここからが新しい処理 ▼▼▼
-                // スタンドのブロックエンティティを取得
                 BlockEntity be = level.getBlockEntity(startPos);
+
                 if (be instanceof IVStandBlockEntity standEntity) {
-                    // スタンドに掛かっているパックを取得
-                    ItemStack pack = standEntity.itemHandler.getStackInSlot(0);
-                    if (!pack.isEmpty()) {
-                        // 患者に輸血効果（タイマー）を付与 (例: 30秒)
+                    boolean hasAnyPack = false;
+                    for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
+                        if (!standEntity.itemHandler.getStackInSlot(i).isEmpty()) {
+                            hasAnyPack = true;
+                            break;
+                        }
+                    }
+
+                    if (hasAnyPack) {
                         targetPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                            // 輸血元のスタンドの位置を記録
                             data.setTransfusingFromStandPos(Optional.of(startPos));
                         });
 
-                        // スタンドのパックを消費
-                        //standEntity.itemHandler.setStackInSlot(0, ItemStack.EMPTY);
+                        pPlayer.sendSystemMessage(Component.literal("§a" + targetPlayer.getName().getString() + " への点滴を開始しました。"));
+                        targetPlayer.sendSystemMessage(Component.literal("§a点滴が開始されました。"));
 
-                        pPlayer.sendSystemMessage(Component.literal("§a" + targetPlayer.getName().getString() + " への輸血を開始しました。"));
-                        targetPlayer.sendSystemMessage(Component.literal("§a輸血が開始されました。"));
-
-                        // 接続が完了したので、チューブのNBTをクリア
+                        // ▼▼▼ ここのキー名を修正 ▼▼▼
                         nbt.remove(TAG_START_POS);
                         return InteractionResult.SUCCESS;
                     }
                 }
-                pPlayer.sendSystemMessage(Component.literal("§cエラー: 点滴スタンドにパックがありません。"));
+                pPlayer.sendSystemMessage(Component.literal("§cエラー: 点滴スタンドに有効なパックがありません。"));
                 return InteractionResult.FAIL;
             }
         }

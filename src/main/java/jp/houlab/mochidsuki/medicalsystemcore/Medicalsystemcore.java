@@ -1,7 +1,9 @@
 package jp.houlab.mochidsuki.medicalsystemcore;
 
 import com.mojang.logging.LogUtils;
+import jp.houlab.mochidsuki.medicalsystemcore.block.HeadsideMonitorBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.block.DefibrillatorBlock;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.HeadsideMonitorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
@@ -15,12 +17,14 @@ import jp.houlab.mochidsuki.medicalsystemcore.effect.AdrenalineEffect;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.*;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.DefibrillatorBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.IVStandScreen;
+import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.HeadsideMonitorBlockEntityRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -30,7 +34,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.capabilities.RegisterCapabilitiesEvent;
@@ -92,6 +95,9 @@ public class Medicalsystemcore {
     public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);
     public static final RegistryObject<Block> DEFIBRILLATOR_BLOCK = BLOCKS.register("defibrillator_block",
             () -> new DefibrillatorBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)));
+    public static final RegistryObject<Block> HEAD_SIDE_MONITOR_BLOCK = BLOCKS.register("head_side_monitor",
+            () -> new HeadsideMonitorBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)));
+
 
     //BlockEntity
     public static final RegistryObject<BlockEntityType<IVStandBlockEntity>> IV_STAND_BLOCK_ENTITY =
@@ -101,6 +107,9 @@ public class Medicalsystemcore {
     public static final RegistryObject<BlockEntityType<DefibrillatorBlockEntity>> DEFIBRILLATOR_BLOCK_ENTITY =
             BLOCK_ENTITIES.register("defibrillator_block_entity", () ->
                     BlockEntityType.Builder.of(DefibrillatorBlockEntity::new, DEFIBRILLATOR_BLOCK.get()).build(null));
+    public static final RegistryObject<BlockEntityType<HeadsideMonitorBlockEntity>> HEAD_SIDE_MONITOR_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("head_side_monitor_block_entity", () ->
+                    BlockEntityType.Builder.of(HeadsideMonitorBlockEntity::new, HEAD_SIDE_MONITOR_BLOCK.get()).build(null));
 
 
     //Item
@@ -112,6 +121,12 @@ public class Medicalsystemcore {
 
     public static final RegistryObject<Item> IV_STAND_ITEM = ITEMS.register("iv_stand",
             () -> new BlockItem(IV_STAND.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> HEAD_SIDE_MONITOR_BLOCK_ITEM = ITEMS.register("head_side_monitor",
+            () -> new BlockItem(HEAD_SIDE_MONITOR_BLOCK.get(), new Item.Properties()));
+    public static final RegistryObject<Item> HEAD_SIDE_CABLE = ITEMS.register("head_side_cable",
+            () -> new HeadsideCableItem(new Item.Properties().stacksTo(1)));
+
     // 各種パック
     public static final RegistryObject<Item> BLOOD_PACK = ITEMS.register("blood_pack",
             () -> new FluidPackItem(new Item.Properties()));
@@ -141,6 +156,7 @@ public class Medicalsystemcore {
         output.accept(FIBRINOGEN_PACK.get());
         output.accept(NORADRENALINE_PACK.get());
         output.accept(TUBE.get());
+        output.accept(HEAD_SIDE_MONITOR_BLOCK_ITEM.get());
 
     }).build());
 
@@ -209,8 +225,12 @@ public class Medicalsystemcore {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
             BlockEntityRenderers.register(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), DefibrillatorBlockEntityRenderer::new);
+            BlockEntityRenderers.register(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK_ENTITY.get(), HeadsideMonitorBlockEntityRenderer::new);
             MenuScreens.register(IV_STAND_MENU.get(), IVStandScreen::new);
 
+            event.enqueueWork(() -> {
+                ItemBlockRenderTypes.setRenderLayer(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK.get(), RenderType.cutout());
+            });
 
             // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");

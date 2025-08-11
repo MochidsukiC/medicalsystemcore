@@ -2,6 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.item;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -25,6 +26,14 @@ public class FluidPackItem extends Item {
             pTooltipComponents.add(Component.literal("残量: " + secondsLeft + "秒"));
         } else {
             pTooltipComponents.add(Component.literal("残量: 満タン (60秒)"));
+        }
+    }
+
+    @Override
+    public void inventoryTick(ItemStack pStack, Level pLevel, Entity pEntity, int pSlotId, boolean pIsSelected) {
+        // NBTタグが存在しない場合のみ、デフォルト値を書き込む
+        if (!pStack.hasTag()) {
+            pStack.getOrCreateTag().putInt("FluidVolumeTicks", 60 * 20);
         }
     }
 }

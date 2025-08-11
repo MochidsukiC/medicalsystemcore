@@ -165,33 +165,29 @@ public class ModEvents {
 
 
         serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-
             medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
-                boolean connectionStillValid = false;
                 BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
 
+                // --- 接続維持の条件 ---
+                // スタンドが存在し、プレイヤーが範囲内にいるか
                 if (be instanceof IVStandBlockEntity standEntity && serverPlayer.distanceToSqr(standPos.getX() + 0.5, standPos.getY() + 0.5, standPos.getZ() + 0.5) < 100.0) {
 
+                    // --- エフェクト適用の処理 ---
                     // 3つのスロットを全てループでチェック
                     for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
                         ItemStack packStack = standEntity.itemHandler.getStackInSlot(i);
                         if (packStack.isEmpty()) {
-                            continue; // このスロットが空なら次へ
+                            continue;
                         }
 
-                        // 少なくとも1つ有効なパックがあれば、接続は維持される
-                        connectionStillValid = true;
-
-                        // パックのNBTから残量を取得
                         CompoundTag nbt = packStack.getOrCreateTag();
                         int ticksLeft = nbt.getInt("FluidVolumeTicks");
 
                         if (ticksLeft > 0) {
-                            // 残量を1減らす
                             nbt.putInt("FluidVolumeTicks", ticksLeft - 1);
 
-                            // パックの種類を判別し、対応するエフェクトを付与
                             Item packItem = packStack.getItem();
+                            // (ここに、パックの種類に応じたエフェクトを付与するif-else if文が入る)
                             if (packItem == Medicalsystemcore.BLOOD_PACK.get()) {
                                 serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), 40, 0, true, false));
                             } else if (packItem == Medicalsystemcore.ADRENALINE_PACK.get()) {
@@ -203,18 +199,16 @@ public class ModEvents {
                             } else if (packItem == Medicalsystemcore.TRANEXAMIC_ACID_PACK.get()) {
                                 serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), 40, 0, true, false));
                             }
-
                         } else {
-                            // 残量が0になったらパックを消滅させる
-                            standEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+                             packStack.setCount(packStack.getCount() - 1);
+                            nbt.putInt("FluidVolumeTicks", 60*20);
                         }
                     }
                 }
-
-                if (!connectionStillValid) {
-                    // 有効なパックが一つもなくなったら接続を解除
+                // --- 接続が切れる場合の処理 ---
+                else {
                     medicalData.setTransfusingFromStandPos(Optional.empty());
-                    serverPlayer.sendSystemMessage(Component.literal("§e点滴が終了した。"));
+                    serverPlayer.sendSystemMessage(Component.literal("§e点滴が外れた。"));
                 }
             });
 
