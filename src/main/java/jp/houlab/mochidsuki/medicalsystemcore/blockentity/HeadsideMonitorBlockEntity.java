@@ -74,24 +74,19 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
                     be.bloodLevel = data.getBloodLevel();
                     be.heartStatus = data.getHeartStatus();
                     be.heartRate = ModEvents.calculateHeartRate(monitoredPlayer, be.heartStatus);
+                    // --- このモニターで、3誘導を個別に計算 (本報告書 4.4節) ---
+                    float Px = data.getHeartVectorX();
+                    float Py = data.getHeartVectorY();
 
-                    // --- ▼▼▼ このモニターで、3誘導を個別に計算 ▼▼▼ ---
-                    // プレイヤーの心電位ベクトル（角度と強さ）を取得
-                    float vectorAngleRad = (float) Math.toRadians(data.getHeartVectorAngle());
-                    float vectorMagnitude = data.getHeartVectorMagnitude();
+                    // 誘導ベクトルとのドット積を計算
+                    float leadI = Px;
+                    float leadII = 0.5f * Px + 0.866f * Py;
+                    float leadIII = -0.5f * Px + 0.866f * Py;
 
-                    // アイントーベンの法則に基づき、ベクトルを各誘導軸に投影
-                    // Lead I = mag * cos(angle)
-                    // Lead II = mag * cos(angle - 60deg)
-                    // Lead III = mag * cos(angle - 120deg)
-                    float leadI = vectorMagnitude * (float) Math.cos(vectorAngleRad);
-                    float leadII = vectorMagnitude * (float) Math.cos(vectorAngleRad - Math.toRadians(60));
-                    float leadIII = vectorMagnitude * (float) Math.cos(vectorAngleRad - Math.toRadians(120));
+                    // モニターごとに微妙なノイズを追加
+                    float noise = (level.random.nextFloat() - 0.5f) * 0.05f;
 
-                    // 仕様通り、モニターごとに微妙なノイズを追加
-                    float noise = (level.random.nextFloat() - 0.5f) * 0.05f; // ±2.5%のノイズ
-
-                    // 計算結果をこのBEのフィールドに保存
+                    // 計算結果をBEのフィールドに保存 (レンダラーはこれを参照する)
                     be.leadI = leadI + noise;
                     be.leadII = leadII + noise;
                     be.leadIII = leadIII + noise;
@@ -130,33 +125,6 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         };
     }
 
-    /**
-     * このモニター独自の3誘導値を計算する
-     */
-    private float[] calculateLeadValues(HeartStatus status, int cycleTick, int ticksPerBeat, Level level) {
-        float[] leads = new float[3]; // [I, II, III]
-        float progress = (float) cycleTick / ticksPerBeat;
-
-        // (以前ModEventsにあった計算ロジックをここに移動)
-        switch (status) {
-            case NORMAL:
-                // ... (P波, QRS波, T波の計算) ...
-                break;
-            case VF:
-                // ... (VFの計算) ...
-                break;
-            case CARDIAC_ARREST:
-                // ... (フラットライン) ...
-                break;
-        }
-
-        // ▼▼▼ このモニター独自のノイズを追加 ▼▼▼
-        leads[0] += (level.random.nextFloat() - 0.5f) * 0.05f; // ±2.5%のノイズ
-        leads[1] += (level.random.nextFloat() - 0.5f) * 0.05f;
-        leads[2] += (level.random.nextFloat() - 0.5f) * 0.05f;
-
-        return leads;
-    }
 
     // --- セーブとロード ---
     @Override

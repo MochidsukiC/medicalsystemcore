@@ -49,14 +49,12 @@ public interface IPlayerMedicalData {
     void setDamageImmune(boolean immune);
 
     //心臓の周期的タイマー
-    int getCardiacCycleTick();
-    void setCardiacCycleTick(int ticks);
-
-    float getHeartVectorAngle();
-    void setHeartVectorAngle(float angle);
-
-    float getHeartVectorMagnitude();
-    void setHeartVectorMagnitude(float magnitude);
+    float getCycleTime();
+    void setCycleTime(float time);
+    float getHeartVectorX();
+    void setHeartVectorX(float x);
+    float getHeartVectorY();
+    void setHeartVectorY(float y);
 
     // --- データの保存と読み込み ---
     void saveNBTData(CompoundTag nbt);

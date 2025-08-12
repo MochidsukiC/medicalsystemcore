@@ -14,11 +14,12 @@ import org.joml.Matrix4f;
 
 public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<HeadsideMonitorBlockEntity> {
     private final Font font;
-    // 波形の履歴を保持するための配列。クラスのフィールドとして持つことで、描画がスムーズになる
-    private final float[] lead1History = new float[80]; // 80フレーム分の履歴
+    // 波形の履歴を保持するための配列 (あなたのコードにあったものを正しく活用します)
+    private final float[] lead1History = new float[80];
     private final float[] lead2History = new float[80];
     private final float[] lead3History = new float[80];
     private int historyIndex = 0;
+
 
     public HeadsideMonitorBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
         this.font = context.getFont();
@@ -26,10 +27,6 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
 
     @Override
     public void render(HeadsideMonitorBlockEntity pBlockEntity, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBuffer, int pPackedLight, int pPackedOverlay) {
-        // --- サーバーから同期された最新のデータを取得 ---
-        int heartRate = pBlockEntity.heartRate;
-        float bloodLevel = pBlockEntity.bloodLevel;
-        // BEに保存された波形データを取得 (これは1周期分の完全なデータ)
         // --- 1. サーバーから同期された最新の「点」のデータを取得 ---
         float currentLeadI = pBlockEntity.leadI;
         float currentLeadII = pBlockEntity.leadII;
@@ -41,6 +38,7 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         lead2History[historyIndex] = currentLeadII;
         lead3History[historyIndex] = currentLeadIII;
 
+        // --- 3. 描画処理 ---
         pPoseStack.pushPose();
         // (あなたの座標変換ロジックはそのまま使用)
         pPoseStack.translate(0.5D, 0.5D, 0.001D);
@@ -52,19 +50,17 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         int maxLight = 15728880;
 
         // --- 各要素の描画 ---
-        // 1. 心拍数(HR)と心電図 (緑) - 誘導II
-        renderHeartRate(pPoseStack, pBuffer, maxLight, heartRate, lead1History);
-        // 2. 血液量(Blood)と波形 (マゼンタ) - 誘導I
-        renderBloodLevel(pPoseStack, pBuffer, maxLight, bloodLevel, lead2History);
-        // 3. SpO2と波形 (シアン) - 誘導III
+        // 各描画メソッドに、更新された「履歴」配列を渡す
+        renderHeartRate(pPoseStack, pBuffer, maxLight, pBlockEntity.heartRate, lead2History);
+        renderBloodLevel(pPoseStack, pBuffer, maxLight, pBlockEntity.bloodLevel, lead1History);
         renderSpO2(pPoseStack, pBuffer, maxLight, 99, lead3History);
 
         pPoseStack.popPose();
     }
 
-    // --- ヘルパーメソッド群 ---
+    // --- ヘルパーメソッド群 (テキスト描画部分は変更なし) ---
 
-    private void renderHeartRate(PoseStack poseStack, MultiBufferSource bufferSource, int light, int heartRate, float[] waveformData) {
+    private void renderHeartRate(PoseStack poseStack, MultiBufferSource bufferSource, int light, int heartRate, float[] waveformHistory) {
         poseStack.pushPose();
         poseStack.translate(-10, -35, 0);
 
@@ -76,9 +72,11 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.scale(1/scale, 1/scale, 1/scale);
 
         poseStack.translate(35, 5, 0);
-        drawWaveform(poseStack, bufferSource, waveformData, 0xFF00FF00); // 描画メソッドを統一
+        drawWaveform(poseStack, bufferSource, waveformHistory, 0xFF00FF00);
         poseStack.popPose();
     }
+    // (renderBloodLevel, renderSpO2も同様)
+
 
     private void renderBloodLevel(PoseStack poseStack, MultiBufferSource bufferSource, int light, float bloodLevel, float[] waveformData) {
         poseStack.pushPose();

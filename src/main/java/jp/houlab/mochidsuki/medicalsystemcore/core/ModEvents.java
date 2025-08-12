@@ -26,6 +26,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID) // MODIDはあなたのMod IDに合わせてください
 public class ModEvents {
@@ -313,7 +314,6 @@ public class ModEvents {
                         // ▼▼▼ ここを変更 ▼▼▼
                         // lowBloodVolumeの代わりに、既存のbleedingダメージタイプを使用
                         serverPlayer.hurt(ModDamageTypes.bleeding(serverPlayer.level()), damageAmount);
-                        System.out.println(medicalData.getHeartStatus());
                     }
                 }
             }
@@ -344,45 +344,49 @@ public class ModEvents {
             //medicalData.setPreviousHeartStatus(newStatus);
 
             HeartStatus status = medicalData.getHeartStatus();
-            int cycleTick = medicalData.getCardiacCycleTick();
+            float cycleTime = medicalData.getCycleTime();
+
+            // 1ティックあたりの時間を加算 (1秒 = 20tick)
+            cycleTime += 0.05f;
+
+            int heartRate = calculateHeartRate(serverPlayer, status);
+            float cycleDuration = heartRate > 0 ? 60.0f / heartRate : Float.MAX_VALUE;
+
+            if (cycleTime >= cycleDuration) {
+                cycleTime -= cycleDuration; // 周期リセット
+            }
+
+            float scalarPotential;
+            float[] pathVector;
 
             switch (status) {
                 case NORMAL -> {
-                    int heartRate = calculateHeartRate(serverPlayer, status);
-                    if (heartRate > 0) {
-                        int ticksPerBeat = 1200 / heartRate;
-                        float progress = (float) cycleTick / ticksPerBeat; // 1心拍における進捗(0.0～1.0)
-
-                        // 各波形フェーズに応じて、心電位ベクトルの角度と強さを変化させる
-                        // P波 (心房の興奮)
-                        if (progress > 0.05 && progress < 0.15) {
-                            medicalData.setHeartVectorAngle(60f); // 正常なP波の平均的な電気軸
-                            medicalData.setHeartVectorMagnitude((float) (Math.sin((progress - 0.05) * (Math.PI / 0.1)) * 0.2f));
-                        }
-                        // QRS波 (心室の興奮)
-                        else if (progress > 0.25 && progress < 0.35) {
-                            medicalData.setHeartVectorAngle(50f + (progress * 20f)); // 興奮が伝わるにつれて軸が少し変化
-                            float qrsProgress = (progress - 0.25f) / 0.1f;
-                            if (qrsProgress < 0.5)
-                                medicalData.setHeartVectorMagnitude(-0.4f + (1.8f * (qrsProgress * 2)));
-                            else
-                                medicalData.setHeartVectorMagnitude(1.4f - (1.8f * ((qrsProgress - 0.5f) * 2)));
-                        }
-                        // T波 (心室の回復)
-                        else if (progress > 0.55 && progress < 0.75) {
-                            medicalData.setHeartVectorAngle(60f); // 正常なT波の平均的な電気軸
-                            medicalData.setHeartVectorMagnitude((float) (Math.sin((progress - 0.55) * (Math.PI / 0.2)) * 0.4f));
-                        }
-                        // 平坦な部分
-                        else {
-                            medicalData.setHeartVectorMagnitude(0.0f);
-                        }
-
-                        if (cycleTick >= ticksPerBeat) medicalData.setCardiacCycleTick(0);
-                        else medicalData.setCardiacCycleTick(cycleTick + 1);
-                    }
+                    // ガウス関数加算モデルでスカラーポテンシャルを計算
+                    scalarPotential = calculateGaussianSumPotential(cycleTime, cycleDuration);
+                    // 経路関数でベクトル方向を計算
+                    pathVector = getHeartVectorPath(cycleTime, cycleDuration);
+                    // 血液量に応じて振幅を調整
+                    scalarPotential *= (medicalData.getBloodLevel() / 100.0f);
+                }
+                case VF -> {
+                    // フィルタリングされたノイズモデル
+                    scalarPotential = 1.0f;
+                    pathVector = getVFWaveform(serverPlayer.level().getGameTime());
+                }
+                default -> { // CARDIAC_ARREST
+                    scalarPotential = 0.0f;
+                    pathVector = new float[]{0, 0};
                 }
             }
+
+            // Capabilityに計算結果を保存
+            medicalData.setCycleTime(cycleTime);
+            medicalData.setHeartVectorX(scalarPotential * pathVector[0]);
+            medicalData.setHeartVectorY(scalarPotential * pathVector[1]);
+
+            if(serverPlayer.getUUID().equals(UUID.fromString("0b9d2ada-2ed1-4fee-89c9-fa7d3fdd9ba2"))){
+            System.out.println("CycleTime: " + cycleTime + " cycleDuration: " + cycleDuration + " ScalarPotential:" +scalarPotential +" pathVector0:"+ pathVector[0] + " pathVector1:"+ pathVector[1]);
+}
         });
     }
 
@@ -395,6 +399,59 @@ public class ModEvents {
                 .map(data -> data.getHeartStatus() != HeartStatus.NORMAL)
                 .orElse(false);
     }
+
+    /**
+     * ガウス関数 (本報告書 2.2節)
+     * a:振幅, mu:中心位置, sigma:幅
+     */
+    private static float gaussian(float t, float a, float mu, float sigma) {
+        return (float) (a * Math.exp(-Math.pow(t - mu, 2) / (2 * Math.pow(sigma, 2))));
+    }
+
+    /**
+     * 正常洞調律のスカラーポテンシャルを計算 (パラメータ調整版)
+     */
+    private static float calculateGaussianSumPotential(float cycleTime, float cycleDuration) {
+        // P波 (少し幅を広げ、高さを調整)
+        float p = gaussian(cycleTime, 0.2f, 0.12f * cycleDuration, 0.04f * cycleDuration);
+        // QRS波 (R波を少しシャープに)
+        float q = gaussian(cycleTime, -0.15f, 0.28f * cycleDuration, 0.01f * cycleDuration);
+        float r = gaussian(cycleTime, 1.2f, 0.30f * cycleDuration, 0.01f * cycleDuration);
+        float s = gaussian(cycleTime, -0.3f, 0.32f * cycleDuration, 0.01f * cycleDuration);
+        // T波 (大幅に幅を広げ、出現タイミングを調整)
+        float t = gaussian(cycleTime, 0.35f, 0.50f * cycleDuration, 0.08f * cycleDuration);
+
+        return p + q + r + s + t;
+    }
+
+    private static float[] getHeartVectorPath(float cycleTime, float cycleDuration) {
+        float progress = cycleTime / cycleDuration;
+        // P波とT波は60度、QRS波は50-70度あたりを動くベクトルを簡易的に表現
+        double angleRad = Math.toRadians(60);
+
+        // ★★★ 修正点 ★★★
+        // QRS波のタイミング判定を、スカラーポテンシャル計算(calculateGaussianSumPotential)の
+        // タイミング (0.28 ~ 0.32) と一致させます。
+        // これにより、波形の振幅とベクトルの方向が正しく同期します。
+        if (progress > 0.27 && progress < 0.33) { // 0.28-0.32を少し広めにカバー
+            // 0.27から0.33の範囲で、角度が50度から70度へ線形に変化するように計算
+            double qrsProgress = (progress - 0.27) / (0.33 - 0.27);
+            angleRad = Math.toRadians(50 + qrsProgress * 20);
+        }
+        return new float[]{(float) Math.cos(angleRad), (float) Math.sin(angleRad)};
+    }
+
+    /**
+     * VFの波形を計算 (本報告書 2.3.1節)
+     */
+    private static float[] getVFWaveform(long gameTime){
+        float time = (float)gameTime / 20.0f;
+        // 複数のサイン波と乱数を合成
+        float x = (float)(Math.sin(time * 8) * 0.4 + Math.sin(time * 15) * 0.6 + (Math.random() - 0.5) * 0.3);
+        float y = (float)(Math.sin(time * 7) * 0.5 + Math.sin(time * 18) * 0.5 + (Math.random() - 0.5) * 0.3);
+        return new float[]{x, y};
+    }
+
 
     /**
      * プレイヤーのインタラクト（クリックなど）を監視するイベント

@@ -20,10 +20,40 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     private HeartStatus previousHeartStatus = HeartStatus.NORMAL;
     private Optional<BlockPos> blockPos = Optional.empty();
     private boolean damageImmune = false;
-    private int cardiacCycleTick = 0;
-    private float heartVectorAngle;
-    private float heartVectorMagnitude;
 
+    @Override
+    public float getCycleTime() {
+        return cycleTime;
+    }
+
+    @Override
+    public void setCycleTime(float cycleTime) {
+        this.cycleTime = cycleTime;
+    }
+
+    @Override
+    public float getHeartVectorX() {
+        return heartVectorX;
+    }
+
+    @Override
+    public void setHeartVectorX(float heartVectorX) {
+        this.heartVectorX = heartVectorX;
+    }
+
+    @Override
+    public float getHeartVectorY() {
+        return heartVectorY;
+    }
+
+    @Override
+    public void setHeartVectorY(float heartVectorY) {
+        this.heartVectorY = heartVectorY;
+    }
+
+    private float cycleTime = 0.0f;
+    private float heartVectorX = 0.0f;
+    private float heartVectorY = 0.0f;
 
 
     @Override
@@ -142,34 +172,6 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     @Override
     public void setDamageImmune(boolean immune) {
         this.damageImmune = immune;
-    }
-
-
-    @Override
-    public int getCardiacCycleTick() {
-        return this.cardiacCycleTick;
-    }
-    @Override
-    public void setCardiacCycleTick(int ticks) {
-        this.cardiacCycleTick = ticks;
-    }
-
-    @Override
-    public float getHeartVectorAngle(){
-        return this.heartVectorAngle;
-    }
-    @Override
-    public void setHeartVectorAngle(float angle){
-        this.heartVectorAngle = angle;
-    }
-
-    @Override
-    public float getHeartVectorMagnitude(){
-        return this.heartVectorMagnitude;
-    }
-    @Override
-    public void setHeartVectorMagnitude(float magnitude){
-        this.heartVectorMagnitude = magnitude;
     }
 
     /**
