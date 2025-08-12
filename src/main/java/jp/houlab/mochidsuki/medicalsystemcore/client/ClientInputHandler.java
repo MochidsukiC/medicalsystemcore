@@ -19,17 +19,14 @@ public class ClientInputHandler {
 
     @SubscribeEvent
     public static void onClientPlayerTick(TickEvent.PlayerTickEvent event) {
-        // クライアントサイドで、ティックの最後に実行
         if (event.side.isClient() && event.phase == TickEvent.Phase.END) {
-            // Minecraftの姿勢計算ロジックが実行された後に、私たちのロジックで上書きする
             Player player = event.player;
 
             ClientQTEManager.tick();
-
             ClientHealingManager.tick();
 
-            if (player != null && ClientMedicalDataManager.isPlayerIncapacitated(player)) {
-                // 行動不能状態の場合、姿勢がSWIMMINGでなければ強制的に設定する
+            if (player != null && ClientMedicalDataManager.isPlayerUnconscious(player)) {
+                // 意識障害状態の場合、姿勢がSWIMMINGでなければ強制的に設定する
                 if (player.getPose() != Pose.SWIMMING) {
                     player.setPose(Pose.SWIMMING);
                 }
@@ -44,9 +41,8 @@ public class ClientInputHandler {
             return;
         }
 
-        // ClientMedicalDataManagerからプレイヤーの状態を確認
-        if (ClientMedicalDataManager.isPlayerIncapacitated(player)) {
-            // 行動不能な場合、全ての移動入力をゼロにする
+        // 意識障害状態の場合、全ての移動入力をゼロにする
+        if (ClientMedicalDataManager.isPlayerUnconscious(player)) {
             event.getInput().forwardImpulse = 0;
             event.getInput().leftImpulse = 0;
             event.getInput().jumping = false;

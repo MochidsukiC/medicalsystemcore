@@ -20,14 +20,16 @@ public class ClientboundCoreStatsPacket {
     private final HeartStatus heartStatus;
     private final float bleedingSpeed;
     private final float resuscitationChance;
+    private final boolean isConscious;
 
     // コンストラクタを更新
-    public ClientboundCoreStatsPacket(UUID playerUUID, float bloodLevel, HeartStatus heartStatus, float bleedingSpeed , float resuscitationChance) {
+    public ClientboundCoreStatsPacket(UUID playerUUID, float bloodLevel, HeartStatus heartStatus, float bleedingSpeed , float resuscitationChance,boolean conscious) {
         this.playerUUID = playerUUID;
         this.bloodLevel = bloodLevel;
         this.heartStatus = heartStatus;
         this.bleedingSpeed = bleedingSpeed;
         this.resuscitationChance = resuscitationChance;
+        this.isConscious = conscious;
     }
 
     public ClientboundCoreStatsPacket(UUID playerUUID, HeartStatus heartStatus, IPlayerMedicalData medicalData) {
@@ -36,6 +38,7 @@ public class ClientboundCoreStatsPacket {
         this.heartStatus = heartStatus;
         this.bleedingSpeed = medicalData.getBleedingSpeed();
         this.resuscitationChance = medicalData.getResuscitationChance();
+        this.isConscious = medicalData.isConscious();
     }
 
     // バイトデータからの復元処理を更新
@@ -45,6 +48,7 @@ public class ClientboundCoreStatsPacket {
         this.heartStatus = buf.readEnum(HeartStatus.class);
         this.bleedingSpeed = buf.readFloat();
         this.resuscitationChance = buf.readFloat();
+        this.isConscious = buf.readBoolean(); //
     }
 
     // バイトデータへの書き込み処理を更新
@@ -54,6 +58,7 @@ public class ClientboundCoreStatsPacket {
         buf.writeEnum(heartStatus);
         buf.writeFloat(bleedingSpeed);
         buf.writeFloat(resuscitationChance);
+        buf.writeBoolean(isConscious);
     }
 
     public boolean handle(Supplier<NetworkEvent.Context> supplier) {
@@ -65,6 +70,7 @@ public class ClientboundCoreStatsPacket {
             data.heartStatus = this.heartStatus;
             data.bleedingSpeed = this.bleedingSpeed;
             data.resuscitationChance = this.resuscitationChance;
+            data.isConscious = this.isConscious;
         });
         return true;
     }

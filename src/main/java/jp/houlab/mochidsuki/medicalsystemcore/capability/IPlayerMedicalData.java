@@ -51,6 +51,9 @@ public interface IPlayerMedicalData {
     boolean isDamageImmune();
     void setDamageImmune(boolean immune);
 
+    boolean isConscious();
+    void setConscious(boolean conscious);
+
     //心臓の周期的タイマー
     float getCycleTime();
     void setCycleTime(float time);

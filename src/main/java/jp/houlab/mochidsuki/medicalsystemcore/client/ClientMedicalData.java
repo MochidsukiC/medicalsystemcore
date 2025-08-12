@@ -10,6 +10,7 @@ public class ClientMedicalData {
     public HeartStatus heartStatus;
     public float bleedingSpeed;
     public float resuscitationChance;
+    public boolean isConscious;
     // 他にも表示したいステータスがあればここに追加
 
     public ClientMedicalData() {
@@ -18,5 +19,6 @@ public class ClientMedicalData {
         this.heartStatus = HeartStatus.NORMAL;
         this.bleedingSpeed = 0;
         this.resuscitationChance = 100.0f;
+        this.isConscious = true;
     }
 }

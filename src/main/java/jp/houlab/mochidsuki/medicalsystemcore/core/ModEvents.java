@@ -29,6 +29,8 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.Optional;
 import java.util.UUID;
 
+import static jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalDataManager.isPlayerIncapacitated;
+
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID) // MODIDはあなたのMod IDに合わせてください
 public class ModEvents {
 
@@ -40,15 +42,15 @@ public class ModEvents {
                 if (medicalData.getHeartStatus() != HeartStatus.NORMAL) {
                     // 死亡時にステータスをリセット
                     medicalData.setHeartStatus(HeartStatus.NORMAL);
-                    medicalData.setDamageImmune(false);
+                    medicalData.setConscious(true);
                     return;
                 }
 
                 // --- 死亡をキャンセルし、心停止に移行させる ---
-                event.setCanceled(true); // 死亡をキャンセル
-                player.setHealth(0.1f); // HPを極微量で維持
+                event.setCanceled(true);
+                player.setHealth(0.1f);
                 medicalData.setHeartStatus(HeartStatus.CARDIAC_ARREST);
-                medicalData.setDamageImmune(true); // ダメージ無効状態にする
+                // 意識状態は別途判定されるので、ここでは設定しない
 
                 // クライアントに状態変化を通知
                 if (player instanceof ServerPlayer serverPlayer) {
@@ -56,8 +58,9 @@ public class ModEvents {
                             serverPlayer.getUUID(),
                             medicalData.getBloodLevel(),
                             HeartStatus.CARDIAC_ARREST,
-                            medicalData.getBleedingSpeed(), // 新しいbleedingSpeedを使用
-                            medicalData.getResuscitationChance()
+                            medicalData.getBleedingSpeed(),
+                            medicalData.getResuscitationChance(),
+                            medicalData.isConscious()
                     ), serverPlayer);
                 }
             });
@@ -71,13 +74,14 @@ public class ModEvents {
     public static void onLivingHurt(LivingHurtEvent event) {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                // ダメージ無効フラグがtrueなら、いかなるダメージもキャンセルする
-                if (medicalData.isDamageImmune()) {
+                // 意識障害時は心不全ダメージ（出血ダメージ）以外を無効化
+                if (!medicalData.isConscious() && !event.getSource().is(ModDamageTypes.BLEEDING_KEY)) {
                     event.setCanceled(true);
                 }
             });
         }
     }
+
 
     /**
      * プレイヤーなどのエンティティにCapabilityをアタッチ（紐付け）するイベント
@@ -229,20 +233,20 @@ public class ModEvents {
                 int plateletEffectLevel = 0;
 
                 if (serverPlayer.hasEffect(Medicalsystemcore.BANDAGE_EFFECT.get())) {
-                    bandageLevel = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get()).getAmplifier() + 3;
+                    bandageLevel = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get()).getAmplifier();
                 }
 
                 if (serverPlayer.hasEffect(Medicalsystemcore.FIBRINOGEN_EFFECT.get())) {
-                    plateletEffectLevel += 5;
+                    plateletEffectLevel += 1;
                 }
                 if (serverPlayer.hasEffect(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get())) {
-                    plateletEffectLevel += 5;
+                    plateletEffectLevel += 1;
                 }
 
-                recoveryRatePerSecond = 0.1f * (bandageLevel + 5 * plateletEffectLevel);
+                recoveryRatePerSecond = 0.1f * (3*bandageLevel + 5 * plateletEffectLevel);
 
                 if (recoveryRatePerSecond > 0) {
-                    float recoveryPerTick = recoveryRatePerSecond /60.0f/ 20.0f;
+                    float recoveryPerTick = recoveryRatePerSecond / 20.0f;
                     medicalData.setBleedingSpeed(currentSpeed - recoveryPerTick);
                     currentSpeed = medicalData.getBleedingSpeed();
                 }
@@ -291,6 +295,27 @@ public class ModEvents {
             }
             serverPlayer.refreshDimensions();
 
+            // --- 意識状態の判定 ---
+            boolean shouldBeUnconscious = (serverPlayer.getHealth() <= 4.0f) ||
+                    (medicalData.getHeartStatus() != HeartStatus.NORMAL);
+
+            boolean currentlyConscious = medicalData.isConscious();
+
+            if (shouldBeUnconscious && currentlyConscious) {
+                // 意識を失う
+                medicalData.setConscious(false);
+                serverPlayer.sendSystemMessage(Component.literal("§c意識を失った..."));
+            } else if (!shouldBeUnconscious && !currentlyConscious) {
+                // 意識を回復
+                medicalData.setConscious(true);
+                serverPlayer.sendSystemMessage(Component.literal("§a意識が戻った！"));
+            }
+
+            // --- 意識障害時の姿勢制御 ---
+            if (!medicalData.isConscious()) {
+                serverPlayer.setPose(Pose.SWIMMING);
+            }
+
             // === 心電図シミュレーション（正しいアルゴリズム） ===
 
             // 1. プレイヤー内で心拍数を確定(大まかな心臓状態と乱数)
@@ -306,9 +331,10 @@ public class ModEvents {
             ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
                     serverPlayer.getUUID(),
                     medicalData.getBloodLevel(),
-                    newStatus,
+                    medicalData.getHeartStatus(),
                     medicalData.getBleedingSpeed(),
-                    medicalData.getResuscitationChance()
+                    medicalData.getResuscitationChance(),
+                    medicalData.isConscious() // 追加
             ), serverPlayer);
         });
     }
@@ -439,18 +465,6 @@ public class ModEvents {
         float y = (float)(Math.sin(time * 7) * 0.5 + Math.sin(time * 18) * 0.5 + (Math.random() - 0.5) * 0.3);
         return new float[]{x, y};
     }
-
-    /**
-     * プレイヤーが行動不能かチェックするヘルパーメソッド
-     */
-    private static boolean isPlayerIncapacitated(net.minecraft.world.entity.player.Player player) {
-        // capabilityを取得し、心臓が正常でない場合は行動不能と判断
-        return player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)
-                .map(data -> data.getHeartStatus() != HeartStatus.NORMAL)
-                .orElse(false);
-    }
-
-
 
     /**
      * プレイヤーのインタラクト（クリックなど）を監視するイベント

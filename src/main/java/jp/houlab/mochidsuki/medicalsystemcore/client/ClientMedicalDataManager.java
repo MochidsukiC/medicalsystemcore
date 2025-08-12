@@ -33,17 +33,23 @@ public class ClientMedicalDataManager {
     }
 
     /**
-     * 指定されたプレイヤーがクライアント側で行動不能状態か判断する
+     * 指定されたプレイヤーがクライアント側で意識障害状態か判断する
      * @param player チェックするプレイヤー
-     * @return 行動不能ならtrue
+     * @return 意識障害ならtrue
      */
-    public static boolean isPlayerIncapacitated(Player player) {
+    public static boolean isPlayerUnconscious(Player player) {
         if (player == null) {
             return false;
         }
-        // プレイヤーのUUIDに対応するデータを取得し、心臓の状態がNORMALでないかチェック
         return getPlayerData(player)
-                .map(data -> data.heartStatus != HeartStatus.NORMAL)
-                .orElse(false); // データがなければ行動不能ではない
+                .map(data -> !data.isConscious)
+                .orElse(false);
+    }
+
+    /**
+     * 行動不能状態の判定を意識障害ベースに変更
+     */
+    public static boolean isPlayerIncapacitated(Player player) {
+        return isPlayerUnconscious(player);
     }
 }

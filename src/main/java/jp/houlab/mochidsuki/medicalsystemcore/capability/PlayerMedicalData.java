@@ -183,6 +183,18 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.damageImmune = immune;
     }
 
+    private boolean isConscious = true; // デフォルトは意識清明
+
+    @Override
+    public boolean isConscious() {
+        return this.isConscious;
+    }
+
+    @Override
+    public void setConscious(boolean conscious) {
+        this.isConscious = conscious;
+    }
+
     /**
      * このデータをNBT形式（Minecraftのデータ保存形式）に変換して保存します。
      */
@@ -199,6 +211,8 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         nbt.putInt("cardiacArrestTimer", this.cardiacArrestTimer);
         nbt.putInt("previousHeartStatus", this.previousHeartStatus.ordinal());
         nbt.putBoolean("damageImmune", this.damageImmune);
+        nbt.putBoolean("isConscious", this.isConscious);
+
         nbt.putFloat("cycleTime", this.cycleTime);
         nbt.putFloat("heartVectorX", this.heartVectorX);
         nbt.putFloat("heartVectorY", this.heartVectorY);
@@ -221,6 +235,8 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.cardiacArrestTimer = nbt.getInt("cardiacArrestTimer");
         this.previousHeartStatus = HeartStatus.values()[nbt.getInt("previousHeartStatus")];
         this.damageImmune = nbt.getBoolean("damageImmune");
+        this.isConscious = nbt.getBoolean("isConscious");
+
         this.cycleTime = nbt.getFloat("cycleTime");
         this.heartVectorX = nbt.getFloat("heartVectorX");
         this.heartVectorY = nbt.getFloat("heartVectorY");

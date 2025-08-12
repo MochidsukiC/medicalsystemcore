@@ -11,24 +11,20 @@ import java.util.List;
 
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class DebugOverlayHandler {
-
     @SubscribeEvent
-    public static void onRenderDebugScreen(CustomizeGuiOverlayEvent.DebugText event) { // <--- 修正点2: 正しいイベントクラスを使用
+    public static void onRenderDebugScreen(CustomizeGuiOverlayEvent.DebugText event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {
             ClientMedicalDataManager.getPlayerData(mc.player).ifPresent(data -> {
-                // このイベントでは、直接getLeft()でリストを取得できます
                 List<String> leftStrings = event.getLeft();
 
-                // 区切りのための空白行とヘッダーを追加
                 leftStrings.add("");
-                leftStrings.add("§c[Medical System Core]"); // §cで赤色に
-
-                // 各ステータスをフォーマットして追加
+                leftStrings.add("§c[Medical System Core]");
                 leftStrings.add(String.format("Blood Level: %.1f%%", data.bloodLevel));
                 leftStrings.add("Heart Status: " + data.heartStatus.name());
                 leftStrings.add(String.format("Bleeding Speed: %.2f", data.bleedingSpeed));
                 leftStrings.add(String.format("Resuscitation Chance: %.1f%%", data.resuscitationChance));
+                leftStrings.add("Conscious: " + (data.isConscious ? "Yes" : "No")); // 追加
             });
         }
     }

@@ -153,7 +153,7 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
             case CARDIAC_ARREST -> {
                 // 心停止時：トゥーントゥーンと警告音
                 if (currentTick % 40 == 0 || currentTick % 40 == 20) { // 1秒間隔でトゥーン
-                    level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.BLOCKS, 1.0f, 0.3f);
+                    level.playSound(null, pos, SoundEvents.ARROW_HIT_PLAYER, SoundSource.BLOCKS, 1.0f, 0f);
                 }
             }
         }

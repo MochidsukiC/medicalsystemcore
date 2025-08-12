@@ -119,7 +119,8 @@ public class ServerboundQTETResultPacket {
                         medicalData.getBloodLevel(),
                         medicalData.getHeartStatus(),
                         medicalData.getBleedingSpeed(),
-                        medicalData.getResuscitationChance()
+                        medicalData.getResuscitationChance(),
+                        medicalData.isConscious()
                 ), targetPlayer);
             });
         });
