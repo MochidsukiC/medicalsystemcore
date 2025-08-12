@@ -96,4 +96,5 @@ public class BandageItem extends Item {
         pPlayer.startUsingItem(pHand);
         return InteractionResultHolder.consume(itemstack);
     }
+
 }

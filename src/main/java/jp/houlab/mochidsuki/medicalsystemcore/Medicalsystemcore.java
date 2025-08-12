@@ -7,6 +7,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.blockentity.HeadsideMonitorBlockEn
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
+import jp.houlab.mochidsuki.medicalsystemcore.client.PackColor;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
@@ -18,10 +19,12 @@ import jp.houlab.mochidsuki.medicalsystemcore.effect.*;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.DefibrillatorBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.IVStandScreen;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.HeadsideMonitorBlockEntityRenderer;
+import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.IVStandBlockEntityRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
@@ -60,7 +63,7 @@ public class Medicalsystemcore {
     // Define mod id in a common place for everything to reference
     public static final String MODID = "medicalsystemcore";
     // Directly reference a slf4j logger
-    private static final Logger LOGGER = LogUtils.getLogger();
+    public static final Logger LOGGER = LogUtils.getLogger();
     // Create a Deferred Register to hold Blocks which will all be registered under the "medicalsystemcore" namespace
     public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
     // Create a Deferred Register to hold Items which will all be registered under the "medicalsystemcore" namespace
@@ -230,11 +233,20 @@ public class Medicalsystemcore {
         public static void onClientSetup(FMLClientSetupEvent event) {
             BlockEntityRenderers.register(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), DefibrillatorBlockEntityRenderer::new);
             BlockEntityRenderers.register(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK_ENTITY.get(), HeadsideMonitorBlockEntityRenderer::new);
+            BlockEntityRenderers.register(Medicalsystemcore.IV_STAND_BLOCK_ENTITY.get(), IVStandBlockEntityRenderer::new);
+
             MenuScreens.register(IV_STAND_MENU.get(), IVStandScreen::new);
 
             event.enqueueWork(() -> {
                 ItemBlockRenderTypes.setRenderLayer(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK.get(), RenderType.cutout());
             });
+
+            Minecraft.getInstance().getItemColors().register(new PackColor(0xFF0000), BLOOD_PACK.get());
+            Minecraft.getInstance().getItemColors().register(new PackColor(0xFFEA00), ADRENALINE_PACK.get());
+            Minecraft.getInstance().getItemColors().register(new PackColor(0x00F7FF), TRANEXAMIC_ACID_PACK.get());
+            Minecraft.getInstance().getItemColors().register(new PackColor(0x00FFAA), FIBRINOGEN_PACK.get());
+            Minecraft.getInstance().getItemColors().register(new PackColor(0x00FF00), GLUCOSE_PACK.get());
+
 
             // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");

@@ -10,7 +10,7 @@ import net.minecraft.world.entity.player.Inventory;
 
 public class IVStandScreen extends AbstractContainerScreen<IVStandMenu> {
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(Medicalsystemcore.MODID, "textures/gui/iv_stand_gui.png");
+             new ResourceLocation(Medicalsystemcore.MODID, "textures/gui/iv_stand_gui.png");
 
     public IVStandScreen(IVStandMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
         super(pMenu, pPlayerInventory, pTitle);

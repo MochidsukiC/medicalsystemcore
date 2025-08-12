@@ -4,8 +4,12 @@ import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModTags;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -14,7 +18,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.ItemStackHandler;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
@@ -23,6 +31,7 @@ public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
         @Override
         protected void onContentsChanged(int slot) {
             setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
 
         @Override
@@ -35,22 +44,61 @@ public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
         }
     };
 
+    private LazyOptional<ItemStackHandler> lazyItemHandler = LazyOptional.empty();
+
+
     public IVStandBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(Medicalsystemcore.IV_STAND_BLOCK_ENTITY.get(), pPos, pBlockState);
     }
 
+
     /**
-     * このスロットに、このアイテムを入れることは有効か？を判定するメソッド
+     * 外部からインベントリ(Capability)を要求されたときに、それを提供するメソッド
      */
-    public boolean isItemValid(int slot, ItemStack stack) {
-        return switch (slot) {
-            // スロット0は「輸血パック」タグを持つアイテムのみ許可
-            case 0 -> stack.is(ModTags.Items.BLOOD_PACKS);
-            // スロット1と2は「薬剤パック」タグを持つアイテムのみ許可
-            case 1, 2 -> stack.is(ModTags.Items.DRUG_PACKS);
-            // それ以外のスロット（今回は存在しない）は全て拒否
-            default -> false;
-        };
+    @Override
+    public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
+        // 要求がアイテムハンドラーに関するものであれば、自身のインベントリを返す
+        if (cap == ForgeCapabilities.ITEM_HANDLER) {
+            return lazyItemHandler.cast();
+        }
+        return super.getCapability(cap, side);
+    }
+
+    /**
+     * BlockEntityがワールドに読み込まれたときに呼ばれる
+     */
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        // lazyItemHandlerを初期化
+        lazyItemHandler = LazyOptional.of(() -> itemHandler);
+    }
+
+    /**
+     * BlockEntityが無効になったとき(ワールドから削除されるなど)に呼ばれる
+     */
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        // lazyItemHandlerを無効化
+        lazyItemHandler.invalidate();
+    }
+
+    /**
+     * ブロックが更新されたときにクライアントに送るデータパケット
+     */
+    @Nullable
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    /**
+     * 上記パケットに含まれるNBTデータ
+     */
+    @Override
+    public CompoundTag getUpdateTag() {
+        return saveWithoutMetadata();
     }
 
     @Override
@@ -64,17 +112,19 @@ public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
         return new IVStandMenu(pContainerId, pPlayerInventory, this);
     }
 
-    // NBT（セーブデータ）にインベントリの内容を書き込む
+
+    // NBTへの保存処理
     @Override
     protected void saveAdditional(CompoundTag pTag) {
         pTag.put("inventory", itemHandler.serializeNBT());
         super.saveAdditional(pTag);
     }
 
-    // NBT（セーブデータ）からインベントリの内容を読み込む
+    // NBTからの読み込み処理
     @Override
     public void load(CompoundTag pTag) {
         super.load(pTag);
         itemHandler.deserializeNBT(pTag.getCompound("inventory"));
     }
+
 }

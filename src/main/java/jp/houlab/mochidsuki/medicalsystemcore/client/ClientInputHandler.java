@@ -17,10 +17,6 @@ import org.lwjgl.glfw.GLFW;
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
 
-    // 意識障害になった時の体の向きを記録
-    private static float unconsciousBodyYRot = 0.0f;
-    private static boolean wasUnconscious = false;
-
     @SubscribeEvent
     public static void onClientPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.side.isClient() && event.phase == TickEvent.Phase.END) {
@@ -38,22 +34,8 @@ public class ClientInputHandler {
                         player.setPose(Pose.SWIMMING);
                     }
 
-                    // 修正: 意識を失った瞬間の体の向きを記録
-                    if (!wasUnconscious) {
-                        unconsciousBodyYRot = player.getYRot();
-                        wasUnconscious = true;
-                    }
-
-                    // 修正: 体の向きを固定（視点操作は妨げない）
-                    player.setYBodyRot(unconsciousBodyYRot);
-                    player.setYHeadRot(player.getYRot()); // 頭の向きは視点に追従
-
-                } else {
-                    // 意識回復時の処理
-                    if (wasUnconscious) {
-                        player.setPose(Pose.STANDING);
-                        wasUnconscious = false;
-                    }
+                    // 意識障害時の視点固定処理を呼び出し
+                    ClientMouseHandler.handleUnconsciousView();
                 }
             }
         }
@@ -71,6 +53,7 @@ public class ClientInputHandler {
             event.getInput().forwardImpulse = 0;
             event.getInput().leftImpulse = 0;
             event.getInput().jumping = false;
+            event.getInput().shiftKeyDown = false; // しゃがみも無効にする
         }
     }
 

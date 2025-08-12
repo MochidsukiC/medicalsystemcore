@@ -134,23 +134,40 @@ public class DefibrillatorBlock extends BaseEntityBlock {
         player.sendSystemMessage(Component.literal("§eチャージを開始します..."));
     }
 
-    // 修正: ブロック破壊時に電極を返却
+    // 修正: ブロック破壊時に関連する電極を削除
     @Override
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
         if (!pState.is(pNewState.getBlock()) && !pLevel.isClientSide) {
             BlockEntity blockEntity = pLevel.getBlockEntity(pPos);
             if (blockEntity instanceof DefibrillatorBlockEntity be && be.arePadsTaken) {
-                // 電極が取り出されている場合、ドロップする
-                ItemStack electrodeStack = new ItemStack(Medicalsystemcore.ELECTRODE.get());
-                CompoundTag nbt = electrodeStack.getOrCreateTag();
-                nbt.put("DefibrillatorPos", NbtUtils.writeBlockPos(pPos));
-
-                net.minecraft.world.entity.item.ItemEntity itemEntity =
-                        new net.minecraft.world.entity.item.ItemEntity(pLevel, pPos.getX(), pPos.getY(), pPos.getZ(), electrodeStack);
-                pLevel.addFreshEntity(itemEntity);
+                // 電極が取り出されている場合、全プレイヤーのインベントリから該当する電極を削除
+                if (pLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                    for (net.minecraft.server.level.ServerPlayer player : serverLevel.getPlayers(p -> true)) {
+                        removeElectrodeFromPlayer(player, pPos);
+                    }
+                }
             }
         }
         super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
+    }
+
+    /**
+     * プレイヤーのインベントリから指定された除細動器の電極を削除
+     */
+    private void removeElectrodeFromPlayer(net.minecraft.server.level.ServerPlayer player, BlockPos defibrillatorPos) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.is(Medicalsystemcore.ELECTRODE.get())) {
+                CompoundTag nbt = stack.getTag();
+                if (nbt != null && nbt.contains("DefibrillatorPos")) {
+                    BlockPos electrodeOrigin = NbtUtils.readBlockPos(nbt.getCompound("DefibrillatorPos"));
+                    if (defibrillatorPos.equals(electrodeOrigin)) {
+                        player.getInventory().setItem(i, ItemStack.EMPTY);
+                        player.sendSystemMessage(net.minecraft.network.chat.Component.literal("§c除細動器が破壊されたため、電極が消失しました。"));
+                    }
+                }
+            }
+        }
     }
 
     @Override

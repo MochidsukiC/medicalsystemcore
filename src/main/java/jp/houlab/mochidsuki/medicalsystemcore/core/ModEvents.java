@@ -67,7 +67,7 @@ public class ModEvents {
     public static void onLivingHurt(LivingHurtEvent event) {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                if (medicalData.isDamageImmune() && !event.getSource().is(DamageTypes.FELL_OUT_OF_WORLD)) {
+                if (medicalData.isDamageImmune() && !event.getSource().is(DamageTypes.GENERIC_KILL)) {
                     event.setCanceled(true);
                 }
             });
@@ -195,6 +195,7 @@ public class ModEvents {
                     serverPlayer.distanceToSqr(standPos.getX() + 0.5, standPos.getY() + 0.5, standPos.getZ() + 0.5) < maxRangeSquared) {
 
                 boolean hasAnyPack = false;
+                boolean hasEmptyPackThisTick = false;
 
                 for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
                     ItemStack packStack = standEntity.itemHandler.getStackInSlot(i);
@@ -222,12 +223,13 @@ public class ModEvents {
                             applyPackEffect(serverPlayer, packItem);
                         } else {
                             standEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+                            hasEmptyPackThisTick = true;
                         }
                     }
                 }
 
-                // 修正: パックがなくてもチューブは接続したまま
-                if (!hasAnyPack) {
+                // 修正: パックが空になった際のメッセージを1回だけ送信
+                if (hasEmptyPackThisTick && !hasAnyPack) {
                     serverPlayer.sendSystemMessage(Component.literal("§e点滴パックが空になりました。"));
                 }
 
@@ -271,7 +273,7 @@ public class ModEvents {
                 double decayAmount = Config.RESUSCITATION_CHANCE_DECAY_RATE;
                 medicalData.setResuscitationChance(medicalData.getResuscitationChance() - (float) decayAmount);
 
-                if(medicalData.getResuscitationChance()<=0){
+                if (medicalData.getResuscitationChance() <= 0) {
                     serverPlayer.kill();
                 }
             }
@@ -351,26 +353,26 @@ public class ModEvents {
         }
     }
 
-    // 修正: 意識障害時の体の向き固定
+    // 修正: 意識障害時の姿勢制御（健全なプレイヤーのしゃがみを妨げない）
     private static void handleConsciousnessState(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         HeartStatus newStatus = medicalData.getHeartStatus();
         boolean oldConscious = medicalData.isConscious();
 
-        if(serverPlayer.getHealth()<5 || newStatus != HeartStatus.NORMAL){
+        if (serverPlayer.getHealth() < 5 || newStatus != HeartStatus.NORMAL) {
             medicalData.setConscious(false);
-        }else {
+        } else {
             medicalData.setConscious(true);
-            if(!oldConscious){
+            if (!oldConscious) {
+                // 意識回復時のみ姿勢を立った状態に戻す
                 serverPlayer.setPose(Pose.STANDING);
             }
         }
 
-        // 意識障害時の姿勢制御
+        // 意識障害時のみ姿勢を強制変更
         if (!medicalData.isConscious()) {
             serverPlayer.setPose(Pose.SWIMMING);
-            // 注意: 体の向きの固定はクライアント側で行う
-            // サーバー側では姿勢のみ制御
         }
+        // 注意: 健全なプレイヤーの姿勢は自然な動作に任せる
 
         serverPlayer.refreshDimensions();
     }
@@ -467,9 +469,9 @@ public class ModEvents {
     }
 
     private static float[] getVFWaveform(long gameTime) {
-        float time = (float)gameTime / 20.0f;
-        float x = (float)(Math.sin(time * 8) * 0.4 + Math.sin(time * 15) * 0.6 + (Math.random() - 0.5) * 0.3);
-        float y = (float)(Math.sin(time * 7) * 0.5 + Math.sin(time * 18) * 0.5 + (Math.random() - 0.5) * 0.3);
+        float time = (float) gameTime / 20.0f;
+        float x = (float) (Math.sin(time * 8) * 0.4 + Math.sin(time * 15) * 0.6 + (Math.random() - 0.5) * 0.3);
+        float y = (float) (Math.sin(time * 7) * 0.5 + Math.sin(time * 18) * 0.5 + (Math.random() - 0.5) * 0.3);
         return new float[]{x, y};
     }
 
