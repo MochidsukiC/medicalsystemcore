@@ -23,33 +23,41 @@ public class DefibrillatorBlockEntity extends BlockEntity {
         super(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), pPos, pBlockState);
     }
 
-    // --- 状態を問い合わせるためのヘルパーメソッド ---
     public boolean isCharging() { return this.chargeProgress > 0; }
     public boolean isCharged() { return this.chargeProgress == -1; }
-    public boolean isOnCooldown() { return this.level.getGameTime() < this.cooldownEndTick; }
-    public long getCooldownSecondsLeft() { return (this.cooldownEndTick - this.level.getGameTime()) / 20; }
 
-    // --- 状態を操作するメソッド（Config値使用版） ---
+    // 修正: クールダウンタイマーの計算を改善
+    public boolean isOnCooldown() {
+        if (level == null) return false;
+        return level.getGameTime() < this.cooldownEndTick;
+    }
+
+    public long getCooldownSecondsLeft() {
+        if (level == null) return 0;
+        long ticksLeft = this.cooldownEndTick - level.getGameTime();
+        return Math.max(0, ticksLeft / 20);
+    }
+
     public void startCharge() {
         this.chargeProgress = 1;
         setChanged();
-        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        if (level != null) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     public void resetChargeAndStartCooldown() {
         this.chargeProgress = 0;
         this.arePadsTaken = false;
-        // Config値を使用したクールダウン時間設定
-        this.cooldownEndTick = this.level.getGameTime() + (Config.DEFIBRILLATOR_COOLDOWN * 20L);
+        startCooldown();
         if (level != null) {
             level.setBlock(getBlockPos(), getBlockState().setValue(DefibrillatorBlock.CHARGED, false), 3);
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
         setChanged();
-        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, DefibrillatorBlockEntity be) {
-        // 電源が切れたらリセット
         if (!state.getValue(DefibrillatorBlock.POWERED)) {
             be.chargeProgress = 0;
             if (state.getValue(DefibrillatorBlock.CHARGED)) {
@@ -58,13 +66,12 @@ public class DefibrillatorBlockEntity extends BlockEntity {
             return;
         }
 
-        // 充電中の処理（Config値使用版）
         if (be.chargeProgress > 0) {
             be.chargeProgress++;
-            int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20; // 秒からtickに変換
+            int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20;
 
             if (be.chargeProgress >= chargeTimeTicks) {
-                be.chargeProgress = -1; // 充電完了
+                be.chargeProgress = -1;
                 level.setBlock(pos, state.setValue(DefibrillatorBlock.CHARGED, true), 3);
                 level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BELL.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
                 level.sendBlockUpdated(pos, state, state.setValue(DefibrillatorBlock.CHARGED, true), 3);
@@ -76,16 +83,38 @@ public class DefibrillatorBlockEntity extends BlockEntity {
         this.chargeProgress = 0;
         if (level != null) {
             level.setBlock(getBlockPos(), getBlockState().setValue(DefibrillatorBlock.CHARGED, false), 3);
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
         setChanged();
-        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+    }
+
+    public void startCooldown() {
+        if (level != null) {
+            this.cooldownEndTick = level.getGameTime() + (Config.DEFIBRILLATOR_COOLDOWN * 20L);
+        }
+        setChanged();
+        if (level != null) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public float getChargeProgress() {
+        if (!isCharging()) return 0.0f;
+        int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20;
+        return (float) this.chargeProgress / chargeTimeTicks;
     }
 
     @Override
     protected void saveAdditional(CompoundTag pTag) {
         pTag.putInt("ChargeProgress", this.chargeProgress);
         pTag.putBoolean("ArePadsTaken", this.arePadsTaken);
-        pTag.putLong("CooldownEndTick", this.cooldownEndTick);
+        // 修正: 相対時間でクールダウンを保存
+        if (level != null && isOnCooldown()) {
+            long remainingTicks = this.cooldownEndTick - level.getGameTime();
+            pTag.putLong("CooldownRemainingTicks", remainingTicks);
+        } else {
+            pTag.putLong("CooldownRemainingTicks", 0);
+        }
         super.saveAdditional(pTag);
     }
 
@@ -94,23 +123,14 @@ public class DefibrillatorBlockEntity extends BlockEntity {
         super.load(pTag);
         this.chargeProgress = pTag.getInt("ChargeProgress");
         this.arePadsTaken = pTag.getBoolean("ArePadsTaken");
-        this.cooldownEndTick = pTag.getLong("CooldownEndTick");
-    }
 
-    public void startCooldown() {
-        // Config値を使用したクールダウン時間設定
-        this.cooldownEndTick = this.level.getGameTime() + (Config.DEFIBRILLATOR_COOLDOWN * 20L);
-        setChanged();
-        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-    }
-
-    /**
-     * 充電進行度を取得（Config値使用版）
-     */
-    public float getChargeProgress() {
-        if (!isCharging()) return 0.0f;
-        int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20;
-        return (float) this.chargeProgress / chargeTimeTicks;
+        // 修正: 相対時間でクールダウンを復元
+        long remainingTicks = pTag.getLong("CooldownRemainingTicks");
+        if (remainingTicks > 0 && level != null) {
+            this.cooldownEndTick = level.getGameTime() + remainingTicks;
+        } else {
+            this.cooldownEndTick = 0;
+        }
     }
 
     @Nullable

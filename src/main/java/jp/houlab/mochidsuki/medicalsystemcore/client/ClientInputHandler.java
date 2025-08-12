@@ -17,6 +17,10 @@ import org.lwjgl.glfw.GLFW;
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
 
+    // 意識障害になった時の体の向きを記録
+    private static float unconsciousBodyYRot = 0.0f;
+    private static boolean wasUnconscious = false;
+
     @SubscribeEvent
     public static void onClientPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.side.isClient() && event.phase == TickEvent.Phase.END) {
@@ -25,10 +29,31 @@ public class ClientInputHandler {
             ClientQTEManager.tick();
             ClientHealingManager.tick();
 
-            if (player != null && ClientMedicalDataManager.isPlayerUnconscious(player)) {
-                // 意識障害状態の場合、姿勢がSWIMMINGでなければ強制的に設定する
-                if (player.getPose() != Pose.SWIMMING) {
-                    player.setPose(Pose.SWIMMING);
+            if (player != null) {
+                boolean isUnconscious = ClientMedicalDataManager.isPlayerUnconscious(player);
+
+                if (isUnconscious) {
+                    // 意識障害状態の処理
+                    if (player.getPose() != Pose.SWIMMING) {
+                        player.setPose(Pose.SWIMMING);
+                    }
+
+                    // 修正: 意識を失った瞬間の体の向きを記録
+                    if (!wasUnconscious) {
+                        unconsciousBodyYRot = player.getYRot();
+                        wasUnconscious = true;
+                    }
+
+                    // 修正: 体の向きを固定（視点操作は妨げない）
+                    player.setYBodyRot(unconsciousBodyYRot);
+                    player.setYHeadRot(player.getYRot()); // 頭の向きは視点に追従
+
+                } else {
+                    // 意識回復時の処理
+                    if (wasUnconscious) {
+                        player.setPose(Pose.STANDING);
+                        wasUnconscious = false;
+                    }
                 }
             }
         }
