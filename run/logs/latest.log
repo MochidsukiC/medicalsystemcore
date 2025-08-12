@@ -131,3 +131,4 @@
 [128月2025 20:07:12.691] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
 [128月2025 20:07:12.691] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
 [128月2025 20:07:12.691] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage: All dimensions are saved
+[128月2025 20:34:14.948] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Stopping!

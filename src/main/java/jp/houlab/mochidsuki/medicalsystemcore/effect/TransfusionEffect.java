@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.effect;
 
+import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
@@ -11,22 +12,21 @@ import net.minecraft.world.entity.player.Player;
 
 public class TransfusionEffect extends MobEffect {
     public TransfusionEffect() {
-        // エフェクトの種類（有益）、色（血液なので赤色）を設定
         super(MobEffectCategory.BENEFICIAL, 0xFF0000);
     }
 
     /**
      * エフェクトが有効な間、毎フレーム呼ばれる
-     * 仕様: 輸血中、血液量を毎秒1%回復する
+     * Config値を使用した輸血回復処理
      */
     @Override
     public void applyEffectTick(LivingEntity pLivingEntity, int pAmplifier) {
         if (!pLivingEntity.level().isClientSide() && pLivingEntity instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                // 毎秒1%回復 = 毎tick 1/20 %回復
-                float recoveryAmount = 1.0f / 20.0f;
+                // Config値を使用した血液回復
+                double recoveryAmount = Config.TRANSFUSION_RECOVERY_RATE / 20.0; // 毎tick回復量
                 float currentBlood = medicalData.getBloodLevel();
-                float newBloodLevel = Math.min(100.0f, currentBlood + recoveryAmount);
+                float newBloodLevel = Math.min(100.0f, currentBlood + (float) recoveryAmount);
 
                 medicalData.setBloodLevel(newBloodLevel);
 
@@ -42,9 +42,6 @@ public class TransfusionEffect extends MobEffect {
         }
     }
 
-    /**
-     * applyEffectTickを毎フレーム呼び出すかどうか
-     */
     @Override
     public boolean isDurationEffectTick(int pDuration, int pAmplifier) {
         return true;

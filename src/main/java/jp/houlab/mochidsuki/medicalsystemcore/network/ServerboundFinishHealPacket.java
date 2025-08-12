@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
+import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import net.minecraft.network.FriendlyByteBuf;
@@ -9,13 +10,12 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
 /**
- * クライアントからサーバーへ、治療が完了したことを通知するパケット
+ * クライアントからサーバーへ、治療が完了したことを通知するパケット（Config値使用版）
  */
 public class ServerboundFinishHealPacket {
     private final int targetEntityId;
@@ -41,7 +41,7 @@ public class ServerboundFinishHealPacket {
 
             Entity target = healer.level().getEntity(this.targetEntityId);
             if (target instanceof Player targetPlayer) {
-                // サーバー側で最終的な検証を行う (例: 距離が近いか、など)
+                // サーバー側で最終的な検証を行う
                 if (healer.distanceToSqr(targetPlayer) < 25.0) { // 5ブロック以内
                     targetPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
                         MobEffectInstance existingEffect = targetPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get());
@@ -49,12 +49,21 @@ public class ServerboundFinishHealPacket {
                         if (existingEffect != null) {
                             currentLevel = existingEffect.getAmplifier() + 1;
                         }
-                        int newLevel = Math.min(6, currentLevel + 2); // 他人にはレベルIIを付与
-                        targetPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.BANDAGE_EFFECT.get(), 60 * 20, newLevel - 1, true, true));
 
-                        // 治療者の包帯を1つ消費
-                        // healer.getMainHandItem().shrink(1); // 注: 安全のためサーバー側でのアイテム消費は慎重に
-                        healer.level().playSound(null, targetPlayer.getX(), targetPlayer.getY(), targetPlayer.getZ(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.5f, 1.0f);
+                        // Config値を使用した他人への包帯エフェクト付与
+                        int newLevel = Math.min(Config.BANDAGE_MAX_LEVEL, currentLevel + Config.BANDAGE_OTHER_LEVEL_INCREASE);
+                        int duration = Config.BANDAGE_EFFECT_DURATION * 20; // 秒からtickに変換
+
+                        targetPlayer.addEffect(new MobEffectInstance(
+                                Medicalsystemcore.BANDAGE_EFFECT.get(),
+                                duration,
+                                newLevel - 1, // amplifierは0から始まるため-1
+                                true,
+                                true
+                        ));
+
+                        healer.level().playSound(null, targetPlayer.getX(), targetPlayer.getY(), targetPlayer.getZ(),
+                                SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.5f, 1.0f);
                     });
                 }
             }

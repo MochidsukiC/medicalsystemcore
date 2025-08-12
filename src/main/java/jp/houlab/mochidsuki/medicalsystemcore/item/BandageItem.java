@@ -1,7 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
+import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
-import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientHealingManager;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -17,8 +17,6 @@ import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.level.Level;
 
 public class BandageItem extends Item {
-    private static final int MAX_EFFECT_LEVEL = 6;
-
 
     public BandageItem(Properties pProperties) {
         super(pProperties);
@@ -35,20 +33,19 @@ public class BandageItem extends Item {
     }
 
     /**
-     * 自分への使用が完了した時に呼ばれるメソッド
+     * 自分への使用が完了した時に呼ばれるメソッド（Config値使用版）
      */
     @Override
     public ItemStack finishUsingItem(ItemStack pStack, Level pLevel, LivingEntity pLivingEntity) {
         if (pLivingEntity instanceof Player player) {
-            // ▼▼▼ この行を変更 ▼▼▼
-            applyBandageEffect(player, 1); // 自分にはレベルIを付与
+            // Config値を使用して自分にエフェクトを付与
+            applyBandageEffect(player, Config.BANDAGE_SELF_LEVEL_INCREASE);
         }
-        // アイテム消費は自動で行われるのでshrinkは不要
         return super.finishUsingItem(pStack, pLevel, pLivingEntity);
     }
 
     /**
-     * 包帯エフェクトをスタックさせるロジック
+     * 包帯エフェクトをスタックさせるロジック（Config値使用版）
      * @param target 対象プレイヤー
      * @param levelToAdd 付与するエフェクトレベル
      */
@@ -58,17 +55,28 @@ public class BandageItem extends Item {
         if (existingEffect != null) {
             currentLevel = existingEffect.getAmplifier() + 1;
         }
-        int newLevel = Math.min(MAX_EFFECT_LEVEL, currentLevel + levelToAdd);
-        target.addEffect(new MobEffectInstance(Medicalsystemcore.BANDAGE_EFFECT.get(), 60 * 20, newLevel - 1, true, true));
+
+        // Config値を使用した最大レベル制限
+        int newLevel = Math.min(Config.BANDAGE_MAX_LEVEL, currentLevel + levelToAdd);
+
+        // Config値を使用した持続時間
+        int duration = Config.BANDAGE_EFFECT_DURATION * 20; // 秒からtickに変換
+
+        target.addEffect(new MobEffectInstance(
+                Medicalsystemcore.BANDAGE_EFFECT.get(),
+                duration,
+                newLevel - 1, // amplifierは0から始まるため-1
+                true,
+                true
+        ));
     }
 
     /**
-     * このアイテムを使い終えるのにかかる時間 (tick単位)
-     * 6秒 (120 ticks) に設定
+     * このアイテムを使い終えるのにかかる時間（Config値使用版）
      */
     @Override
     public int getUseDuration(ItemStack pStack) {
-        return 6 * 20; // 72000から変更
+        return Config.BANDAGE_SELF_USE_DURATION * 20; // 秒からtickに変換
     }
 
     /**
@@ -80,7 +88,7 @@ public class BandageItem extends Item {
     }
 
     /**
-     * 何もないところで右クリックを押し始めた時に呼ばれる (変更なし)
+     * 何もないところで右クリックを押し始めた時に呼ばれる
      */
     @Override
     public InteractionResultHolder<ItemStack> use(Level pLevel, Player pPlayer, InteractionHand pHand) {

@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.effect;
 
+import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
@@ -15,9 +16,12 @@ public class AdrenalineEffect extends MobEffect {
     public void applyEffectTick(LivingEntity pLivingEntity, int pAmplifier) {
         // サーバーサイドのプレイヤーにのみ効果を適用
         if (!pLivingEntity.level().isClientSide() && pLivingEntity instanceof Player player) {
-            // 蘇生確率を毎秒0.5%回復 (1tickあたり 0.5/20 %)
+            // Config値を使用した蘇生確率回復
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                data.setResuscitationChance(data.getResuscitationChance() + 0.5f / 20.0f);
+                double recoveryAmount = Config.ADRENALINE_RESUSCITATION_RECOVERY_RATE / 20.0; // 毎tick回復量
+                float currentChance = data.getResuscitationChance();
+                float newChance = Math.min(100.0f, currentChance + (float) recoveryAmount);
+                data.setResuscitationChance(newChance);
             });
         }
     }

@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.core;
 
+import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
@@ -27,11 +28,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.Optional;
-import java.util.UUID;
 
-import static jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalDataManager.isPlayerIncapacitated;
-
-@Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID) // MODIDはあなたのMod IDに合わせてください
+@Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID)
 public class ModEvents {
 
     @SubscribeEvent
@@ -42,7 +40,7 @@ public class ModEvents {
                 if (medicalData.getHeartStatus() != HeartStatus.NORMAL) {
                     // 死亡時にステータスをリセット
                     medicalData.setHeartStatus(HeartStatus.NORMAL);
-                    medicalData.setConscious(true);
+                    medicalData.setDamageImmune(false);
                     return;
                 }
 
@@ -50,17 +48,14 @@ public class ModEvents {
                 event.setCanceled(true);
                 player.setHealth(0.1f);
                 medicalData.setHeartStatus(HeartStatus.CARDIAC_ARREST);
-                // 意識状態は別途判定されるので、ここでは設定しない
+                medicalData.setDamageImmune(true);
 
                 // クライアントに状態変化を通知
                 if (player instanceof ServerPlayer serverPlayer) {
                     ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
                             serverPlayer.getUUID(),
-                            medicalData.getBloodLevel(),
                             HeartStatus.CARDIAC_ARREST,
-                            medicalData.getBleedingSpeed(),
-                            medicalData.getResuscitationChance(),
-                            medicalData.isConscious()
+                            medicalData
                     ), serverPlayer);
                 }
             });
@@ -74,14 +69,13 @@ public class ModEvents {
     public static void onLivingHurt(LivingHurtEvent event) {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                // 意識障害時は心不全ダメージ（出血ダメージ）以外を無効化
-                if (!medicalData.isConscious() && !event.getSource().is(ModDamageTypes.BLEEDING_KEY)) {
+                // ダメージ無効フラグがtrueなら、いかなるダメージもキャンセルする
+                if (medicalData.isDamageImmune()) {
                     event.setCanceled(true);
                 }
             });
         }
     }
-
 
     /**
      * プレイヤーなどのエンティティにCapabilityをアタッチ（紐付け）するイベント
@@ -89,69 +83,43 @@ public class ModEvents {
     @SubscribeEvent
     public static void onAttachCapabilitiesPlayer(AttachCapabilitiesEvent<Entity> event) {
         if (event.getObject() instanceof Player) {
-            // 他のModと競合しないように、ユニークな名前でCapabilityを登録します
             if (!event.getObject().getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).isPresent()) {
                 event.addCapability(new ResourceLocation(Medicalsystemcore.MODID, "medical_data"), new PlayerMedicalDataProvider());
             }
         }
     }
 
-
     /**
-     * プレイヤーが死亡してリスポーンした際に、データを引き継ぐためのイベント
-     */
-    /*
-    @SubscribeEvent
-    public static void onPlayerClone(PlayerEvent.Clone event) {
-        // プレイヤーが死亡によるリスポーンの場合のみ処理
-        if (event.isWasDeath()) {
-            // 古い(死ぬ前)プレイヤーからCapabilityを取得
-            event.getOriginal().getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(oldStore -> {
-                // 新しい(リスポーン後)プレイヤーからCapabilityを取得
-                event.getEntity().getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(newStore -> {
-                    // データを移すためのNBTタグを新規作成
-                    net.minecraft.nbt.CompoundTag nbt = new net.minecraft.nbt.CompoundTag();
-                    // oldStoreのデータをnbtに保存
-                    oldStore.saveNBTData(nbt);
-                    // nbtに保存したデータをnewStoreに読み込ませる
-                    newStore.loadNBTData(nbt);
-                });
-            });
-        }
-    }
-
-     */
-
-    /**
-     * エンティティがダメージを受けた時に呼び出されるイベント
+     * エンティティがダメージを受けた時に呼び出されるイベント（Config値使用版）
      */
     @SubscribeEvent
     public static void onLivingDamage(net.minecraftforge.event.entity.living.LivingDamageEvent event) {
         if (event.getSource().is(ModDamageTypes.BLEEDING_KEY)) {
             return;
         }
-        if (!(event.getEntity() instanceof net.minecraft.world.entity.player.Player player)) {
+        if (!(event.getEntity() instanceof Player player)) {
             return;
         }
         float damageAmount = event.getAmount();
 
-        // 新しい出血速度の計算ロジック
         player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-            float speedIncrease = 0;
+            double speedIncrease = 0;
+
+            // Config値を使用した出血判定
             if (damageAmount > 0.1f && damageAmount <= 2f) {
-                if (Math.random() < 0.10) { // 10%の確率
-                    speedIncrease = 1.0f;
+                if (Math.random() < Config.BLEEDING_CHANCE_LOW_DAMAGE) {
+                    speedIncrease = Config.BLEEDING_SPEED_INCREASE_LOW;
                 }
             } else if (damageAmount > 2f && damageAmount <= 5f) {
-                speedIncrease = 3.0f;
+                speedIncrease = Config.BLEEDING_SPEED_INCREASE_MID;
             } else if (damageAmount > 5f && damageAmount <= 10f) {
-                speedIncrease = 6.0f;
+                speedIncrease = Config.BLEEDING_SPEED_INCREASE_HIGH;
             } else if (damageAmount > 10f) {
-                speedIncrease = 9.0f;
+                speedIncrease = Config.BLEEDING_SPEED_INCREASE_EXTREME;
             }
 
             if (speedIncrease > 0) {
-                float newSpeed = medicalData.getBleedingSpeed() + speedIncrease;
+                float newSpeed = medicalData.getBleedingSpeed() + (float) speedIncrease;
                 medicalData.setBleedingSpeed(newSpeed);
                 player.sendSystemMessage(Component.literal("出血速度が " + String.format("%.2f", newSpeed) + " になった。"));
             }
@@ -160,9 +128,6 @@ public class ModEvents {
 
     /**
      * プレイヤーのTickごとに呼び出されるイベント（サーバーサイド）
-     * アルゴリズム：
-     * 1. プレイヤー内で心拍数を確定(大まかな心臓状態と乱数)
-     * 2. プレイヤー内で心拍数と心臓状態と乱数から心電位を医学的にシミュレートし生成
      */
     @SubscribeEvent
     public static void onPlayerTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event) {
@@ -172,181 +137,263 @@ public class ModEvents {
         if (!(event.player instanceof ServerPlayer serverPlayer)) return;
 
         serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-            // 既存の医療処理（点滴処理）
-            medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
-                BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
-                if (be instanceof IVStandBlockEntity standEntity && serverPlayer.distanceToSqr(standPos.getX() + 0.5, standPos.getY() + 0.5, standPos.getZ() + 0.5) < 100.0) {
-                    for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
-                        ItemStack packStack = standEntity.itemHandler.getStackInSlot(i);
-                        if (packStack.isEmpty()) continue;
+            // 点滴処理
+            handleIVStandTreatment(serverPlayer, medicalData);
 
-                        CompoundTag nbt = packStack.getOrCreateTag();
-                        int ticksLeft = nbt.getInt("FluidVolumeTicks");
-
-                        if (ticksLeft > 0) {
-                            nbt.putInt("FluidVolumeTicks", ticksLeft - 1);
-                            Item packItem = packStack.getItem();
-                            if (packItem == Medicalsystemcore.BLOOD_PACK.get()) {
-                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), 40, 0, true, false));
-                            } else if (packItem == Medicalsystemcore.ADRENALINE_PACK.get()) {
-                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.ADRENALINE_EFFECT.get(), 40, 0, true, false));
-                            } else if (packItem == Medicalsystemcore.FIBRINOGEN_PACK.get()) {
-                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.FIBRINOGEN_EFFECT.get(), 40, 0, true, false));
-                            } else if (packItem == Medicalsystemcore.TRANEXAMIC_ACID_PACK.get()) {
-                                serverPlayer.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), 40, 0, true, false));
-                            }
-                        } else {
-                            packStack.setCount(packStack.getCount() - 1);
-                            nbt.putInt("FluidVolumeTicks", 60*20);
-                        }
-                    }
-                } else {
-                    medicalData.setTransfusingFromStandPos(Optional.empty());
-                    serverPlayer.sendSystemMessage(Component.literal("§e点滴が外れた。"));
-                }
-            });
-
-            // 既存の出血処理
+            // ティックカウンターの更新
             int ticks = medicalData.getTickCounter();
             medicalData.setTickCounter(ticks + 1);
 
-            HeartStatus currentStatus = medicalData.getHeartStatus();
-            float bloodLevel = medicalData.getBloodLevel();
+            // 心停止関連処理
+            handleCardiacArrest(serverPlayer, medicalData);
 
-            if (currentStatus != HeartStatus.NORMAL) {
-                int arrestTimer = medicalData.getCardiacArrestTimer();
-                medicalData.setCardiacArrestTimer(arrestTimer + 1);
+            // 出血回復処理
+            handleBleedingRecovery(serverPlayer, medicalData);
 
-                if (arrestTimer > 20 * 60 * 20 || bloodLevel <= 0) {
-                    serverPlayer.kill();
-                    return;
-                }
-                if (currentStatus == HeartStatus.CARDIAC_ARREST && ticks % (20*60) == 0) {
-                    medicalData.setResuscitationChance(medicalData.getResuscitationChance() - 5.0f);
-                }
-            }
+            // 血液量変化処理
+            handleBloodLoss(serverPlayer, medicalData);
 
-            float currentSpeed = medicalData.getBleedingSpeed();
-            if (currentSpeed > 0) {
-                float recoveryRatePerSecond = 0.0f;
-                int bandageLevel = 0;
-                int plateletEffectLevel = 0;
+            // 血液量ダメージ処理
+            handleBloodDamage(serverPlayer, medicalData);
 
-                if (serverPlayer.hasEffect(Medicalsystemcore.BANDAGE_EFFECT.get())) {
-                    bandageLevel = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get()).getAmplifier();
-                }
+            // 意識状態判定
+            handleConsciousnessState(serverPlayer, medicalData);
 
-                if (serverPlayer.hasEffect(Medicalsystemcore.FIBRINOGEN_EFFECT.get())) {
-                    plateletEffectLevel += 1;
-                }
-                if (serverPlayer.hasEffect(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get())) {
-                    plateletEffectLevel += 1;
-                }
-
-                recoveryRatePerSecond = 0.1f * (3*bandageLevel + 5 * plateletEffectLevel);
-
-                if (recoveryRatePerSecond > 0) {
-                    float recoveryPerTick = recoveryRatePerSecond / 20.0f;
-                    medicalData.setBleedingSpeed(currentSpeed - recoveryPerTick);
-                    currentSpeed = medicalData.getBleedingSpeed();
-                }
-            }
-
-            if (currentSpeed > 0) {
-                float bloodLossPerTick;
-                if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
-                    bloodLossPerTick = currentSpeed / 60.0f / 20.0f;
-                } else {
-                    if (medicalData.getBloodLevel() < 30.0f) {
-                        bloodLossPerTick = currentSpeed / 200.0f / 60.0f / 20.0f;
-                    } else {
-                        bloodLossPerTick = currentSpeed / 20.0f / 60.0f / 20.0f;
-                    }
-                }
-                medicalData.setBloodLevel(medicalData.getBloodLevel() - bloodLossPerTick);
-            } else {
-                medicalData.setBloodLevel(medicalData.getBloodLevel() + 0.5f / 20.0f);
-            }
-
-            if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
-                if (ticks % 100 == 0) {
-                    float blood = medicalData.getBloodLevel();
-                    float damageAmount = 0;
-
-                    if (blood < 85 && blood >= 70) {
-                        damageAmount = 4.0f;
-                    } else if (blood < 70 && blood >= 65) {
-                        damageAmount = 8.0f;
-                    } else if (blood < 65 && blood >= 60) {
-                        damageAmount = 12.0f;
-                    } else if (blood < 60) {
-                        damageAmount = 99999f;
-                    }
-
-                    if (damageAmount > 0) {
-                        serverPlayer.hurt(ModDamageTypes.bleeding(serverPlayer.level()), damageAmount);
-                    }
-                }
-            }
-
-            HeartStatus newStatus = medicalData.getHeartStatus();
-            if (newStatus != HeartStatus.NORMAL) {
-                serverPlayer.setPose(Pose.SWIMMING);
-            }
-            serverPlayer.refreshDimensions();
-
-            // --- 意識状態の判定 ---
-            boolean shouldBeUnconscious = (serverPlayer.getHealth() <= 4.0f) ||
-                    (medicalData.getHeartStatus() != HeartStatus.NORMAL);
-
-            boolean currentlyConscious = medicalData.isConscious();
-
-            if (shouldBeUnconscious && currentlyConscious) {
-                // 意識を失う
-                medicalData.setConscious(false);
-                serverPlayer.sendSystemMessage(Component.literal("§c意識を失った..."));
-            } else if (!shouldBeUnconscious && !currentlyConscious) {
-                // 意識を回復
-                medicalData.setConscious(true);
-                serverPlayer.sendSystemMessage(Component.literal("§a意識が戻った！"));
-            }
-
-            // --- 意識障害時の姿勢制御 ---
-            if (!medicalData.isConscious()) {
-                serverPlayer.setPose(Pose.SWIMMING);
-            }
-
-            // === 心電図シミュレーション（正しいアルゴリズム） ===
-
-            // 1. プレイヤー内で心拍数を確定(大まかな心臓状態と乱数)
-            HeartStatus status = medicalData.getHeartStatus();
-            int heartRate = calculateHeartRateUnified(serverPlayer, status);
-            medicalData.setHeartRate(heartRate); // ★ここで心拍数をCapabilityに保存
-
-
-            // 2. プレイヤー内で心拍数と心臓状態と乱数から心電位を医学的にシミュレートし生成
-            updatePlayerHeartVector(serverPlayer, medicalData, status, heartRate);
+            // 心電図シミュレーション
+            handleECGSimulation(serverPlayer, medicalData);
 
             // 状態同期
             ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
                     serverPlayer.getUUID(),
-                    medicalData.getBloodLevel(),
                     medicalData.getHeartStatus(),
-                    medicalData.getBleedingSpeed(),
-                    medicalData.getResuscitationChance(),
-                    medicalData.isConscious() // 追加
+                    medicalData
             ), serverPlayer);
         });
     }
 
     /**
+     * 点滴スタンドからの輸血・薬剤投与処理（Config値使用版）
+     */
+    private static void handleIVStandTreatment(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
+            BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
+
+            // Config値を使用した範囲チェック
+            double maxRangeSquared = Config.IV_RANGE * Config.IV_RANGE;
+
+            if (be instanceof IVStandBlockEntity standEntity &&
+                    serverPlayer.distanceToSqr(standPos.getX() + 0.5, standPos.getY() + 0.5, standPos.getZ() + 0.5) < maxRangeSquared) {
+
+                boolean hasActiveTransfusion = false;
+
+                for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
+                    ItemStack packStack = standEntity.itemHandler.getStackInSlot(i);
+                    if (packStack.isEmpty()) continue;
+
+                    CompoundTag nbt = packStack.getOrCreateTag();
+
+                    // 初回使用時にConfig値から容量を設定
+                    if (!nbt.contains("FluidVolumeTicks")) {
+                        nbt.putInt("FluidVolumeTicks", Config.IV_PACK_DURATION * 20);
+                    }
+
+                    int ticksLeft = nbt.getInt("FluidVolumeTicks");
+
+                    if (ticksLeft > 0) {
+                        nbt.putInt("FluidVolumeTicks", ticksLeft - 1);
+                        hasActiveTransfusion = true;
+
+                        Item packItem = packStack.getItem();
+                        applyPackEffect(serverPlayer, packItem);
+
+                    } else {
+                        if (packStack.getCount() > 1) {
+                            packStack.shrink(1);
+                            nbt.putInt("FluidVolumeTicks", Config.IV_PACK_DURATION * 20);
+                            hasActiveTransfusion = true;
+                            Item packItem = packStack.getItem();
+                            applyPackEffect(serverPlayer, packItem);
+                        } else {
+                            standEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+                        }
+                    }
+                }
+
+                if (!hasActiveTransfusion) {
+                    medicalData.setTransfusingFromStandPos(Optional.empty());
+                    serverPlayer.sendSystemMessage(Component.literal("§e点滴が完了しました。"));
+                }
+
+            } else {
+                medicalData.setTransfusingFromStandPos(Optional.empty());
+                serverPlayer.sendSystemMessage(Component.literal("§e点滴が外れました。"));
+            }
+        });
+    }
+
+    /**
+     * パックの種類に応じてエフェクトを付与
+     */
+    private static void applyPackEffect(ServerPlayer player, Item packItem) {
+        if (packItem == Medicalsystemcore.BLOOD_PACK.get()) {
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), 40, 0, true, false));
+        } else if (packItem == Medicalsystemcore.ADRENALINE_PACK.get()) {
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.ADRENALINE_EFFECT.get(), 40, 0, true, false));
+        } else if (packItem == Medicalsystemcore.FIBRINOGEN_PACK.get()) {
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.FIBRINOGEN_EFFECT.get(), 40, 0, true, false));
+        } else if (packItem == Medicalsystemcore.TRANEXAMIC_ACID_PACK.get()) {
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), 40, 0, true, false));
+        }
+    }
+
+    /**
+     * 心停止時の処理（Config値使用版）
+     */
+    private static void handleCardiacArrest(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        HeartStatus currentStatus = medicalData.getHeartStatus();
+
+        if (currentStatus != HeartStatus.NORMAL) {
+            int arrestTimer = medicalData.getCardiacArrestTimer();
+            medicalData.setCardiacArrestTimer(arrestTimer + 1);
+
+            // Config値を使用した強制死亡判定
+            int deathTimeTicks = Config.CARDIAC_ARREST_DEATH_TIME * 60 * 20;
+            if (arrestTimer > deathTimeTicks || medicalData.getBloodLevel() <= 0) {
+                serverPlayer.kill();
+                return;
+            }
+
+            // Config値を使用した蘇生確率減少（毎分）
+            if (currentStatus == HeartStatus.CARDIAC_ARREST && arrestTimer % (20 * 60) == 0) {
+                double decayAmount = Config.RESUSCITATION_CHANCE_DECAY_RATE;
+                medicalData.setResuscitationChance(medicalData.getResuscitationChance() - (float) decayAmount);
+            }
+        }
+    }
+
+    /**
+     * 出血回復処理（Config値使用版、フィブリノゲン・トラネキサム酸は既存の止血剤として機能）
+     */
+    private static void handleBleedingRecovery(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        float currentSpeed = medicalData.getBleedingSpeed();
+        if (currentSpeed > 0) {
+            double recoveryRatePerSecond = 0.0;
+            int bandageLevel = 0;
+
+            // 包帯エフェクトレベルを取得
+            if (serverPlayer.hasEffect(Medicalsystemcore.BANDAGE_EFFECT.get())) {
+                MobEffectInstance bandageEffect = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get());
+                bandageLevel = bandageEffect.getAmplifier() + 1;
+            }
+
+            // Config値を使用した出血回復計算（フィブリノゲン・トラネキサム酸は除外）
+            recoveryRatePerSecond = Config.BLEEDING_RECOVERY_BASE_RATE *
+                    (bandageLevel * Config.BLEEDING_RECOVERY_BANDAGE_MULTIPLIER);
+
+            if (recoveryRatePerSecond > 0) {
+                double recoveryPerTick = recoveryRatePerSecond / 20.0;
+                float newSpeed = Math.max(0, currentSpeed - (float) recoveryPerTick);
+                medicalData.setBleedingSpeed(newSpeed);
+            }
+        }
+    }
+
+    /**
+     * 血液量変化処理（Config値使用版）
+     */
+    private static void handleBloodLoss(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        float currentSpeed = medicalData.getBleedingSpeed();
+
+        if (currentSpeed > 0) {
+            float bloodLossPerTick;
+
+            if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
+                // 健康状態: 出血速度/60/s
+                bloodLossPerTick = currentSpeed / 60.0f / 20.0f;
+            } else {
+                // 意識障害時
+                if (medicalData.getBloodLevel() < 30.0f) {
+                    // 血液量30%以下: 出血速度/200/60/s
+                    bloodLossPerTick = currentSpeed / 200.0f / 60.0f / 20.0f;
+                } else {
+                    // 意識障害: 出血速度/20/60/s
+                    bloodLossPerTick = currentSpeed / 20.0f / 60.0f / 20.0f;
+                }
+            }
+
+            float newBloodLevel = Math.max(0, medicalData.getBloodLevel() - bloodLossPerTick);
+            medicalData.setBloodLevel(newBloodLevel);
+
+        } else {
+            // 出血していない場合は自然回復（Config値使用）
+            float recoveryPerTick = (float) (Config.BLOOD_NATURAL_RECOVERY_RATE / 20.0);
+            float newBloodLevel = Math.min(100.0f, medicalData.getBloodLevel() + recoveryPerTick);
+            medicalData.setBloodLevel(newBloodLevel);
+        }
+    }
+
+    /**
+     * 血液量によるダメージ処理（Config値使用版）
+     */
+    private static void handleBloodDamage(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
+            int ticks = medicalData.getTickCounter();
+
+            // Config値で設定されたダメージ間隔をチェック
+            if (ticks % Config.BLOOD_DAMAGE_INTERVAL == 0) {
+                float blood = medicalData.getBloodLevel();
+                double damageAmount = 0;
+
+                // Config値を使用した血液量判定
+                if (blood < Config.BLOOD_DAMAGE_THRESHOLD_85 && blood >= Config.BLOOD_DAMAGE_THRESHOLD_70) {
+                    damageAmount = Config.BLOOD_DAMAGE_85_70;
+                } else if (blood < Config.BLOOD_DAMAGE_THRESHOLD_70 && blood >= Config.BLOOD_DAMAGE_THRESHOLD_65) {
+                    damageAmount = Config.BLOOD_DAMAGE_70_65;
+                } else if (blood < Config.BLOOD_DAMAGE_THRESHOLD_65 && blood >= Config.BLOOD_DAMAGE_THRESHOLD_60) {
+                    damageAmount = Config.BLOOD_DAMAGE_65_60;
+                } else if (blood < Config.BLOOD_DAMAGE_THRESHOLD_60) {
+                    damageAmount = Config.BLOOD_DAMAGE_BELOW_60;
+                }
+
+                if (damageAmount > 0) {
+                    serverPlayer.hurt(ModDamageTypes.bleeding(serverPlayer.level()), (float) damageAmount);
+                }
+            }
+        }
+    }
+
+    /**
+     * 意識状態の判定と制御
+     */
+    private static void handleConsciousnessState(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        HeartStatus newStatus = medicalData.getHeartStatus();
+
+        // 意識障害時の姿勢制御
+        if (newStatus != HeartStatus.NORMAL) {
+            serverPlayer.setPose(Pose.SWIMMING);
+        }
+        serverPlayer.refreshDimensions();
+    }
+
+    /**
+     * 心電図シミュレーション処理
+     */
+    private static void handleECGSimulation(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        // 1. プレイヤー内で心拍数を確定
+        HeartStatus status = medicalData.getHeartStatus();
+        int heartRate = calculateHeartRateUnified(serverPlayer, status);
+        medicalData.setHeartRate(heartRate);
+
+        // 2. プレイヤー内で心拍数と心臓状態から心電位を生成
+        updatePlayerHeartVector(serverPlayer, medicalData, status, heartRate);
+    }
+
+    /**
      * 統一された心拍数計算メソッド
-     * 全てのモニターで同じ値を使用するため、プレイヤー側で一度だけ計算
      */
     private static int calculateHeartRateUnified(ServerPlayer player, HeartStatus status) {
         return switch (status) {
             case NORMAL -> {
-                // 基本心拍数 + エフェクトによる変動
                 int base = 60 + player.level().random.nextInt(10);
                 if (player.hasEffect(MobEffects.MOVEMENT_SPEED)) {
                     base += (player.getEffect(MobEffects.MOVEMENT_SPEED).getAmplifier() + 1) * 10;
@@ -354,18 +401,15 @@ public class ModEvents {
                 if (player.hasEffect(MobEffects.JUMP)) {
                     base += (player.getEffect(MobEffects.JUMP).getAmplifier() + 1) * 10;
                 }
-                // アドレナリンエフェクトによる心拍数上昇
                 if (player.hasEffect(Medicalsystemcore.ADRENALINE_EFFECT.get())) {
-                    base += 30; // アドレナリンで心拍数+30
+                    base += 30;
                 }
-                yield Math.min(base, 200); // 最大200bpmに制限
+                yield Math.min(base, 200);
             }
             case VF -> {
-                // VF時は非常に高い心拍数（測定困難な状態）
-                yield 300 + player.level().random.nextInt(100); // 300-400bpm
+                yield 300 + player.level().random.nextInt(100);
             }
             case CARDIAC_ARREST -> {
-                // 心停止時は心拍数0
                 yield 0;
             }
         };
@@ -373,53 +417,43 @@ public class ModEvents {
 
     /**
      * プレイヤーの心電位ベクトルを更新
-     * 心拍数はすでにCapabilityに保存されている値を使用
      */
     private static void updatePlayerHeartVector(ServerPlayer player, IPlayerMedicalData medicalData, HeartStatus status, int heartRate) {
         float cycleTime = medicalData.getCycleTime();
-
-        // 1ティックあたりの時間を加算 (1秒 = 20tick)
         cycleTime += 0.05f;
 
         float cycleDuration = heartRate > 0 ? 60.0f / heartRate : Float.MAX_VALUE;
 
-        // 周期リセット
         if (cycleTime >= cycleDuration) {
             cycleTime -= cycleDuration;
         }
 
-        // 心臓ベクトルの計算
         float scalarPotential;
         float[] pathVector;
 
         switch (status) {
             case NORMAL -> {
-                // ガウス関数加算モデルでスカラーポテンシャルを計算
                 scalarPotential = calculateGaussianSumPotential(cycleTime, cycleDuration);
-                // 経路関数でベクトル方向を計算
                 pathVector = getHeartVectorPath(cycleTime, cycleDuration);
-                // 血液量に応じて振幅を調整
                 scalarPotential *= (medicalData.getBloodLevel() / 100.0f);
             }
             case VF -> {
-                // フィルタリングされたノイズモデル
                 scalarPotential = 1.0f;
                 pathVector = getVFWaveform(player.level().getGameTime());
             }
-            default -> { // CARDIAC_ARREST
+            default -> {
                 scalarPotential = 0.0f;
                 pathVector = new float[]{0, 0};
             }
         }
 
-        // Capabilityに計算結果を保存（プレイヤー側で心電位を生成）
         medicalData.setCycleTime(cycleTime);
         medicalData.setHeartVectorX(scalarPotential * pathVector[0]);
         medicalData.setHeartVectorY(scalarPotential * pathVector[1]);
     }
 
     /**
-     * ガウス関数 (本報告書 2.2節)
+     * ガウス関数
      */
     private static float gaussian(float t, float a, float mu, float sigma) {
         return (float) (a * Math.exp(-Math.pow(t - mu, 2) / (2 * Math.pow(sigma, 2))));
@@ -429,13 +463,10 @@ public class ModEvents {
      * 正常洞調律のスカラーポテンシャルを計算
      */
     private static float calculateGaussianSumPotential(float cycleTime, float cycleDuration) {
-        // P波
         float p = gaussian(cycleTime, 0.2f, 0.12f * cycleDuration, 0.04f * cycleDuration);
-        // QRS波
         float q = gaussian(cycleTime, -0.15f, 0.28f * cycleDuration, 0.01f * cycleDuration);
         float r = gaussian(cycleTime, 1.2f, 0.30f * cycleDuration, 0.01f * cycleDuration);
         float s = gaussian(cycleTime, -0.3f, 0.32f * cycleDuration, 0.01f * cycleDuration);
-        // T波
         float t = gaussian(cycleTime, 0.35f, 0.50f * cycleDuration, 0.08f * cycleDuration);
 
         return p + q + r + s + t;
@@ -448,7 +479,6 @@ public class ModEvents {
         float progress = cycleTime / cycleDuration;
         double angleRad = Math.toRadians(60);
 
-        // QRS波の期間では角度を変化させる
         if (progress > 0.27 && progress < 0.33) {
             double qrsProgress = (progress - 0.27) / (0.33 - 0.27);
             angleRad = Math.toRadians(50 + qrsProgress * 20);
@@ -467,24 +497,28 @@ public class ModEvents {
     }
 
     /**
+     * プレイヤーが行動不能かチェックするヘルパーメソッド
+     */
+    private static boolean isPlayerIncapacitated(Player player) {
+        return player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)
+                .map(data -> data.getHeartStatus() != HeartStatus.NORMAL)
+                .orElse(false);
+    }
+
+    /**
      * プレイヤーのインタラクト（クリックなど）を監視するイベント
      */
     @SubscribeEvent
     public static void onPlayerInteract(PlayerInteractEvent event) {
         if (isPlayerIncapacitated(event.getEntity())) {
-            // 行動不能なプレイヤーのアクションをキャンセル
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
     public static void onItemToss(ItemTossEvent event) {
-        // アイテムを投げたのがプレイヤーで、かつそのプレイヤーが行動不能な場合
         if (event.getPlayer() != null && isPlayerIncapacitated(event.getPlayer())) {
-            // イベントをキャンセルしてアイテムドロップを防ぐ
             event.setCanceled(true);
         }
     }
-
-
 }

@@ -1081,3 +1081,4 @@ java.lang.IllegalAccessException: class io.netty.util.internal.PlatformDependent
 [128月2025 20:07:13.201] [Server thread/DEBUG] [net.minecraftforge.registries.ObjectHolderRegistry/REGISTRIES]: Holder lookups applied
 [128月2025 20:07:13.202] [Server thread/DEBUG] [net.minecraftforge.registries.GameData/REGISTRIES]: FROZEN state restored.
 [128月2025 20:07:13.202] [Server thread/DEBUG] [net.minecraftforge.fml.config.ConfigTracker/CONFIG]: Unloading configs type SERVER
+[128月2025 20:34:14.948] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Stopping!
