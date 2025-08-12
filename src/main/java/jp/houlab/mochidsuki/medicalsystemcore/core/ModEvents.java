@@ -11,6 +11,9 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageSources;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -72,7 +75,7 @@ public class ModEvents {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
                 // ダメージ無効フラグがtrueなら、いかなるダメージもキャンセルする
-                if (medicalData.isDamageImmune()) {
+                if (medicalData.isDamageImmune() && !event.getSource().is(DamageTypes.FELL_OUT_OF_WORLD)) {
                     event.setCanceled(true);
                 }
             });
@@ -248,6 +251,9 @@ public class ModEvents {
         } else if (packItem == Medicalsystemcore.TRANEXAMIC_ACID_PACK.get()) {
             // トラネキサム酸：止血効果を付与
             player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), 40, 0, true, false));
+        } else if (packItem == Medicalsystemcore.GLUCOSE_PACK.get()) {
+            // ブドウ糖：Minecraftの既存の満腹度回復エフェクトを付与
+            player.addEffect(new MobEffectInstance(net.minecraft.world.effect.MobEffects.SATURATION, 100, 0, true, false));
         } else if (packItem == Medicalsystemcore.NORADRENALINE_PACK.get()) {
             // ノルアドレナリン：現在は未実装（将来的に実装予定）
             // player.addEffect(new MobEffectInstance(Medicalsystemcore.NORADRENALINE_EFFECT.get(), 40, 0, true, false));
@@ -274,6 +280,10 @@ public class ModEvents {
             if (currentStatus == HeartStatus.CARDIAC_ARREST && arrestTimer % (20 * 60) == 0) {
                 double decayAmount = Config.RESUSCITATION_CHANCE_DECAY_RATE;
                 medicalData.setResuscitationChance(medicalData.getResuscitationChance() - (float) decayAmount);
+
+                if(medicalData.getResuscitationChance()<=0){
+                    serverPlayer.kill();
+                }
             }
         }
     }
@@ -382,11 +392,18 @@ public class ModEvents {
             serverPlayer.setPose(Pose.SWIMMING);
         }
 
+        boolean oldConscious = medicalData.isConscious();
+
         if(serverPlayer.getHealth()<5 || newStatus != HeartStatus.NORMAL){
             medicalData.setConscious(false);
         }else {
             medicalData.setConscious(true);
+            if(!oldConscious){
+                serverPlayer.setPose(Pose.STANDING);
+            }
         }
+
+
 
 
         serverPlayer.refreshDimensions();

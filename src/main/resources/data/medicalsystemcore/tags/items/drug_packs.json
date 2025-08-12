@@ -3,6 +3,7 @@
     "medicalsystemcore:adrenaline_pack",
     "medicalsystemcore:tranexamic_acid_pack",
     "medicalsystemcore:fibrinogen_pack",
-    "medicalsystemcore:noradrenaline_pack"
+    "medicalsystemcore:noradrenaline_pack",
+    "medicalsystemcore:glucose_pack"
   ]
 }

@@ -129,15 +129,18 @@ public class Medicalsystemcore {
 
     // 各種パック
     public static final RegistryObject<Item> BLOOD_PACK = ITEMS.register("blood_pack",
-            () -> new FluidPackItem(new Item.Properties()));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> ADRENALINE_PACK = ITEMS.register("adrenaline_pack",
-            () -> new FluidPackItem(new Item.Properties()));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> TRANEXAMIC_ACID_PACK = ITEMS.register("tranexamic_acid_pack",
-            () -> new FluidPackItem(new Item.Properties()));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> FIBRINOGEN_PACK = ITEMS.register("fibrinogen_pack",
-            () -> new FluidPackItem(new Item.Properties()));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> NORADRENALINE_PACK = ITEMS.register("noradrenaline_pack",
-            () -> new FluidPackItem(new Item.Properties()));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(1)));
+    public static final RegistryObject<Item> GLUCOSE_PACK = ITEMS.register("glucose_pack",
+            () -> new FluidPackItem(new Item.Properties().stacksTo(1)));
+
 
     public static final RegistryObject<Item> TUBE = ITEMS.register("tube",
             () -> new TubeItem(new Item.Properties()));
@@ -155,6 +158,7 @@ public class Medicalsystemcore {
         output.accept(TRANEXAMIC_ACID_PACK.get());
         output.accept(FIBRINOGEN_PACK.get());
         output.accept(NORADRENALINE_PACK.get());
+        output.accept(GLUCOSE_PACK.get()); // ブドウ糖パックを追加
         output.accept(TUBE.get());
         output.accept(HEAD_SIDE_MONITOR_BLOCK_ITEM.get());
 
