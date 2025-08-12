@@ -233,6 +233,7 @@ public class ModEvents {
         });
     }
 
+
     /**
      * パックの種類に応じてエフェクトを付与
      */
@@ -242,12 +243,16 @@ public class ModEvents {
         } else if (packItem == Medicalsystemcore.ADRENALINE_PACK.get()) {
             player.addEffect(new MobEffectInstance(Medicalsystemcore.ADRENALINE_EFFECT.get(), 40, 0, true, false));
         } else if (packItem == Medicalsystemcore.FIBRINOGEN_PACK.get()) {
+            // フィブリノゲン製剤：止血効果を付与
             player.addEffect(new MobEffectInstance(Medicalsystemcore.FIBRINOGEN_EFFECT.get(), 40, 0, true, false));
         } else if (packItem == Medicalsystemcore.TRANEXAMIC_ACID_PACK.get()) {
+            // トラネキサム酸：止血効果を付与
             player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), 40, 0, true, false));
+        } else if (packItem == Medicalsystemcore.NORADRENALINE_PACK.get()) {
+            // ノルアドレナリン：現在は未実装（将来的に実装予定）
+            // player.addEffect(new MobEffectInstance(Medicalsystemcore.NORADRENALINE_EFFECT.get(), 40, 0, true, false));
         }
     }
-
     /**
      * 心停止時の処理（Config値使用版）
      */
@@ -274,7 +279,7 @@ public class ModEvents {
     }
 
     /**
-     * 出血回復処理（Config値使用版、フィブリノゲン・トラネキサム酸は既存の止血剤として機能）
+     * 出血回復処理（Config値使用版、止血剤エフェクトは各エフェクトクラス内で処理）
      */
     private static void handleBleedingRecovery(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         float currentSpeed = medicalData.getBleedingSpeed();
@@ -288,7 +293,9 @@ public class ModEvents {
                 bandageLevel = bandageEffect.getAmplifier() + 1;
             }
 
-            // Config値を使用した出血回復計算（フィブリノゲン・トラネキサム酸は除外）
+            // Config値を使用した出血回復計算
+            // 注意：フィブリノゲン・トラネキサム酸の効果は各エフェクトクラス内のapplyEffectTickで処理されるため、
+            // ここでは既存の包帯と血小板エフェクトのみを処理
             recoveryRatePerSecond = Config.BLEEDING_RECOVERY_BASE_RATE *
                     (bandageLevel * Config.BLEEDING_RECOVERY_BANDAGE_MULTIPLIER);
 

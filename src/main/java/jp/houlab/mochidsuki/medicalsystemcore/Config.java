@@ -32,6 +32,10 @@ public class Config {
     private static final ForgeConfigSpec.DoubleValue BLEEDING_RECOVERY_BANDAGE_MULTIPLIER_SPEC;
     private static final ForgeConfigSpec.DoubleValue BLEEDING_RECOVERY_PLATELET_MULTIPLIER_SPEC;
 
+    // === 止血剤関連設定（新規追加） ===
+    private static final ForgeConfigSpec.DoubleValue FIBRINOGEN_BLEEDING_REDUCTION_RATE_SPEC;
+    private static final ForgeConfigSpec.DoubleValue TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE_SPEC;
+
     // === 血液回復関連設定 ===
     private static final ForgeConfigSpec.DoubleValue BLOOD_NATURAL_RECOVERY_RATE_SPEC;
     private static final ForgeConfigSpec.DoubleValue TRANSFUSION_RECOVERY_RATE_SPEC;
@@ -106,6 +110,16 @@ public class Config {
                 .defineInRange("bleeding_recovery_bandage_multiplier", 1.0, 0.0, 100.0);
         BLEEDING_RECOVERY_PLATELET_MULTIPLIER_SPEC = BUILDER.comment("血小板エフェクトの出血回復倍率")
                 .defineInRange("bleeding_recovery_platelet_multiplier", 5.0, 0.0, 100.0);
+
+        BUILDER.pop();
+
+        BUILDER.push("Hemostatic Agents");
+        BUILDER.comment("止血剤に関する設定");
+
+        FIBRINOGEN_BLEEDING_REDUCTION_RATE_SPEC = BUILDER.comment("フィブリノゲン製剤の出血速度減少率（%/秒）")
+                .defineInRange("fibrinogen_bleeding_reduction_rate", 5.0, 0.0, 100.0);
+        TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE_SPEC = BUILDER.comment("トラネキサム酸の出血速度減少率（%/秒）")
+                .defineInRange("tranexamic_acid_bleeding_reduction_rate", 5.0, 0.0, 100.0);
 
         BUILDER.pop();
 
@@ -198,6 +212,10 @@ public class Config {
     public static double BLEEDING_RECOVERY_BANDAGE_MULTIPLIER;
     public static double BLEEDING_RECOVERY_PLATELET_MULTIPLIER;
 
+    // 止血剤関連（新規追加）
+    public static double FIBRINOGEN_BLEEDING_REDUCTION_RATE;
+    public static double TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE;
+
     // 血液回復関連
     public static double BLOOD_NATURAL_RECOVERY_RATE;
     public static double TRANSFUSION_RECOVERY_RATE;
@@ -251,6 +269,10 @@ public class Config {
         BLEEDING_RECOVERY_BASE_RATE = BLEEDING_RECOVERY_BASE_RATE_SPEC.get();
         BLEEDING_RECOVERY_BANDAGE_MULTIPLIER = BLEEDING_RECOVERY_BANDAGE_MULTIPLIER_SPEC.get();
         BLEEDING_RECOVERY_PLATELET_MULTIPLIER = BLEEDING_RECOVERY_PLATELET_MULTIPLIER_SPEC.get();
+
+        // 止血剤関連（新規追加）
+        FIBRINOGEN_BLEEDING_REDUCTION_RATE = FIBRINOGEN_BLEEDING_REDUCTION_RATE_SPEC.get();
+        TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE = TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE_SPEC.get();
 
         // 血液回復関連
         BLOOD_NATURAL_RECOVERY_RATE = BLOOD_NATURAL_RECOVERY_RATE_SPEC.get();

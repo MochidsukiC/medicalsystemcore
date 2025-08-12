@@ -122,3 +122,12 @@
 	#Range: 1 ~ 20
 	bandage_max_level = 6
 
+["Hemostatic Agents"]
+	#止血剤に関する設定
+	#フィブリノゲン製剤の出血速度減少率（%/秒）
+	#Range: 0.0 ~ 100.0
+	fibrinogen_bleeding_reduction_rate = 5.0
+	#トラネキサム酸の出血速度減少率（%/秒）
+	#Range: 0.0 ~ 100.0
+	tranexamic_acid_bleeding_reduction_rate = 5.0
+
