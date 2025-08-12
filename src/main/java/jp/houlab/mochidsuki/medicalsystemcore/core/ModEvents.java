@@ -29,6 +29,8 @@ import net.minecraftforge.fml.common.Mod;
 
 import java.util.Optional;
 
+import static jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalDataManager.isPlayerIncapacitated;
+
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID)
 public class ModEvents {
 
@@ -372,6 +374,14 @@ public class ModEvents {
         if (newStatus != HeartStatus.NORMAL) {
             serverPlayer.setPose(Pose.SWIMMING);
         }
+
+        if(serverPlayer.getHealth()<5 || newStatus != HeartStatus.NORMAL){
+            medicalData.setConscious(false);
+        }else {
+            medicalData.setConscious(true);
+        }
+
+
         serverPlayer.refreshDimensions();
     }
 
@@ -496,14 +506,6 @@ public class ModEvents {
         return new float[]{x, y};
     }
 
-    /**
-     * プレイヤーが行動不能かチェックするヘルパーメソッド
-     */
-    private static boolean isPlayerIncapacitated(Player player) {
-        return player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)
-                .map(data -> data.getHeartStatus() != HeartStatus.NORMAL)
-                .orElse(false);
-    }
 
     /**
      * プレイヤーのインタラクト（クリックなど）を監視するイベント
