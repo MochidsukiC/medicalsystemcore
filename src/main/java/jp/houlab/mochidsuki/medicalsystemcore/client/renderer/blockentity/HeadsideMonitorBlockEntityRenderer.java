@@ -63,44 +63,62 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
 
         int maxLight = 15728880;
 
-        // 心停止の場合は特別な表示
-        if (pBlockEntity.heartStatus == HeartStatus.CARDIAC_ARREST) {
-            renderCardiacArrest(pPoseStack, pBuffer, maxLight);
-        } else {
-            // 各誘導の描画
-            renderHeartRate(pPoseStack, pBuffer, maxLight, pBlockEntity.heartRate, history.lead2History, history.historyIndex);
-            renderBloodLevel(pPoseStack, pBuffer, maxLight, pBlockEntity.bloodLevel, history.lead1History, history.historyIndex);
-            renderSpO2(pPoseStack, pBuffer, maxLight, 99, history.lead3History, history.historyIndex);
-        }
+        // 各誘導の描画（心停止時でも数値は表示し続ける）
+        renderHeartRate(pPoseStack, pBuffer, maxLight, pBlockEntity.heartRate, pBlockEntity.heartStatus, history.lead2History, history.historyIndex);
+        renderBloodLevel(pPoseStack, pBuffer, maxLight, pBlockEntity.bloodLevel, history.lead1History, history.historyIndex);
+        renderSpO2(pPoseStack, pBuffer, maxLight, calculateSpO2(pBlockEntity.heartRate), pBlockEntity.heartRate, history.lead3History, history.historyIndex);
 
         pPoseStack.popPose();
     }
 
-    private void renderCardiacArrest(PoseStack poseStack, MultiBufferSource bufferSource, int light) {
-        poseStack.pushPose();
-        poseStack.translate(0, -10, 0);
-
-        String text = "CARDIAC ARREST";
-        float scale = 2.0f;
-        poseStack.scale(scale, scale, scale);
-        float textWidth = this.font.width(text);
-        this.font.drawInBatch(text, -textWidth/2, 0, 0xFFFF0000, false, poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, light);
-
-        poseStack.popPose();
-
-        // フラットライン（平坦線）を描画
-        drawFlatLine(poseStack, bufferSource, 0xFFFF0000);
-    }
-
-    private void renderHeartRate(PoseStack poseStack, MultiBufferSource bufferSource, int light, int heartRate, float[] waveformHistory, int historyIndex) {
+    /**
+     * 心拍数表示（新仕様対応）
+     * - VF、心停止時は背景色付き、文字黒色
+     * - 心拍数が0または350以上の場合は"-?-"表示
+     */
+    private void renderHeartRate(PoseStack poseStack, MultiBufferSource bufferSource, int light, int heartRate, HeartStatus status, float[] waveformHistory, int historyIndex) {
         poseStack.pushPose();
         poseStack.translate(-10, -35, 0);
 
-        String text = String.valueOf(heartRate);
+        // 心拍数の表示文字列を決定
+        String text;
+        if (heartRate <= 0 || heartRate >= 350) {
+            text = "-?-";
+        } else {
+            text = String.valueOf(heartRate);
+        }
+
         float scale = 3.0f;
         poseStack.scale(scale, scale, scale);
         float textWidth = this.font.width(text);
-        this.font.drawInBatch(text, -textWidth, 0, 0xFF00FF00, false, poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, light);
+
+        // 強調表示の判定（VF、心停止時）
+        boolean shouldHighlight = (status == HeartStatus.VF || status == HeartStatus.CARDIAC_ARREST);
+
+        if (shouldHighlight) {
+            // 背景を描画
+            Matrix4f matrix = poseStack.last().pose();
+            VertexConsumer buffer = bufferSource.getBuffer(RenderType.gui());
+
+            float bgPadding = 2.0f;
+            float x1 = -textWidth - bgPadding;
+            float y1 = -bgPadding;
+            float x2 = bgPadding;
+            float y2 = this.font.lineHeight + bgPadding;
+
+            // 背景色（赤）
+            buffer.vertex(matrix, x1, y1, 0).color(255, 0, 0, 255).endVertex();
+            buffer.vertex(matrix, x1, y2, 0).color(255, 0, 0, 255).endVertex();
+            buffer.vertex(matrix, x2, y2, 0).color(255, 0, 0, 255).endVertex();
+            buffer.vertex(matrix, x2, y1, 0).color(255, 0, 0, 255).endVertex();
+
+            // 文字色（黒）
+            this.font.drawInBatch(text, -textWidth, 0, 0xFF000000, false, poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, light);
+        } else {
+            // 通常表示（緑）
+            this.font.drawInBatch(text, -textWidth, 0, 0xFF00FF00, false, poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, light);
+        }
+
         poseStack.scale(1/scale, 1/scale, 1/scale);
 
         poseStack.translate(0, 15, 0);
@@ -108,6 +126,10 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.popPose();
     }
 
+    /**
+     * 血液量表示（新仕様対応）
+     * - 血液量が60%未満の場合は背景色付き、文字黒色
+     */
     private void renderBloodLevel(PoseStack poseStack, MultiBufferSource bufferSource, int light, float bloodLevel, float[] waveformData, int historyIndex) {
         poseStack.pushPose();
         poseStack.translate(-10, 0, 0);
@@ -116,7 +138,34 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         float scale = 1.5f;
         poseStack.scale(scale, scale, scale);
         float textWidth = this.font.width(text);
-        this.font.drawInBatch(text, -textWidth, 0, 0xFFFF00FF, false, poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, light);
+
+        // 強調表示の判定（血液量60%未満）
+        boolean shouldHighlight = (bloodLevel < 60.0f);
+
+        if (shouldHighlight) {
+            // 背景を描画
+            Matrix4f matrix = poseStack.last().pose();
+            VertexConsumer buffer = bufferSource.getBuffer(RenderType.gui());
+
+            float bgPadding = 2.0f;
+            float x1 = -textWidth - bgPadding;
+            float y1 = -bgPadding;
+            float x2 = bgPadding;
+            float y2 = this.font.lineHeight + bgPadding;
+
+            // 背景色（赤）
+            buffer.vertex(matrix, x1, y1, 0).color(255, 0, 0, 255).endVertex();
+            buffer.vertex(matrix, x1, y2, 0).color(255, 0, 0, 255).endVertex();
+            buffer.vertex(matrix, x2, y2, 0).color(255, 0, 0, 255).endVertex();
+            buffer.vertex(matrix, x2, y1, 0).color(255, 0, 0, 255).endVertex();
+
+            // 文字色（黒）
+            this.font.drawInBatch(text, -textWidth, 0, 0xFF000000, false, poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, light);
+        } else {
+            // 通常表示（マゼンタ）
+            this.font.drawInBatch(text, -textWidth, 0, 0xFFFF00FF, false, poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, light);
+        }
+
         poseStack.scale(1/scale, 1/scale, 1/scale);
 
         poseStack.translate(0, 5, 0);
@@ -124,11 +173,22 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.popPose();
     }
 
-    private void renderSpO2(PoseStack poseStack, MultiBufferSource bufferSource, int light, int spo2, float[] waveformData, int historyIndex) {
+    /**
+     * SpO2表示（新仕様対応）
+     * - 心拍数が0または350以上の場合は"-?-"表示
+     */
+    private void renderSpO2(PoseStack poseStack, MultiBufferSource bufferSource, int light, int spo2, int heartRate, float[] waveformData, int historyIndex) {
         poseStack.pushPose();
         poseStack.translate(-10, 25, 0);
 
-        String text = String.valueOf(spo2);
+        // SpO2の表示文字列を決定
+        String text;
+        if (heartRate <= 0 || heartRate >= 350) {
+            text = "-?-";
+        } else {
+            text = String.valueOf(spo2);
+        }
+
         float scale = 1.5f;
         poseStack.scale(scale, scale, scale);
         float textWidth = this.font.width(text);
@@ -140,6 +200,16 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.popPose();
     }
 
+    /**
+     * SpO2の値を計算（簡易実装）
+     */
+    private int calculateSpO2(int heartRate) {
+        if (heartRate <= 0 || heartRate >= 350) {
+            return 0; // 異常値の場合は0を返す（表示は"-?-"になる）
+        }
+        return 98 + (heartRate % 3); // 98-100の範囲で変動
+    }
+
     private void drawWaveform(PoseStack poseStack, MultiBufferSource bufferSource, float[] waveformHistory, int currentIndex, int color) {
         poseStack.pushPose();
         Matrix4f matrix = poseStack.last().pose();
@@ -147,7 +217,7 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         RenderSystem.lineWidth(2.0f);
 
         int historyLength = waveformHistory.length;
-        float drawWidth = 50f;
+        float drawWidth = 80f;
         float amplitudeScale = 15f; // 振幅を調整
 
         // 右から左へ流れる波形を描画
@@ -158,8 +228,8 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
             float x1 = drawWidth - (i * drawWidth / historyLength);
             float x2 = drawWidth - ((i + 1) * drawWidth / historyLength);
 
-            float y1 = waveformHistory[currentDataIndex] * amplitudeScale;
-            float y2 = waveformHistory[nextDataIndex] * amplitudeScale;
+            float y1 = -waveformHistory[currentDataIndex] * amplitudeScale; // Y軸反転修正
+            float y2 = -waveformHistory[nextDataIndex] * amplitudeScale;
 
             // グリッドライン（基準線）
             if (i % 10 == 0) {
@@ -168,25 +238,9 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
             }
 
             // 波形データ
-            buffer.vertex(matrix, x1, -y1, 0).color(color).normal(0,0,1).endVertex();
-            buffer.vertex(matrix, x2, -y2, 0).color(color).normal(0,0,1).endVertex();
+            buffer.vertex(matrix, x1, y1, 0).color(color).normal(0,0,1).endVertex();
+            buffer.vertex(matrix, x2, y2, 0).color(color).normal(0,0,1).endVertex();
         }
-
-        poseStack.popPose();
-    }
-
-    private void drawFlatLine(PoseStack poseStack, MultiBufferSource bufferSource, int color) {
-        poseStack.pushPose();
-        Matrix4f matrix = poseStack.last().pose();
-        VertexConsumer buffer = bufferSource.getBuffer(RenderType.lines());
-        RenderSystem.lineWidth(3.0f);
-
-        float y = 0; // 平坦線
-        float startX = -40;
-        float endX = 40;
-
-        buffer.vertex(matrix, startX, y, 0).color(color).normal(0,0,1).endVertex();
-        buffer.vertex(matrix, endX, y, 0).color(color).normal(0,0,1).endVertex();
 
         poseStack.popPose();
     }

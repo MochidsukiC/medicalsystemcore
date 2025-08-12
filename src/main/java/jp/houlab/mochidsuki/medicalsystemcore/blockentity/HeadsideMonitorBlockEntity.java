@@ -7,6 +7,8 @@ import jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -25,15 +27,15 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
     public float bloodLevel = 0.0f;
     public HeartStatus heartStatus = HeartStatus.NORMAL;
 
-    // 心電図データ - 毎ティック更新
+    // 心電図データ - プレイヤーから受け取った心電位から3誘導を計算
     public float leadI = 0.0f;
     public float leadII = 0.0f;
     public float leadIII = 0.0f;
 
-    // 心拍シミュレーション用の内部状態
-    private float cycleTime = 0.0f;
-    private float heartVectorX = 0.0f;
-    private float heartVectorY = 0.0f;
+    // アラーム関連
+    private long lastHeartbeatTick = 0;
+    private int vfAlarmPattern = 0; // VFアラームのパターン制御
+    private boolean lastAlarmState = false;
 
     public HeadsideMonitorBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK_ENTITY.get(), pPos, pBlockState);
@@ -65,12 +67,15 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
                     monitoredPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
                         be.bloodLevel = data.getBloodLevel();
                         be.heartStatus = data.getHeartStatus();
-                        be.heartRate = ModEvents.calculateHeartRate(monitoredPlayer, be.heartStatus);
+                        be.heartRate = data.getHeartRate();
                     });
                 }
 
-                // 心電図データは毎ティック更新
-                be.updateECGData(monitoredPlayer, level);
+                // 心電図データは毎ティック更新（プレイヤーのデータから3誘導を計算）
+                be.updateECGFromPlayerData(monitoredPlayer, level);
+
+                // アラーム処理
+                be.handleAlarms(level, pos);
 
                 // クライアントに同期（毎ティック）
                 level.sendBlockUpdated(pos, state, state, 3);
@@ -83,59 +88,75 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         }
     }
 
-    private void updateECGData(Player player, Level level) {
+    /**
+     * プレイヤーの心電位データから3誘導心電図を計算
+     * アルゴリズム：3. ヘッドサイドモニターで心電位から3誘導の値を医学的にシミュレート
+     */
+    private void updateECGFromPlayerData(Player player, Level level) {
         player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-            // 1ティックあたりの時間を加算
-            this.cycleTime += 0.05f; // 1/20秒
-
-            HeartStatus status = data.getHeartStatus();
-            int heartRate = ModEvents.calculateHeartRate(player, status);
-            float cycleDuration = heartRate > 0 ? 60.0f / heartRate : Float.MAX_VALUE;
-
-            // 周期リセット
-            if (this.cycleTime >= cycleDuration) {
-                this.cycleTime -= cycleDuration;
-            }
-
-            // 心臓ベクトルの計算
-            float scalarPotential;
-            float[] pathVector;
-
-            switch (status) {
-                case NORMAL -> {
-                    scalarPotential = calculateGaussianSumPotential(this.cycleTime, cycleDuration);
-                    pathVector = getHeartVectorPath(this.cycleTime, cycleDuration);
-                    scalarPotential *= (data.getBloodLevel() / 100.0f);
-                }
-                case VF -> {
-                    scalarPotential = 1.0f;
-                    pathVector = getVFWaveform(level.getGameTime());
-                }
-                default -> { // CARDIAC_ARREST
-                    scalarPotential = 0.0f;
-                    pathVector = new float[]{0, 0};
-                }
-            }
-
-            // 心臓ベクトルを更新
-            this.heartVectorX = scalarPotential * pathVector[0];
-            this.heartVectorY = scalarPotential * pathVector[1];
+            // プレイヤー側で計算された心電位ベクトルを取得
+            float Px = data.getHeartVectorX();
+            float Py = data.getHeartVectorY();
 
             // 誘導電圧の計算（レポート4.4節に基づく）
-            float Px = this.heartVectorX;
-            float Py = this.heartVectorY;
-
             // ドット積による誘導電圧計算
             this.leadI = Px;
             this.leadII = 0.5f * Px + 0.866f * Py;
             this.leadIII = -0.5f * Px + 0.866f * Py;
 
-            // 微小ノイズを追加（リアリティ向上）
+            // モニターごとに微小ノイズを追加（リアリティ向上）
             float noise = (level.random.nextFloat() - 0.5f) * 0.02f;
             this.leadI += noise;
             this.leadII += noise;
             this.leadIII += noise;
         });
+    }
+
+    /**
+     * アラーム処理
+     * 仕様：
+     * 通常時：心拍のタイミングでピという音
+     * VF時：素早くピピピピーンピピピピーンという音
+     * 心停止時：トゥーントゥーンと警告音
+     */
+    private void handleAlarms(Level level, BlockPos pos) {
+        long currentTick = level.getGameTime();
+
+        switch (this.heartStatus) {
+            case NORMAL -> {
+                // 通常時：心拍のタイミングでピッという音
+                if (this.heartRate > 0) {
+                    long ticksPerBeat = (long)(20 * 60.0 / this.heartRate); // 1拍動あたりのティック数
+                    if (currentTick - lastHeartbeatTick >= ticksPerBeat) {
+                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_CHIME.get(), SoundSource.BLOCKS, 0.3f, 2.0f);
+                        lastHeartbeatTick = currentTick;
+                    }
+                }
+            }
+            case VF -> {
+                // VF時：素早くピピピピーンピピピピーンという音
+                int pattern = (int)(currentTick % 40); // 2秒周期
+                if (pattern < 8) { // 最初の0.4秒：ピピピピ
+                    if (pattern % 2 == 0) {
+                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_PLING.get(), SoundSource.BLOCKS, 0.5f, 1.8f);
+                    }
+                } else if (pattern == 10) { // ーン
+                    level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.BLOCKS, 0.7f, 0.5f);
+                } else if (pattern >= 20 && pattern < 28) { // 次のピピピピ
+                    if (pattern % 2 == 0) {
+                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_PLING.get(), SoundSource.BLOCKS, 0.5f, 1.8f);
+                    }
+                } else if (pattern == 30) { // ーン
+                    level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.BLOCKS, 0.7f, 0.5f);
+                }
+            }
+            case CARDIAC_ARREST -> {
+                // 心停止時：トゥーントゥーンと警告音
+                if (currentTick % 40 == 0 || currentTick % 40 == 20) { // 1秒間隔でトゥーン
+                    level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.BLOCKS, 1.0f, 0.3f);
+                }
+            }
+        }
     }
 
     private void resetData() {
@@ -145,50 +166,9 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         this.leadI = 0.0f;
         this.leadII = 0.0f;
         this.leadIII = 0.0f;
-        this.cycleTime = 0.0f;
-        this.heartVectorX = 0.0f;
-        this.heartVectorY = 0.0f;
+        this.lastHeartbeatTick = 0;
+        this.vfAlarmPattern = 0;
         setChanged();
-    }
-
-    // ガウス関数
-    private static float gaussian(float t, float a, float mu, float sigma) {
-        return (float) (a * Math.exp(-Math.pow(t - mu, 2) / (2 * Math.pow(sigma, 2))));
-    }
-
-    // 正常洞調律のスカラーポテンシャル計算
-    private static float calculateGaussianSumPotential(float cycleTime, float cycleDuration) {
-        // P波
-        float p = gaussian(cycleTime, 0.2f, 0.12f * cycleDuration, 0.04f * cycleDuration);
-        // QRS波
-        float q = gaussian(cycleTime, -0.15f, 0.28f * cycleDuration, 0.01f * cycleDuration);
-        float r = gaussian(cycleTime, 1.2f, 0.30f * cycleDuration, 0.01f * cycleDuration);
-        float s = gaussian(cycleTime, -0.3f, 0.32f * cycleDuration, 0.01f * cycleDuration);
-        // T波
-        float t = gaussian(cycleTime, 0.35f, 0.50f * cycleDuration, 0.08f * cycleDuration);
-
-        return p + q + r + s + t;
-    }
-
-    // 心臓ベクトルの経路関数
-    private static float[] getHeartVectorPath(float cycleTime, float cycleDuration) {
-        float progress = cycleTime / cycleDuration;
-        double angleRad = Math.toRadians(60);
-
-        // QRS波の期間では角度を変化させる
-        if (progress > 0.27 && progress < 0.33) {
-            double qrsProgress = (progress - 0.27) / (0.33 - 0.27);
-            angleRad = Math.toRadians(50 + qrsProgress * 20);
-        }
-        return new float[]{(float) Math.cos(angleRad), (float) Math.sin(angleRad)};
-    }
-
-    // VF波形生成
-    private static float[] getVFWaveform(long gameTime) {
-        float time = (float)gameTime / 20.0f;
-        float x = (float)(Math.sin(time * 8) * 0.4 + Math.sin(time * 15) * 0.6 + (Math.random() - 0.5) * 0.3);
-        float y = (float)(Math.sin(time * 7) * 0.5 + Math.sin(time * 18) * 0.5 + (Math.random() - 0.5) * 0.3);
-        return new float[]{x, y};
     }
 
     @Override
@@ -203,9 +183,8 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         pTag.putFloat("LeadI", this.leadI);
         pTag.putFloat("LeadII", this.leadII);
         pTag.putFloat("LeadIII", this.leadIII);
-        pTag.putFloat("CycleTime", this.cycleTime);
-        pTag.putFloat("HeartVectorX", this.heartVectorX);
-        pTag.putFloat("HeartVectorY", this.heartVectorY);
+        pTag.putLong("LastHeartbeatTick", this.lastHeartbeatTick);
+        pTag.putInt("VfAlarmPattern", this.vfAlarmPattern);
         super.saveAdditional(pTag);
     }
 
@@ -224,9 +203,8 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         this.leadI = pTag.getFloat("LeadI");
         this.leadII = pTag.getFloat("LeadII");
         this.leadIII = pTag.getFloat("LeadIII");
-        this.cycleTime = pTag.getFloat("CycleTime");
-        this.heartVectorX = pTag.getFloat("HeartVectorX");
-        this.heartVectorY = pTag.getFloat("HeartVectorY");
+        this.lastHeartbeatTick = pTag.getLong("LastHeartbeatTick");
+        this.vfAlarmPattern = pTag.getInt("VfAlarmPattern");
     }
 
     @Nullable

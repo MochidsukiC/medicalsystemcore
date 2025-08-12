@@ -15,6 +15,10 @@ public interface IPlayerMedicalData {
     HeartStatus getHeartStatus();
     void setHeartStatus(HeartStatus status);
 
+    // --- 心拍数（プレイヤー側で計算、モニターで共有） ---
+    int getHeartRate();
+    void setHeartRate(int heartRate);
+
     // --- 骨折 ---
     boolean hasFracture();
     void setFracture(boolean hasFracture);
@@ -43,7 +47,6 @@ public interface IPlayerMedicalData {
 
     Optional<BlockPos> getTransfusingFromStandPos();
     void setTransfusingFromStandPos(Optional<BlockPos> pos);
-
 
     boolean isDamageImmune();
     void setDamageImmune(boolean immune);

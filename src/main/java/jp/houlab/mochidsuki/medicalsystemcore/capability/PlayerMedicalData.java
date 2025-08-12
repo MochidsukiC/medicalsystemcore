@@ -11,6 +11,7 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     // 各ステータスのデフォルト値
     private float bloodLevel = 100.0f;
     private HeartStatus heartStatus = HeartStatus.NORMAL;
+    private int heartRate = 70; // 心拍数を追加
     private boolean hasFracture = false;
     private int gunshotWounds = 0;
     private int tickCounter = 0;
@@ -20,6 +21,9 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     private HeartStatus previousHeartStatus = HeartStatus.NORMAL;
     private Optional<BlockPos> blockPos = Optional.empty();
     private boolean damageImmune = false;
+    private float cycleTime = 0.0f;
+    private float heartVectorX = 0.0f;
+    private float heartVectorY = 0.0f;
 
     @Override
     public float getCycleTime() {
@@ -51,11 +55,6 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.heartVectorY = heartVectorY;
     }
 
-    private float cycleTime = 0.0f;
-    private float heartVectorX = 0.0f;
-    private float heartVectorY = 0.0f;
-
-
     @Override
     public float getBloodLevel() {
         return this.bloodLevel;
@@ -75,6 +74,16 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     @Override
     public void setHeartStatus(HeartStatus status) {
         this.heartStatus = status;
+    }
+
+    @Override
+    public int getHeartRate() {
+        return this.heartRate;
+    }
+
+    @Override
+    public void setHeartRate(int heartRate) {
+        this.heartRate = Math.max(0, heartRate); // 0未満にならないように
     }
 
     @Override
@@ -123,7 +132,6 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.tickCounter = count;
     }
 
-
     @Override
     public float getResuscitationChance() {
         return this.resuscitationChance;
@@ -169,6 +177,7 @@ public class PlayerMedicalData implements IPlayerMedicalData {
     public boolean isDamageImmune() {
         return this.damageImmune;
     }
+
     @Override
     public void setDamageImmune(boolean immune) {
         this.damageImmune = immune;
@@ -182,9 +191,18 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         nbt.putFloat("bloodLevel", this.bloodLevel);
         // Enumは序数(NORMAL=0, VF=1, ...)で保存するのが一般的
         nbt.putInt("heartStatus", this.heartStatus.ordinal());
+        nbt.putInt("heartRate", this.heartRate); // 心拍数を追加
         nbt.putBoolean("hasFracture", this.hasFracture);
         nbt.putInt("gunshotWounds", this.gunshotWounds);
         nbt.putFloat("bleedingSpeed", this.bleedingSpeed);
+        nbt.putFloat("resuscitationChance", this.resuscitationChance);
+        nbt.putInt("cardiacArrestTimer", this.cardiacArrestTimer);
+        nbt.putInt("previousHeartStatus", this.previousHeartStatus.ordinal());
+        nbt.putBoolean("damageImmune", this.damageImmune);
+        nbt.putFloat("cycleTime", this.cycleTime);
+        nbt.putFloat("heartVectorX", this.heartVectorX);
+        nbt.putFloat("heartVectorY", this.heartVectorY);
+        // BlockPosの保存は省略（複雑になるため）
     }
 
     /**
@@ -195,8 +213,16 @@ public class PlayerMedicalData implements IPlayerMedicalData {
         this.bloodLevel = nbt.getFloat("bloodLevel");
         // 保存した序数からEnumを復元
         this.heartStatus = HeartStatus.values()[nbt.getInt("heartStatus")];
+        this.heartRate = nbt.getInt("heartRate"); // 心拍数を追加
         this.hasFracture = nbt.getBoolean("hasFracture");
         this.gunshotWounds = nbt.getInt("gunshotWounds");
-        this.bleedingSpeed = nbt.getInt("bleedingSpeed");
+        this.bleedingSpeed = nbt.getFloat("bleedingSpeed");
+        this.resuscitationChance = nbt.getFloat("resuscitationChance");
+        this.cardiacArrestTimer = nbt.getInt("cardiacArrestTimer");
+        this.previousHeartStatus = HeartStatus.values()[nbt.getInt("previousHeartStatus")];
+        this.damageImmune = nbt.getBoolean("damageImmune");
+        this.cycleTime = nbt.getFloat("cycleTime");
+        this.heartVectorX = nbt.getFloat("heartVectorX");
+        this.heartVectorY = nbt.getFloat("heartVectorY");
     }
 }
