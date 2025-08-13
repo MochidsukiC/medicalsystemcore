@@ -2,12 +2,10 @@ package jp.houlab.mochidsuki.medicalsystemcore.item;
 
 import jp.houlab.mochidsuki.medicalsystemcore.block.StretcherBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
-import jp.houlab.mochidsuki.medicalsystemcore.core.PoseController;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -45,9 +43,7 @@ public class StretcherItem extends Item {
                 pPlayer.level(), pPlayer, targetPlayer
         );
 
-        // 姿勢制御を設定
-        PoseController.setStretcherPose(targetPlayer, true);
-
+        // 修正1: プレイヤーに使用した場合のみアイテムを削除
         pStack.shrink(1);
 
         pPlayer.sendSystemMessage(Component.literal(String.format(
@@ -101,9 +97,8 @@ public class StretcherItem extends Item {
                 ridingPlayer.stopRiding();
                 ridingPlayer.teleportTo(placePos.getX() + 0.5, placePos.getY() + 0.3, placePos.getZ() + 0.5);
 
-                // 姿勢制御を更新
+                // プレイヤーを担架に乗せる
                 stretcherBE.setOccupyingPlayer(ridingPlayer);
-                PoseController.setStretcherPose(ridingPlayer, true);
 
                 ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
             }
@@ -112,6 +107,7 @@ public class StretcherItem extends Item {
             carriedStretcher.discard();
         }
 
+        // 修正2: 地面に設置する場合もアイテムを削除
         stack.shrink(1);
         player.sendSystemMessage(Component.literal("§a担架を設置しました。"));
 

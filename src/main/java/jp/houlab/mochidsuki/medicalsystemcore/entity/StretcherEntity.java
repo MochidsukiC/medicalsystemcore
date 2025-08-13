@@ -10,7 +10,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -82,7 +82,7 @@ public class StretcherEntity extends Entity {
         double offsetX = -Math.sin(radians);
         double offsetZ = Math.cos(radians);
 
-        Vec3 targetPos = carrierPos.add(offsetX, 1, offsetZ);
+        Vec3 targetPos = carrierPos.add(offsetX, 0, offsetZ);
         this.setPos(targetPos.x, targetPos.y, targetPos.z);
 
         // ストレッチャーの向きは運搬者と垂直（90度回転）
@@ -139,7 +139,7 @@ public class StretcherEntity extends Entity {
     }
 
     /**
-     * ストレッチャーを削除してアイテムをドロップ
+     * ストレッチャーを削除してアイテムをドロップ（修正版）
      */
     private void dropStretcher() {
         if (this.passenger != null) {
@@ -147,10 +147,47 @@ public class StretcherEntity extends Entity {
         }
 
         if (!this.level().isClientSide()) {
-            this.spawnAtLocation(new ItemStack(Medicalsystemcore.STRETCHER.get()));
+            ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
+
+            // 修正: 運搬者のインベントリに直接追加を試行
+            if (this.carrier != null && this.carrier.isAlive()) {
+                boolean added = this.carrier.getInventory().add(stretcherItem);
+                if (added) {
+                    // インベントリに追加成功
+                    this.carrier.sendSystemMessage(net.minecraft.network.chat.Component.literal("§aストレッチャーがインベントリに戻りました。"));
+                } else {
+                    // インベントリがフルの場合は地面にドロップ
+                    dropItemAtCarrierLocation(stretcherItem);
+                    this.carrier.sendSystemMessage(net.minecraft.network.chat.Component.literal("§eインベントリがフルのため、ストレッチャーを地面にドロップしました。"));
+                }
+            } else {
+                // 運搬者がいない場合は現在位置にドロップ
+                this.spawnAtLocation(stretcherItem);
+            }
         }
 
         this.discard();
+    }
+
+    /**
+     * 運搬者の位置にアイテムをドロップ
+     */
+    private void dropItemAtCarrierLocation(ItemStack item) {
+        Vec3 carrierPos = this.carrier.position();
+        ItemEntity itemEntity = new ItemEntity(this.level(), carrierPos.x, carrierPos.y, carrierPos.z, item);
+
+        // アイテムが運搬者だけが拾えるように設定（5秒間）
+        itemEntity.setPickUpDelay(10); // 0.5秒後から拾得可能
+        if (this.carrier instanceof ServerPlayer serverPlayer) {
+            itemEntity.setThrower(serverPlayer.getUUID()); // 投げた人として設定
+        }
+
+        this.level().addFreshEntity(itemEntity);
+    }
+
+    @Override
+    public boolean shouldRiderSit() {
+        return false; // 横たわる
     }
 
     @Override
@@ -186,6 +223,7 @@ public class StretcherEntity extends Entity {
     public Player getPassenger() {
         return this.passenger;
     }
+
     // === 静的ファクトリーメソッド ===
     public static StretcherEntity create(Level level, Player carrier, Player passenger) {
         StretcherEntity stretcher = new StretcherEntity(Medicalsystemcore.STRETCHER_ENTITY.get(), level);
