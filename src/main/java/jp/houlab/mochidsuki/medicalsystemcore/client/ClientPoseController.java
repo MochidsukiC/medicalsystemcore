@@ -137,20 +137,25 @@ public class ClientPoseController {
         }
     }
 
+
     /**
      * ストレッチャー用の特別な姿勢制御（クライアントサイド）
-     * バグ修正版：クライアント側での視点乱れを防ぐ
+     * 完全修正版：B=C関係を実現
      */
     private static void applyStretcherPose(Player player, Pose targetPose) {
         // ストレッチャーエンティティから向きを取得
         if (player.getVehicle() instanceof StretcherEntity stretcher) {
-            float stretcherYaw = AngleUtils.normalizeAngle(stretcher.getYRot());
+            float stretcherYaw = AngleUtils.normalizeAngle(stretcher.getYRot());  // B°
+
+            // *** 完全修正：正しい角度関係を適用 ***
+            // C° = B°（担架の向きとプレイヤーの向きは同じ）
+            float playerBodyYaw = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);  // C° = B°
 
             // *** クライアントサイドでの安全な角度設定 ***
             float currentBodyYaw = AngleUtils.normalizeAngle(player.yBodyRot);
 
-            // 角度差分を計算
-            float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, stretcherYaw);
+            // 角度差分を計算（修正：playerBodyYawとの差分を計算）
+            float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, playerBodyYaw);
 
             // 高速回転検出（クライアント側での暴走を防ぐ）
             if (!AngleUtils.isFastRotationDetected(angleDifference, 15.0f)) {
@@ -159,15 +164,15 @@ public class ClientPoseController {
                     float maxChangePerFrame = 10.0f;
 
                     if (Math.abs(angleDifference) <= maxChangePerFrame) {
-                        // 目標角度に直接設定
-                        player.yBodyRot = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);
-                        player.yBodyRotO = stretcherYaw;
+                        // *** 修正：両方ともplayerBodyYawを使用 ***
+                        player.yBodyRot = playerBodyYaw;
+                        player.yBodyRotO = playerBodyYaw;  // ここを修正！stretcherYaw → playerBodyYaw
                     } else {
-                        // 段階的に変更
+                        // 段階的に変更（修正：playerBodyYawに向かって変化）
                         float changeAmount = Math.signum(angleDifference) * maxChangePerFrame;
                         float newYaw = AngleUtils.normalizeAngle(currentBodyYaw + changeAmount);
                         player.yBodyRot = newYaw;
-                        player.yBodyRotO = newYaw;
+                        player.yBodyRotO = newYaw;  // ここも修正！
                     }
                 }
             }

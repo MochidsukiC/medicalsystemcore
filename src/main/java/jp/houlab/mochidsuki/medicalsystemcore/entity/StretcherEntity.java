@@ -252,25 +252,30 @@ public class StretcherEntity extends Entity {
     }
 
     /**
-     * クライアント側にストレッチャー姿勢の更新を送信
+     * クライアント側にストレッチャー姿勢の更新を送信（完全修正版）
      */
-    private void sendStretcherPoseUpdate(ServerPlayer player, boolean onStretcher, float yaw) {
-        // カスタムパケットまたはEntityDataを使用してクライアントに送信
-        // ここでは簡単にEntityDataを使用
-
+    private void sendStretcherPoseUpdate(ServerPlayer player, boolean onStretcher, float targetBodyYaw) {
         // プレイヤーの姿勢をSTANDINGに設定（レンダラーで制御）
         player.setPose(Pose.STANDING);
 
-        // 体の角度情報はlastPlayerBodyYawで管理
-        player.yBodyRot = yaw;
-        player.yBodyRotO = yaw;
+        // *** 完全修正：targetBodyYawは既にcalculatePlayerBodyYawで計算された値（C°） ***
+        float normalizedBodyYaw = AngleUtils.normalizeAngle(targetBodyYaw);
+
+        // 両方とも同じ値を設定
+        player.yBodyRot = normalizedBodyYaw;
+        player.yBodyRotO = normalizedBodyYaw;  // 修正：yaw → normalizedBodyYaw
 
         // クライアントに同期
         player.connection.send(new ClientboundSetEntityDataPacket(
                 player.getId(), player.getEntityData().packDirty()
         ));
-    }
 
+        // デバッグ情報
+        player.sendSystemMessage(Component.literal(String.format(
+                "§7sendStretcherPoseUpdate完全修正: C°=%.1f° (yBodyRot=%.1f°, yBodyRotO=%.1f°)",
+                normalizedBodyYaw, player.yBodyRot, player.yBodyRotO
+        )));
+    }
 
     // 追加のデバッグメソッド
     private void debugPlayerOrientation(ServerPlayer player) {
@@ -358,34 +363,34 @@ public class StretcherEntity extends Entity {
 
     /**
      * プレイヤーの体の向きのみを設定（視点の向きは変更しない）
-     * 強化版：確実な同期と複数の設定方法を試行
+     * 完全修正版：B=C関係を確実に実現
      */
     private void setPlayerBodyOrientation(ServerPlayer player, float bodyYaw) {
         float normalizedBodyYaw = AngleUtils.normalizeAngle(bodyYaw);
 
         // デバッグ：現在の値を記録
         float oldBodyYaw = player.yBodyRot;
+        float oldBodyYawO = player.yBodyRotO;
 
-        // *** 方法1：標準的な体の向き設定 ***
+        // *** 完全修正：両方とも同じ値を設定 ***
         player.yBodyRot = normalizedBodyYaw;
-        player.yBodyRotO = normalizedBodyYaw;
+        player.yBodyRotO = normalizedBodyYaw;  // 修正：確実に同じ値
 
-        // *** 方法2：Entity#setYRotも一時的に使用して強制設定 ***
-        // 注意：これは視点には影響しないはずですが、体の向きを確実に設定します
+        // *** 修正された方法2：Entity#setYRotも統一 ***
         float originalYRot = player.getYRot();
         float originalXRot = player.getXRot();
 
-        player.setYRot(normalizedBodyYaw);  // 一時的に設定
-        player.yBodyRot = normalizedBodyYaw;  // 体の角度を再設定
-        player.yBodyRotO = normalizedBodyYaw;
+        player.setYRot(normalizedBodyYaw);      // 修正：統一された値
+        player.yBodyRot = normalizedBodyYaw;    // 再設定
+        player.yBodyRotO = normalizedBodyYaw;   // 修正：統一された値
 
         // 視点角度を元に戻す（プレイヤーの自由な視点操作を保持）
         player.setYRot(originalYRot);
         player.setXRot(originalXRot);
 
-        // *** 方法3：強制的なクライアント同期 ***
+        // *** 修正された方法3：強制的なクライアント同期 ***
         // EntityDataの更新
-        player.getEntityData().set(net.minecraft.world.entity.Entity.DATA_POSE, net.minecraft.world.entity.Pose.SLEEPING);
+        player.getEntityData().set(net.minecraft.world.entity.Entity.DATA_POSE, net.minecraft.world.entity.Pose.STANDING);
 
         // 複数の同期パケットを送信
         player.connection.send(new ClientboundSetEntityDataPacket(
@@ -395,19 +400,22 @@ public class StretcherEntity extends Entity {
         // 位置と角度の完全同期
         player.connection.send(new ClientboundTeleportEntityPacket(player));
 
-        // *** 方法4：少し遅延させて再度設定（確実性向上） ***
+        // *** 修正された方法4：遅延での再設定 ***
         if (player.level() instanceof ServerLevel serverLevel) {
             serverLevel.getServer().execute(() -> {
-                // 1tick後に再度設定
+                // 1tick後に再度設定（統一された値）
                 player.yBodyRot = normalizedBodyYaw;
                 player.yBodyRotO = normalizedBodyYaw;
             });
         }
 
         // デバッグ情報
-        player.sendSystemMessage(Component.literal(String.format("§d体角度設定完了: %.1f° → %.1f°",
-                oldBodyYaw, normalizedBodyYaw)));
+        player.sendSystemMessage(Component.literal(String.format(
+                "§d体角度設定完了: yBodyRot %.1f°→%.1f°, yBodyRotO %.1f°→%.1f°",
+                oldBodyYaw, normalizedBodyYaw, oldBodyYawO, normalizedBodyYaw
+        )));
     }
+
     private void dropStretcher() {
         if (this.carryingPlayer != null) {
             this.carryingPlayer.stopRiding();

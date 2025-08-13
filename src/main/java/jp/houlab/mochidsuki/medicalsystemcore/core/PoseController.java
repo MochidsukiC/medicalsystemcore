@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.core;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -142,21 +143,29 @@ public class PoseController {
     }
 
     /**
-     * ストレッチャー用の特別な姿勢制御
+     * ストレッチャー用の特別な姿勢制御（完全修正版）
      */
     private static void applyStretcherPose(ServerPlayer player, Pose targetPose) {
         // ストレッチャーエンティティから向きを取得
         if (player.getVehicle() instanceof StretcherEntity stretcher) {
-            float yaw = stretcher.getYRot();
+            float stretcherYaw = stretcher.getYRot();  // B°
 
+            // *** 完全修正：正しい角度関係を適用 ***
+            // C° = B°（担架の向きとプレイヤーの向きは同じ）
+            float playerBodyYaw = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);  // C° = B°
 
-            // 体の向きを担架に合わせる
-            player.setYRot(yaw);
+            // *** 修正：全てplayerBodyYawを使用 ***
+            player.setYRot(playerBodyYaw);      // 修正：yaw → playerBodyYaw
             player.setXRot(0);
-            player.yBodyRot = StretcherEntity.calculatePlayerBodyYaw(yaw);
-            player.yBodyRotO = yaw;
-            player.setYHeadRot(yaw);
+            player.yBodyRot = playerBodyYaw;    // 既に修正済み
+            player.yBodyRotO = playerBodyYaw;   // 修正：yaw → playerBodyYaw
+            player.setYHeadRot(playerBodyYaw);  // 修正：yaw → playerBodyYaw
             player.xRotO = 0;
+
+            // デバッグ情報
+            player.sendSystemMessage(Component.literal(String.format(
+                    "§ePoseController完全修正: B°=%.1f°, C°=%.1f°", stretcherYaw, playerBodyYaw
+            )));
         }
 
         // 姿勢を設定
