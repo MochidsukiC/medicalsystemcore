@@ -2,7 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.item;
 
 import jp.houlab.mochidsuki.medicalsystemcore.block.StretcherBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
-import jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalDataManager;
+import jp.houlab.mochidsuki.medicalsystemcore.core.PoseController;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import net.minecraft.core.BlockPos;
@@ -60,7 +60,6 @@ public class StretcherItem extends Item {
         stretcherEntity.setPos(stretcherPos.x, stretcherPos.y, stretcherPos.z);
         stretcherEntity.setYRot(yaw);
         stretcherEntity.setCarriedByPlayer(pPlayer);
-        stretcherEntity.setCarryingPlayer(targetPlayer);
 
         // 対象プレイヤーを担架に乗せる
         targetPlayer.startRiding(stretcherEntity);
@@ -73,26 +72,10 @@ public class StretcherItem extends Item {
         targetPlayer.setYHeadRot(yaw);
         targetPlayer.xRotO = 0;
 
-        // 担架の上では必ずSLEEPING姿勢
-        targetPlayer.setPose(net.minecraft.world.entity.Pose.SLEEPING);
-        targetPlayer.setForcedPose(net.minecraft.world.entity.Pose.SLEEPING);
+        // *** 一元姿勢管理システムを使用（setCarryingPlayerで自動的に設定される） ***
+        stretcherEntity.setCarryingPlayer(targetPlayer);
 
-        // 姿勢変更を強制的に同期
-        targetPlayer.refreshDimensions();
-        if (targetPlayer.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-            // 周囲のプレイヤーに更新を送信
-            serverLevel.getChunkSource().broadcast(targetPlayer,
-                    new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(
-                            targetPlayer.getId(),
-                            targetPlayer.getEntityData().packDirty()
-                    )
-            );
-
-            // さらに位置と回転の同期も強制
-            serverLevel.getChunkSource().broadcast(targetPlayer,
-                    new net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket(targetPlayer)
-            );
-        }
+        // 強制的な同期を削除（一元姿勢管理システムが処理）
 
         pPlayer.level().addFreshEntity(stretcherEntity);
         pStack.shrink(1);
@@ -140,19 +123,18 @@ public class StretcherItem extends Item {
         if (carriedStretcher != null && carriedStretcher.getCarryingPlayer() != null) {
             ServerPlayer ridingPlayer = carriedStretcher.getCarryingPlayer();
 
-            // ブロックエンティティにプレイヤー情報を設定
+            // ブロックエンティティにプレイヤー情報を設定（一元姿勢管理システムが自動的に処理）
             if (level.getBlockEntity(placePos) instanceof StretcherBlockEntity stretcherBE) {
-                stretcherBE.setOccupyingPlayer(ridingPlayer);
-
-                // プレイヤーを担架ブロックの位置に移動
                 ridingPlayer.stopRiding();
                 ridingPlayer.teleportTo(placePos.getX() + 0.5, placePos.getY() + 0.3, placePos.getZ() + 0.5);
-                ridingPlayer.setPose(net.minecraft.world.entity.Pose.SLEEPING);
+
+                // *** 一元姿勢管理システムを使用（setOccupyingPlayerで自動的に設定される） ***
+                stretcherBE.setOccupyingPlayer(ridingPlayer);
 
                 ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
             }
 
-            // エンティティを削除
+            // エンティティを削除（姿勢制御の解除は自動的に処理される）
             carriedStretcher.discard();
         }
 

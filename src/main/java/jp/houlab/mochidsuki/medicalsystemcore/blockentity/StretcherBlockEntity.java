@@ -2,12 +2,12 @@ package jp.houlab.mochidsuki.medicalsystemcore.blockentity;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
+import jp.houlab.mochidsuki.medicalsystemcore.core.PoseController;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -38,8 +38,8 @@ public class StretcherBlockEntity extends BlockEntity {
                             .orElse(true);
 
                     if (canExit) {
-                        player.setPose(Pose.STANDING);
-                        player.setForcedPose(null); // 強制姿勢を解除
+                        // *** 一元姿勢管理システムを使用 ***
+                        PoseController.setStretcherPose(player, false);
                         player.sendSystemMessage(net.minecraft.network.chat.Component.literal("§e担架から降りました。"));
                         be.setOccupyingPlayer(null);
                     } else {
@@ -61,7 +61,8 @@ public class StretcherBlockEntity extends BlockEntity {
                 player.yBodyRot = blockYaw;
                 player.yBodyRotO = blockYaw;
 
-                // 特別な姿勢は設定しない
+                // *** 一元姿勢管理システムで姿勢制御を維持 ***
+                PoseController.maintainPoseControl(player);
 
             } else {
                 // プレイヤーが見つからない場合はクリア
@@ -73,13 +74,22 @@ public class StretcherBlockEntity extends BlockEntity {
     }
 
     public void setOccupyingPlayer(@Nullable ServerPlayer player) {
+        // 前のプレイヤーの姿勢制御を解除
+        if (this.cachedOccupyingPlayer != null && this.cachedOccupyingPlayer != player) {
+            PoseController.setStretcherPose(this.cachedOccupyingPlayer, false);
+        }
+
         if (player != null) {
             this.occupyingPlayerUUID = player.getUUID();
             this.cachedOccupyingPlayer = player;
+
+            // *** 一元姿勢管理システムで姿勢制御を開始 ***
+            PoseController.setStretcherPose(player, true);
         } else {
             this.occupyingPlayerUUID = null;
             this.cachedOccupyingPlayer = null;
         }
+
         setChanged();
 
         if (level != null) {
@@ -103,6 +113,12 @@ public class StretcherBlockEntity extends BlockEntity {
         // プレイヤーを再検索
         if (level instanceof ServerLevel serverLevel) {
             this.cachedOccupyingPlayer = (ServerPlayer) serverLevel.getPlayerByUUID(this.occupyingPlayerUUID);
+
+            // 復元時に姿勢制御を再適用
+            if (this.cachedOccupyingPlayer != null) {
+                PoseController.setStretcherPose(this.cachedOccupyingPlayer, true);
+            }
+
             return this.cachedOccupyingPlayer;
         }
 
@@ -126,6 +142,15 @@ public class StretcherBlockEntity extends BlockEntity {
             this.occupyingPlayerUUID = null;
         }
         this.cachedOccupyingPlayer = null; // キャッシュをクリア
+    }
+
+    @Override
+    public void setRemoved() {
+        // ブロックエンティティ削除時に姿勢制御を解除
+        if (this.cachedOccupyingPlayer != null) {
+            PoseController.setStretcherPose(this.cachedOccupyingPlayer, false);
+        }
+        super.setRemoved();
     }
 
     @Nullable

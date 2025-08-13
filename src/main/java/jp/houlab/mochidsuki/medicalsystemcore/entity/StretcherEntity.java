@@ -2,6 +2,8 @@ package jp.houlab.mochidsuki.medicalsystemcore.entity;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalDataManager;
+import jp.houlab.mochidsuki.medicalsystemcore.core.PoseController;
+import jp.houlab.mochidsuki.medicalsystemcore.util.AngleUtils;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
@@ -32,11 +34,15 @@ public class StretcherEntity extends Entity {
     private ServerPlayer carryingPlayer; // 担架に乗っているプレイヤー
     private Vec3 lastCarrierPos = Vec3.ZERO;
 
+    // 角度制御用フィールド
+    private float lastPlayerBodyYaw = 0.0f;
+    private boolean hasInitializedPlayerAngle = false;
+
     public StretcherEntity(EntityType<?> pEntityType, Level pLevel) {
         super(pEntityType, pLevel);
         this.noPhysics = true;
         this.setNoGravity(true);
-        this.noCulling = true; // レンダリング範囲を拡張
+        this.noCulling = true;
     }
 
     @Override
@@ -55,7 +61,7 @@ public class StretcherEntity extends Entity {
             handleServerTick();
         }
 
-        // クライアント・サーバー両方で位置を更新
+        // *** 更新頻度制限を削除 - 滑らかな動きのため毎フレーム更新 ***
         if (this.carriedByPlayer != null || getCarriedByPlayerFromData() != null) {
             updatePositionRelativeToCarrier();
         }
@@ -64,16 +70,13 @@ public class StretcherEntity extends Entity {
     private void handleClientTick() {
         // クライアント側でShiftキーによる降車判定
         if (this.carryingPlayer != null && this.carryingPlayer.isShiftKeyDown()) {
-            // 意識不明の場合は降りられない
             if (!ClientMedicalDataManager.isPlayerUnconscious(this.carryingPlayer)) {
-                // サーバーに降車要求を送信（実装時にネットワークパケットが必要）
                 this.carryingPlayer.sendSystemMessage(Component.literal("§e担架から降りました。"));
             } else {
                 this.carryingPlayer.sendSystemMessage(Component.literal("§c意識不明のため担架から降りることができません。"));
             }
         }
 
-        // クライアント側でもプレイヤー参照を更新
         updatePlayerReferencesFromData();
     }
 
@@ -81,7 +84,6 @@ public class StretcherEntity extends Entity {
         // 担架を持っているプレイヤーが存在するかチェック
         if (this.carriedByPlayer != null) {
             if (!this.carriedByPlayer.isAlive() || this.carriedByPlayer.distanceToSqr(this) > 100) {
-                // プレイヤーが死亡したか離れすぎた場合
                 dropStretcher();
                 return;
             }
@@ -89,7 +91,6 @@ public class StretcherEntity extends Entity {
 
         // 乗っているプレイヤーがShiftキーを押しているかチェック
         if (this.carryingPlayer != null && this.carryingPlayer.isShiftKeyDown()) {
-            // 意識不明の場合は降りられない
             if (this.carryingPlayer.getCapability(
                             jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)
                     .map(data -> data.isConscious())
@@ -97,10 +98,10 @@ public class StretcherEntity extends Entity {
 
                 // 降車処理
                 this.carryingPlayer.stopRiding();
+                PoseController.setStretcherPose(this.carryingPlayer, false);
 
-                // 姿勢と強制姿勢を解除
-                this.carryingPlayer.setPose(net.minecraft.world.entity.Pose.STANDING);
-                this.carryingPlayer.setForcedPose(null);
+                // 降車時の角度初期化をリセット
+                this.hasInitializedPlayerAngle = false;
 
                 this.carryingPlayer.sendSystemMessage(Component.literal("§e担架から降りました。"));
                 this.setCarryingPlayer(null);
@@ -124,65 +125,95 @@ public class StretcherEntity extends Entity {
         if (carrier == null) return;
 
         Vec3 carrierPos = carrier.position();
-        float yaw = carrier.getYRot();
+        float carrierYaw = AngleUtils.normalizeAngle(carrier.getYRot());
 
-        // 水平回転のみを使用してlookVecを計算（縦回転は無視）
-        double yawRad = Math.toRadians(yaw);
+        // 水平回転のみを使用してlookVecを計算
+        double yawRad = Math.toRadians(carrierYaw);
         double lookX = -Math.sin(yawRad);
         double lookZ = Math.cos(yawRad);
 
         // プレイヤーの腰の前あたりに担架を配置
         Vec3 newPos = carrierPos.add(lookX * 1.0, 0.0, lookZ * 1.0);
 
-        // 担架の位置を直接設定（補間なし）
+        // 担架の位置を設定（滑らか）
         this.setPos(newPos.x, newPos.y, newPos.z);
-        this.setYRot(yaw);
 
-        // 乗っているプレイヤーの向きも担架の向きに合わせる（サーバーサイドのみ）
+        // 担架の角度を段階的に変更
+        float currentStretcherYaw = AngleUtils.normalizeAngle(this.getYRot());
+        float newStretcherYaw = AngleUtils.gradualAngleChange(currentStretcherYaw, carrierYaw, 15.0f);
+        this.setYRot(newStretcherYaw);
+
+        // サーバーサイドでのプレイヤー制御
         if (!this.level().isClientSide() && this.carryingPlayer != null) {
-            // プレイヤーの位置も担架と同じ位置に固定（Y軸修正）
+            // プレイヤーの位置を担架と同じ位置に固定
             this.carryingPlayer.setPos(newPos.x, newPos.y + 1.0, newPos.z);
 
-            // より確実な姿勢制御
-            this.carryingPlayer.setYRot(yaw);
-            this.carryingPlayer.setXRot(0);
-            this.carryingPlayer.yBodyRot = yaw;
-            this.carryingPlayer.yBodyRotO = yaw;
-            this.carryingPlayer.setYHeadRot(yaw);
-            this.carryingPlayer.xRotO = 0;
+            // *** 体の向きのみ制御（視点は自由） ***
+            updatePlayerBodyOrientation(this.carryingPlayer, newStretcherYaw);
 
-            // 強制的にSLEEPING姿勢に設定し、ネットワーク同期を強制
-            if (this.carryingPlayer.getPose() != net.minecraft.world.entity.Pose.SLEEPING) {
-                this.carryingPlayer.setPose(net.minecraft.world.entity.Pose.SLEEPING);
-                this.carryingPlayer.setForcedPose(net.minecraft.world.entity.Pose.SLEEPING);
-
-                // 姿勢変更を明示的に全プレイヤーに同期
-                this.carryingPlayer.refreshDimensions();
-                if (this.carryingPlayer.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                    // 周囲のプレイヤーに更新を送信
-                    serverLevel.getChunkSource().broadcast(this.carryingPlayer,
-                            new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(
-                                    this.carryingPlayer.getId(),
-                                    this.carryingPlayer.getEntityData().packDirty()
-                            )
-                    );
-                }
-            }
+            // 姿勢制御を維持
+            PoseController.maintainPoseControl(this.carryingPlayer);
         }
 
         this.lastCarrierPos = carrierPos;
     }
 
+    /**
+     * プレイヤーの体の向きのみを制御（視点は自由に保つ）
+     */
+    private void updatePlayerBodyOrientation(ServerPlayer player, float stretcherYaw) {
+        float normalizedStretcherYaw = AngleUtils.normalizeAngle(stretcherYaw);
+
+        // *** 寝転がっているプレイヤーの向きを正しく設定 ***
+        // 頭の方向を担架の進行方向に合わせる
+        // 担架が北向き(0度)の時、プレイヤーの頭が北向きになるように調整
+        float playerBodyYaw = normalizedStretcherYaw + 90.0f; // 90度オフセットで正しい向きに
+        playerBodyYaw = AngleUtils.normalizeAngle(playerBodyYaw);
+
+        // 初回設定時は即座に角度を合わせる
+        if (!this.hasInitializedPlayerAngle) {
+            setPlayerBodyOrientation(player, playerBodyYaw);
+            this.lastPlayerBodyYaw = playerBodyYaw;
+            this.hasInitializedPlayerAngle = true;
+            return;
+        }
+
+        // 段階的な体の向き変更
+        float currentBodyYaw = AngleUtils.normalizeAngle(this.lastPlayerBodyYaw);
+
+        // 角度変化が小さい場合のみ更新
+        if (!AngleUtils.isAngleChangeSmall(currentBodyYaw, playerBodyYaw, 2.0f)) {
+            float newBodyYaw = AngleUtils.gradualAngleChange(currentBodyYaw, playerBodyYaw, 10.0f);
+            setPlayerBodyOrientation(player, newBodyYaw);
+            this.lastPlayerBodyYaw = newBodyYaw;
+        }
+    }
+
+    /**
+     * プレイヤーの体の向きのみを設定（視点の向きは変更しない）
+     */
+    private void setPlayerBodyOrientation(ServerPlayer player, float bodyYaw) {
+        float normalizedBodyYaw = AngleUtils.normalizeAngle(bodyYaw);
+
+        // *** 体の向きのみ設定、視点（頭の向き）は変更しない ***
+        player.yBodyRot = normalizedBodyYaw;
+        player.yBodyRotO = normalizedBodyYaw;
+
+        // 視点関連の角度は変更しない - プレイヤーが自由に視点移動可能
+        // player.setYRot() は呼び出さない
+        // player.setXRot() は呼び出さない
+        // player.setYHeadRot() は呼び出さない
+    }
+
     private void dropStretcher() {
-        // プレイヤーを降ろす
         if (this.carryingPlayer != null) {
             this.carryingPlayer.stopRiding();
-            this.carryingPlayer.setPose(net.minecraft.world.entity.Pose.STANDING);
-            this.carryingPlayer.setForcedPose(null); // 強制姿勢を解除
+            PoseController.setStretcherPose(this.carryingPlayer, false);
             this.carryingPlayer.sendSystemMessage(Component.literal("§e担架から降ろされました。"));
         }
 
-        // 担架アイテムをドロップ
+        this.hasInitializedPlayerAngle = false;
+
         if (!this.level().isClientSide()) {
             this.spawnAtLocation(new ItemStack(Medicalsystemcore.STRETCHER.get()));
         }
@@ -192,22 +223,19 @@ public class StretcherEntity extends Entity {
 
     @Override
     public boolean isPickable() {
-        return false; // 当たり判定を無効化
+        return false;
     }
 
     @Override
     public boolean canBeCollidedWith() {
-        return false; // 衝突判定を無効化
+        return false;
     }
 
     @Override
     public boolean isPushable() {
-        return false; // 押し出し判定を無効化
+        return false;
     }
 
-    /**
-     * クライアント側でEntityDataから運搬者プレイヤーを取得
-     */
     private Player getCarriedByPlayerFromData() {
         Optional<UUID> carriedByUUID = this.entityData.get(CARRIED_BY_PLAYER);
         if (carriedByUUID.isPresent() && this.level().isClientSide()) {
@@ -216,9 +244,6 @@ public class StretcherEntity extends Entity {
         return null;
     }
 
-    /**
-     * クライアント側でEntityDataから乗車プレイヤーを取得
-     */
     private Player getCarryingPlayerFromData() {
         Optional<UUID> carryingUUID = this.entityData.get(CARRYING_PLAYER);
         if (carryingUUID.isPresent() && this.level().isClientSide()) {
@@ -227,17 +252,12 @@ public class StretcherEntity extends Entity {
         return null;
     }
 
-    /**
-     * クライアント側でEntityDataからプレイヤー参照を更新
-     */
     private void updatePlayerReferencesFromData() {
         if (this.level().isClientSide()) {
-            // 運搬者の更新
             if (this.carriedByPlayer == null) {
                 this.carriedByPlayer = getCarriedByPlayerFromData();
             }
 
-            // 乗車者の更新
             if (this.carryingPlayer == null) {
                 Player carryingFromData = getCarryingPlayerFromData();
                 if (carryingFromData instanceof net.minecraft.server.level.ServerPlayer) {
@@ -249,17 +269,17 @@ public class StretcherEntity extends Entity {
 
     @Override
     public boolean shouldRiderSit() {
-        return false; // 乗客を座らせない（横にしたいため）
+        return false;
     }
 
     @Override
     public double getPassengersRidingOffset() {
-        return 0.1; // 担架の少し上に配置
+        return 0.1;
     }
 
     @Override
     protected boolean canRide(Entity pEntity) {
-        return pEntity instanceof Player; // プレイヤーのみ乗車可能
+        return pEntity instanceof Player;
     }
 
     public void setCarriedByPlayer(@Nullable Player player) {
@@ -268,8 +288,21 @@ public class StretcherEntity extends Entity {
     }
 
     public void setCarryingPlayer(@Nullable ServerPlayer player) {
+        // 前のプレイヤーの姿勢制御を解除
+        if (this.carryingPlayer != null && this.carryingPlayer != player) {
+            PoseController.setStretcherPose(this.carryingPlayer, false);
+        }
+
         this.carryingPlayer = player;
         this.entityData.set(CARRYING_PLAYER, Optional.ofNullable(player != null ? player.getUUID() : null));
+
+        // プレイヤー変更時に角度初期化をリセット
+        this.hasInitializedPlayerAngle = false;
+
+        // 新しいプレイヤーの姿勢制御を開始
+        if (player != null) {
+            PoseController.setStretcherPose(player, true);
+        }
     }
 
     @Nullable
@@ -282,12 +315,27 @@ public class StretcherEntity extends Entity {
         return this.carryingPlayer;
     }
 
+    /**
+     * クライアントサイドからアクセス可能な運搬者取得メソッド
+     */
+    @Nullable
+    public Player getCarriedByPlayerFromDataPublic() {
+        return getCarriedByPlayerFromData();
+    }
+
+    /**
+     * クライアントサイドからアクセス可能な乗車者取得メソッド
+     */
+    @Nullable
+    public Player getCarryingPlayerFromDataPublic() {
+        return getCarryingPlayerFromData();
+    }
+
     @Override
     protected void readAdditionalSaveData(CompoundTag pCompound) {
         if (pCompound.hasUUID("CarriedBy")) {
             UUID carriedByUUID = pCompound.getUUID("CarriedBy");
             this.entityData.set(CARRIED_BY_PLAYER, Optional.of(carriedByUUID));
-            // サーバーサイドでプレイヤーを復元
             if (!this.level().isClientSide()) {
                 this.carriedByPlayer = this.level().getPlayerByUUID(carriedByUUID);
             }
@@ -295,11 +343,18 @@ public class StretcherEntity extends Entity {
         if (pCompound.hasUUID("Carrying")) {
             UUID carryingUUID = pCompound.getUUID("Carrying");
             this.entityData.set(CARRYING_PLAYER, Optional.of(carryingUUID));
-            // サーバーサイドでプレイヤーを復元
             if (!this.level().isClientSide() && this.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                this.carryingPlayer = (ServerPlayer) serverLevel.getPlayerByUUID(carryingUUID);
+                ServerPlayer restoredPlayer = (ServerPlayer) serverLevel.getPlayerByUUID(carryingUUID);
+                if (restoredPlayer != null) {
+                    this.carryingPlayer = restoredPlayer;
+                    PoseController.setStretcherPose(restoredPlayer, true);
+                    this.hasInitializedPlayerAngle = false;
+                }
             }
         }
+
+        this.lastPlayerBodyYaw = pCompound.getFloat("LastPlayerBodyYaw");
+        this.hasInitializedPlayerAngle = pCompound.getBoolean("HasInitializedPlayerAngle");
     }
 
     @Override
@@ -310,6 +365,17 @@ public class StretcherEntity extends Entity {
         if (this.carryingPlayer != null) {
             pCompound.putUUID("Carrying", this.carryingPlayer.getUUID());
         }
+
+        pCompound.putFloat("LastPlayerBodyYaw", this.lastPlayerBodyYaw);
+        pCompound.putBoolean("HasInitializedPlayerAngle", this.hasInitializedPlayerAngle);
+    }
+
+    @Override
+    public void remove(RemovalReason pReason) {
+        if (this.carryingPlayer != null) {
+            PoseController.setStretcherPose(this.carryingPlayer, false);
+        }
+        super.remove(pReason);
     }
 
     @Override

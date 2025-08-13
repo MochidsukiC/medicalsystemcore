@@ -2,6 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.core.PoseController;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -83,12 +84,8 @@ public class StretcherBlock extends BaseEntityBlock {
                 stretcherEntity.setPos(stretcherPos.x, stretcherPos.y, stretcherPos.z);
                 stretcherEntity.setYRot(yaw);
                 stretcherEntity.setCarriedByPlayer(pPlayer);
-                stretcherEntity.setCarryingPlayer(occupyingPlayer);
 
-                // プレイヤーを担架エンティティに移動
-                occupyingPlayer.setPose(net.minecraft.world.entity.Pose.STANDING);
-                occupyingPlayer.setForcedPose(null); // 一時的に解除
-
+                // プレイヤーを担架エンティティに移動（姿勢制御は自動的に移行される）
                 occupyingPlayer.teleportTo(stretcherPos.x, stretcherPos.y, stretcherPos.z);
                 occupyingPlayer.startRiding(stretcherEntity);
 
@@ -100,9 +97,8 @@ public class StretcherBlock extends BaseEntityBlock {
                 occupyingPlayer.setYHeadRot(yaw);
                 occupyingPlayer.xRotO = 0;
 
-                // 担架の上では必ずSLEEPING姿勢
-                occupyingPlayer.setPose(net.minecraft.world.entity.Pose.SLEEPING);
-                occupyingPlayer.setForcedPose(net.minecraft.world.entity.Pose.SLEEPING);
+                // *** 担架エンティティの姿勢制御設定（setCarryingPlayerで自動的に設定される） ***
+                stretcherEntity.setCarryingPlayer(occupyingPlayer);
 
                 pLevel.addFreshEntity(stretcherEntity);
 
@@ -127,6 +123,7 @@ public class StretcherBlock extends BaseEntityBlock {
                 return InteractionResult.FAIL;
             }
 
+            // *** 一元姿勢管理システムを使用（setOccupyingPlayerで自動的に設定される） ***
             stretcherBE.setOccupyingPlayer(serverPlayer);
             serverPlayer.teleportTo(pPos.getX() + 0.5, pPos.getY() + 0.3, pPos.getZ() + 0.5);
 
@@ -138,10 +135,6 @@ public class StretcherBlock extends BaseEntityBlock {
             serverPlayer.yBodyRotO = blockYaw;
             serverPlayer.setYHeadRot(blockYaw);
             serverPlayer.xRotO = 0;
-
-            // 担架の上では必ずSLEEPING姿勢
-            serverPlayer.setPose(net.minecraft.world.entity.Pose.SLEEPING);
-            serverPlayer.setForcedPose(net.minecraft.world.entity.Pose.SLEEPING);
 
             serverPlayer.sendSystemMessage(Component.literal("§e担架に乗りました。Shiftキーで降りることができます。"));
 
@@ -159,9 +152,8 @@ public class StretcherBlock extends BaseEntityBlock {
                 ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
 
                 if (occupyingPlayer != null) {
-                    // プレイヤーを解放
-                    occupyingPlayer.setPose(net.minecraft.world.entity.Pose.STANDING);
-                    occupyingPlayer.setForcedPose(null); // 強制姿勢を解除
+                    // *** 一元姿勢管理システムを使用してプレイヤーを解放 ***
+                    PoseController.setStretcherPose(occupyingPlayer, false);
                     occupyingPlayer.sendSystemMessage(Component.literal("§e担架が破壊されたため降ろされました。"));
                 }
 

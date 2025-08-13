@@ -18,8 +18,6 @@ import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Pose;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -28,6 +26,7 @@ import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -116,7 +115,6 @@ public class ModEvents {
         });
     }
 
-    // 修正: 電極投げ捨て時の処理を追加
     @SubscribeEvent
     public static void onItemToss(ItemTossEvent event) {
         ItemStack tossedItem = event.getEntity().getItem();
@@ -130,7 +128,6 @@ public class ModEvents {
                 if (event.getPlayer().level() instanceof ServerLevel serverLevel) {
                     BlockEntity be = serverLevel.getBlockEntity(defibrillatorPos);
                     if (be instanceof jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity defibrillator) {
-                        // 除細動器の状態を復元
                         defibrillator.arePadsTaken = false;
                         if (defibrillator.getLevel() != null) {
                             defibrillator.getLevel().setBlock(
@@ -143,8 +140,6 @@ public class ModEvents {
                             );
                         }
                         defibrillator.setChanged();
-
-                        // 投げ捨てられたアイテムを削除
                         event.getEntity().discard();
                     }
                 }
@@ -177,6 +172,9 @@ public class ModEvents {
             handleConsciousnessState(serverPlayer, medicalData);
             handleECGSimulation(serverPlayer, medicalData);
 
+            // *** 一元姿勢管理システムによる姿勢制御の維持 ***
+            PoseController.maintainPoseControl(serverPlayer);
+
             ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
                     serverPlayer.getUUID(),
                     medicalData.getHeartStatus(),
@@ -185,7 +183,37 @@ public class ModEvents {
         });
     }
 
-    // 修正: 点滴スタンドの処理を改善
+    // *** 修正：意識障害時の姿勢制御を一元管理システムに委譲 ***
+    private static void handleConsciousnessState(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        HeartStatus newStatus = medicalData.getHeartStatus();
+        boolean oldConscious = medicalData.isConscious();
+        boolean newConscious;
+
+        // 意識状態の判定
+        if (serverPlayer.getHealth() < 5 || newStatus != HeartStatus.NORMAL) {
+            newConscious = false;
+        } else {
+            newConscious = true;
+        }
+
+        // 意識状態が変化した場合
+        if (oldConscious != newConscious) {
+            medicalData.setConscious(newConscious);
+
+            // *** 一元姿勢管理システムを使用 ***
+            PoseController.setUnconsciousPose(serverPlayer, !newConscious);
+        }
+    }
+
+    // *** プレイヤーログアウト時の姿勢制御クリア ***
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            PoseController.clearPoseControl(serverPlayer);
+        }
+    }
+
+    // [その他のメソッドは変更なし - handleIVStandTreatment, applyPackEffect, handleCardiacArrest等]
     private static void handleIVStandTreatment(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
             BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
@@ -228,7 +256,6 @@ public class ModEvents {
                     }
                 }
 
-                // 修正: パックが空になった際のメッセージを1回だけ送信
                 if (hasEmptyPackThisTick && !hasAnyPack) {
                     serverPlayer.sendSystemMessage(Component.literal("§e点滴パックが空になりました。"));
                 }
@@ -351,30 +378,6 @@ public class ModEvents {
                 }
             }
         }
-    }
-
-    // 修正: 意識障害時の姿勢制御（健全なプレイヤーのしゃがみを妨げない）
-    private static void handleConsciousnessState(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
-        HeartStatus newStatus = medicalData.getHeartStatus();
-        boolean oldConscious = medicalData.isConscious();
-
-        if (serverPlayer.getHealth() < 5 || newStatus != HeartStatus.NORMAL) {
-            medicalData.setConscious(false);
-        } else {
-            medicalData.setConscious(true);
-            if (!oldConscious) {
-                // 意識回復時のみ姿勢を立った状態に戻す
-                serverPlayer.setPose(Pose.STANDING);
-            }
-        }
-
-        // 意識障害時のみ姿勢を強制変更
-        if (!medicalData.isConscious()) {
-            serverPlayer.setPose(Pose.SWIMMING);
-        }
-        // 注意: 健全なプレイヤーの姿勢は自然な動作に任せる
-
-        serverPlayer.refreshDimensions();
     }
 
     private static void handleECGSimulation(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {

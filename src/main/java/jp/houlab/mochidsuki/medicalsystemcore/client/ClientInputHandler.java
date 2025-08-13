@@ -1,7 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
@@ -13,6 +12,8 @@ import org.lwjgl.glfw.GLFW;
 
 /**
  * クライアントサイドの入力を監視し、必要に応じてブロックするクラス
+ *
+ * クライアントサイドでも姿勢制御を行い、バニラの姿勢制御を確実に上書きする
  */
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
@@ -26,14 +27,15 @@ public class ClientInputHandler {
             ClientHealingManager.tick();
 
             if (player != null) {
+                // *** クライアントサイドでの姿勢制御更新 ***
+                ClientPoseController.updateFromMedicalData(player);
+
+                // *** バニラの姿勢制御を確実に上書き ***
+                ClientPoseController.maintainPoseControl(player);
+
                 boolean isUnconscious = ClientMedicalDataManager.isPlayerUnconscious(player);
 
                 if (isUnconscious) {
-                    // 意識障害状態の処理
-                    if (player.getPose() != Pose.SWIMMING) {
-                        player.setPose(Pose.SWIMMING);
-                    }
-
                     // 意識障害時の視点固定処理を呼び出し
                     ClientMouseHandler.handleUnconsciousView();
                 }
