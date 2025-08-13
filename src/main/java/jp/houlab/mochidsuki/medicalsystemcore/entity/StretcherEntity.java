@@ -251,7 +251,6 @@ public class StretcherEntity extends Entity {
         }
     }
 
-
     /**
      * クライアント側にストレッチャー姿勢の更新を送信
      */

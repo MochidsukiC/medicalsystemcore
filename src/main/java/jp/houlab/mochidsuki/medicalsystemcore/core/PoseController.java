@@ -149,10 +149,11 @@ public class PoseController {
         if (player.getVehicle() instanceof StretcherEntity stretcher) {
             float yaw = stretcher.getYRot();
 
+
             // 体の向きを担架に合わせる
             player.setYRot(yaw);
             player.setXRot(0);
-            player.yBodyRot = yaw;
+            player.yBodyRot = StretcherEntity.calculatePlayerBodyYaw(yaw);
             player.yBodyRotO = yaw;
             player.setYHeadRot(yaw);
             player.xRotO = 0;

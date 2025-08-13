@@ -160,7 +160,7 @@ public class ClientPoseController {
 
                     if (Math.abs(angleDifference) <= maxChangePerFrame) {
                         // 目標角度に直接設定
-                        player.yBodyRot = stretcherYaw;
+                        player.yBodyRot = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);
                         player.yBodyRotO = stretcherYaw;
                     } else {
                         // 段階的に変更
