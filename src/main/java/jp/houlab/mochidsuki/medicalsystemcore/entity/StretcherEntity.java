@@ -28,6 +28,10 @@ import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * ストレッチャーエンティティ
+ * プレイヤーを乗せて運搬するためのエンティティ
+ */
 public class StretcherEntity extends Entity {
     private static final EntityDataAccessor<Optional<UUID>> CARRYING_PLAYER =
             SynchedEntityData.defineId(StretcherEntity.class, EntityDataSerializers.OPTIONAL_UUID);
@@ -37,8 +41,6 @@ public class StretcherEntity extends Entity {
     private Player carriedByPlayer; // 担架を持っているプレイヤー
     private ServerPlayer carryingPlayer; // 担架に乗っているプレイヤー
     private Vec3 lastCarrierPos = Vec3.ZERO;
-    private int stableAngleFrames = 0; // 安定している角度フレーム数
-    private float lastStableBodyYaw = 0.0f; // 最後に安定していた体の角度
 
     // 角度制御用フィールド
     private float lastPlayerBodyYaw = 0.0f;
@@ -67,7 +69,7 @@ public class StretcherEntity extends Entity {
             handleServerTick();
         }
 
-        // *** 更新頻度制限を削除 - 滑らかな動きのため毎フレーム更新 ***
+        // 運搬者に追従する位置更新
         if (this.carriedByPlayer != null || getCarriedByPlayerFromData() != null) {
             updatePositionRelativeToCarrier();
         }
@@ -106,9 +108,7 @@ public class StretcherEntity extends Entity {
                 this.carryingPlayer.stopRiding();
                 PoseController.setStretcherPose(this.carryingPlayer, false);
 
-                // 降車時の角度初期化をリセット
                 this.hasInitializedPlayerAngle = false;
-
                 this.carryingPlayer.sendSystemMessage(Component.literal("§e担架から降りました。"));
                 this.setCarryingPlayer(null);
             }
@@ -123,44 +123,29 @@ public class StretcherEntity extends Entity {
     /**
      * 運搬者の向きから理想的な担架の角度を計算
      * 正しい関係：A = B - 90° → B = A + 90°
-     * @param carrierYaw 運搬者の向き（A°）
-     * @return 理想的な担架の角度（B°）
      */
     public static float calculateIdealStretcherYaw(float carrierYaw) {
-        // B = A + 90°
         return AngleUtils.normalizeAngle(carrierYaw + 90.0f);
     }
 
-
     /**
-     * 担架の角度からプレイヤーの体の向きを計算（修正版）
-     * 正しい関係：B = C（担架とプレイヤーは同じ向き）
+     * 担架の角度からプレイヤーの体の向きを計算
+     * 正しい関係：B = C
      */
     public static float calculatePlayerBodyYaw(float stretcherYaw) {
-        // 修正：担架の角度とプレイヤーの体の向きは完全に同じ
         return AngleUtils.normalizeAngle(stretcherYaw);
     }
 
-
     /**
      * 運搬者の向きから担架の位置を計算
-     * 担架は運搬者の横（90度回転した方向）に配置される
-     * @param carrierPos 運搬者の位置
-     * @param carrierYaw 運搬者の向き（A°）
-     * @return 理想的な担架位置
      */
     public static Vec3 calculateIdealStretcherPosition(Vec3 carrierPos, float carrierYaw) {
-        // 運搬者の右側（90度回転）に担架を配置
-        // 運搬者が担架を横から押すように
         double yawRad = Math.toRadians(carrierYaw);
         double lookX = -Math.sin(yawRad);
         double lookZ = Math.cos(yawRad);
         return carrierPos.add(lookX * 1.0, 0.0, lookZ * 1.0);
     }
 
-    /**
-     * 位置更新メソッドの修正 - 角度の反転問題を解決
-     */
     private void updatePositionRelativeToCarrier() {
         Player carrier = this.carriedByPlayer;
 
@@ -172,28 +157,23 @@ public class StretcherEntity extends Entity {
         if (carrier == null) return;
 
         Vec3 carrierPos = carrier.position();
-        float carrierYaw = AngleUtils.normalizeAngle(carrier.getYRot());  // A°
+        float carrierYaw = AngleUtils.normalizeAngle(carrier.getYRot());
 
-        // 統一された位置計算メソッドを使用
+        // 理想的な位置と角度を計算
         Vec3 idealPos = calculateIdealStretcherPosition(carrierPos, carrierYaw);
-        float idealStretcherYaw = calculateIdealStretcherYaw(carrierYaw);  // B° = A° + 90°
+        float idealStretcherYaw = calculateIdealStretcherYaw(carrierYaw);
 
-        // 担架の位置を設定（滑らか）
+        // 担架の位置を設定
         this.setPos(idealPos.x, idealPos.y, idealPos.z);
 
-        // 担架の角度を段階的に変更（修正：反転を防ぐ）
+        // 担架の角度を段階的に変更
         float currentStretcherYaw = AngleUtils.normalizeAngle(this.getYRot());
-
-        // 角度差分を正しく計算
         float angleDifference = AngleUtils.getAngleDifference(currentStretcherYaw, idealStretcherYaw);
 
-        // 段階的な変更（最大15度/tick）
         float newStretcherYaw;
         if (Math.abs(angleDifference) <= 15.0f) {
-            // 差分が小さい場合は直接設定
             newStretcherYaw = idealStretcherYaw;
         } else {
-            // 段階的に変更（修正：正しい方向への変化）
             float changeAmount = Math.signum(angleDifference) * 15.0f;
             newStretcherYaw = AngleUtils.normalizeAngle(currentStretcherYaw + changeAmount);
         }
@@ -204,140 +184,83 @@ public class StretcherEntity extends Entity {
         if (!this.level().isClientSide() && this.carryingPlayer != null) {
             this.carryingPlayer.setPos(idealPos.x, idealPos.y + 1.0, idealPos.z);
 
-            // プレイヤーの体の向きを担架の角度と完全に同じに設定（B = C）
-            float playerBodyYaw = newStretcherYaw;  // 修正：calculatePlayerBodyYaw を直接使用せず、同じ値を使用
+            // プレイヤーの体の向きを担架の角度と同じに設定
+            float playerBodyYaw = newStretcherYaw;
             updatePlayerBodyOrientationSimple(this.carryingPlayer, playerBodyYaw);
-
-            // デバッグ情報（1秒毎）
-            if (this.carryingPlayer.tickCount % 20 == 0) {
-                this.carryingPlayer.sendSystemMessage(Component.literal(String.format(
-                        "§6角度関係: A(運搬者)=%.1f°, B(担架)=%.1f°, C(プレイヤー)=%.1f°",
-                        carrierYaw, newStretcherYaw, playerBodyYaw
-                )));
-            }
         }
 
         this.lastCarrierPos = carrierPos;
     }
 
     /**
-     * プレイヤーの体の向きをシンプルに制御（修正版）
+     * プレイヤーの体の向きをシンプルに制御
      */
     private void updatePlayerBodyOrientationSimple(ServerPlayer player, float targetBodyYaw) {
         float normalizedTargetYaw = AngleUtils.normalizeAngle(targetBodyYaw);
-
-        // デバッグ情報
-        player.sendSystemMessage(Component.literal(String.format("§7プレイヤー体角度設定: %.1f°",
-                normalizedTargetYaw)));
 
         // 初回設定時
         if (!this.hasInitializedPlayerAngle) {
             sendStretcherPoseUpdate(player, true, normalizedTargetYaw);
             this.lastPlayerBodyYaw = normalizedTargetYaw;
             this.hasInitializedPlayerAngle = true;
-            player.sendSystemMessage(Component.literal("§a正しい体角度制御開始"));
             return;
         }
 
-        // 角度更新 - ここを修正
+        // 角度更新
         float currentBodyYaw = AngleUtils.normalizeAngle(this.lastPlayerBodyYaw);
         float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, normalizedTargetYaw);
 
         if (Math.abs(angleDifference) > 2.0f) {
             sendStretcherPoseUpdate(player, true, normalizedTargetYaw);
             this.lastPlayerBodyYaw = normalizedTargetYaw;
-            player.sendSystemMessage(Component.literal(String.format("§b体角度更新: %.1f°",
-                    normalizedTargetYaw)));
         }
     }
 
     /**
-     * クライアント側にストレッチャー姿勢の更新を送信（完全修正版）
-     * NullPointerException を防ぐ安全な実装
+     * クライアント側にストレッチャー姿勢の更新を送信（安全版）
      */
     private void sendStretcherPoseUpdate(ServerPlayer player, boolean onStretcher, float targetBodyYaw) {
         try {
-            // プレイヤーの姿勢をSTANDINGに設定（レンダラーで制御）
             player.setPose(Pose.STANDING);
 
             float normalizedBodyYaw = AngleUtils.normalizeAngle(targetBodyYaw);
-
-            // 両方とも同じ値を設定
             player.yBodyRot = normalizedBodyYaw;
             player.yBodyRotO = normalizedBodyYaw;
 
             // EntityDataの安全性チェック
             if (player.getEntityData() != null) {
-                // packDirty()が null を返す可能性があるため、事前にチェック
                 var dataList = player.getEntityData().packDirty();
                 if (dataList != null && !dataList.isEmpty()) {
-                    // クライアントに同期
-                    player.connection.send(new ClientboundSetEntityDataPacket(
-                            player.getId(), dataList
-                    ));
+                    player.connection.send(new ClientboundSetEntityDataPacket(player.getId(), dataList));
                 } else {
-                    // データが空の場合は代替手段を使用
                     player.connection.send(new ClientboundTeleportEntityPacket(player));
                 }
             }
-
-            // デバッグ情報
-            player.sendSystemMessage(Component.literal(String.format(
-                    "§7sendStretcherPoseUpdate修正版: C°=%.1f° (yBodyRot=%.1f°, yBodyRotO=%.1f°)",
-                    normalizedBodyYaw, player.yBodyRot, player.yBodyRotO
-            )));
         } catch (Exception e) {
-            // エラーが発生した場合の安全な処理
             player.sendSystemMessage(Component.literal("§c姿勢更新でエラーが発生しました: " + e.getMessage()));
             Medicalsystemcore.LOGGER.error("ストレッチャー姿勢更新エラー", e);
         }
     }
 
-
-    // 追加のデバッグメソッド
-    private void debugPlayerOrientation(ServerPlayer player) {
-        float yRot = player.getYRot();
-        float xRot = player.getXRot();
-        float yBodyRot = player.yBodyRot;
-        float yBodyRotO = player.yBodyRotO;
-        float yHeadRot = player.getYHeadRot();
-
-        player.sendSystemMessage(Component.literal(String.format(
-                "§7デバッグ - YRot: %.1f°, XRot: %.1f°, BodyRot: %.1f°, BodyRotO: %.1f°, HeadRot: %.1f°",
-                yRot, xRot, yBodyRot, yBodyRotO, yHeadRot
-        )));
-    }
-
     /**
      * 担架エンティティを作成して適切な位置に配置
-     * @param level ワールド
-     * @param carrierPlayer 運搬者
-     * @param ridingPlayer 乗車するプレイヤー
-     * @return 作成された担架エンティティ
      */
     public static StretcherEntity createAndPosition(Level level, Player carrierPlayer, Player ridingPlayer) {
         StretcherEntity stretcher = new StretcherEntity(Medicalsystemcore.STRETCHER_ENTITY.get(), level);
 
-        // 召喚位置は乗車するプレイヤーの位置（保守性のため）
         Vec3 spawnPos = ridingPlayer.position();
         stretcher.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
 
-        // 初期角度設定
         float carrierYaw = carrierPlayer.getYRot();
         float stretcherYaw = calculateIdealStretcherYaw(carrierYaw);
         stretcher.setYRot(stretcherYaw);
 
-        // 運搬者を設定
         stretcher.setCarriedByPlayer(carrierPlayer);
-
         return stretcher;
     }
 
     /**
      * 担架位置の更新（公開メソッド）
-     * ClientStretcherHandlerから呼び出される
-     * @param stretcher 担架エンティティ
-     * @param carrier 運搬者
      */
     public static void updateStretcherPosition(StretcherEntity stretcher, Player carrier) {
         if (stretcher == null || carrier == null) return;
@@ -345,92 +268,22 @@ public class StretcherEntity extends Entity {
         Vec3 carrierPos = carrier.position();
         float carrierYaw = AngleUtils.normalizeAngle(carrier.getYRot());
 
-        // 理想的な位置と角度を計算
         Vec3 idealPos = calculateIdealStretcherPosition(carrierPos, carrierYaw);
         float idealYaw = calculateIdealStretcherYaw(carrierYaw);
 
-        // 現在位置との差が大きい場合のみ補間
         Vec3 currentPos = stretcher.position();
         double distance = currentPos.distanceTo(idealPos);
 
-        if (distance > 0.1) { // 10cm以上離れている場合
-            // 滑らかな補間（20%ずつ近づける）
+        if (distance > 0.1) {
             Vec3 lerpedPos = currentPos.lerp(idealPos, 0.2);
             stretcher.setPos(lerpedPos.x, lerpedPos.y, lerpedPos.z);
         }
 
-        // 角度の滑らかな補間
         float currentYaw = AngleUtils.normalizeAngle(stretcher.getYRot());
         if (!AngleUtils.isAngleChangeSmall(currentYaw, idealYaw, 1.0f)) {
             float newYaw = AngleUtils.gradualAngleChange(currentYaw, idealYaw, 5.0f);
             stretcher.setYRot(newYaw);
         }
-    }
-
-
-    // テスト用のコマンドハンドラー（開発時のみ使用）
-    public void testBodyRotation(ServerPlayer player, float targetAngle) {
-        if (this.carryingPlayer == player) {
-            setPlayerBodyOrientation(player, targetAngle);
-            debugPlayerOrientation(player);
-            player.sendSystemMessage(Component.literal(String.format("§aテスト: 体角度を%.1f°に設定", targetAngle)));
-        }
-    }
-
-
-    /**
-     * プレイヤーの体の向きのみを設定（視点の向きは変更しない）
-     * 完全修正版：B=C関係を確実に実現
-     */
-    private void setPlayerBodyOrientation(ServerPlayer player, float bodyYaw) {
-        float normalizedBodyYaw = AngleUtils.normalizeAngle(bodyYaw);
-
-        // デバッグ：現在の値を記録
-        float oldBodyYaw = player.yBodyRot;
-        float oldBodyYawO = player.yBodyRotO;
-
-        // *** 完全修正：両方とも同じ値を設定 ***
-        player.yBodyRot = normalizedBodyYaw;
-        player.yBodyRotO = normalizedBodyYaw;  // 修正：確実に同じ値
-
-        // *** 修正された方法2：Entity#setYRotも統一 ***
-        float originalYRot = player.getYRot();
-        float originalXRot = player.getXRot();
-
-        player.setYRot(normalizedBodyYaw);      // 修正：統一された値
-        player.yBodyRot = normalizedBodyYaw;    // 再設定
-        player.yBodyRotO = normalizedBodyYaw;   // 修正：統一された値
-
-        // 視点角度を元に戻す（プレイヤーの自由な視点操作を保持）
-        player.setYRot(originalYRot);
-        player.setXRot(originalXRot);
-
-        // *** 修正された方法3：強制的なクライアント同期 ***
-        // EntityDataの更新
-        player.getEntityData().set(net.minecraft.world.entity.Entity.DATA_POSE, net.minecraft.world.entity.Pose.STANDING);
-
-        // 複数の同期パケットを送信
-        player.connection.send(new ClientboundSetEntityDataPacket(
-                player.getId(), player.getEntityData().packDirty()
-        ));
-
-        // 位置と角度の完全同期
-        player.connection.send(new ClientboundTeleportEntityPacket(player));
-
-        // *** 修正された方法4：遅延での再設定 ***
-        if (player.level() instanceof ServerLevel serverLevel) {
-            serverLevel.getServer().execute(() -> {
-                // 1tick後に再度設定（統一された値）
-                player.yBodyRot = normalizedBodyYaw;
-                player.yBodyRotO = normalizedBodyYaw;
-            });
-        }
-
-        // デバッグ情報
-        player.sendSystemMessage(Component.literal(String.format(
-                "§d体角度設定完了: yBodyRot %.1f°→%.1f°, yBodyRotO %.1f°→%.1f°",
-                oldBodyYaw, normalizedBodyYaw, oldBodyYawO, normalizedBodyYaw
-        )));
     }
 
     private void dropStretcher() {
@@ -488,8 +341,8 @@ public class StretcherEntity extends Entity {
 
             if (this.carryingPlayer == null) {
                 Player carryingFromData = getCarryingPlayerFromData();
-                if (carryingFromData instanceof net.minecraft.server.level.ServerPlayer) {
-                    this.carryingPlayer = (net.minecraft.server.level.ServerPlayer) carryingFromData;
+                if (carryingFromData instanceof ServerPlayer) {
+                    this.carryingPlayer = (ServerPlayer) carryingFromData;
                 }
             }
         }
@@ -514,22 +367,16 @@ public class StretcherEntity extends Entity {
         this.carriedByPlayer = player;
         this.entityData.set(CARRIED_BY_PLAYER, Optional.ofNullable(player != null ? player.getUUID() : null));
     }
-    public void setCarryingPlayer(@Nullable ServerPlayer player) {
-        // 前のプレイヤーのアニメーションを停止
-        if (this.carryingPlayer != null && this.carryingPlayer != player) {
-        }
 
+    public void setCarryingPlayer(@Nullable ServerPlayer player) {
         this.carryingPlayer = player;
         this.entityData.set(CARRYING_PLAYER, Optional.ofNullable(player != null ? player.getUUID() : null));
-
         this.hasInitializedPlayerAngle = false;
 
-        // 新しいプレイヤーのアニメーションを開始
         if (player != null) {
-            player.sendSystemMessage(Component.literal("§aストレッチャーアニメーション適用"));
+            player.sendSystemMessage(Component.literal("§aストレッチャーに乗りました"));
         }
     }
-
 
     @Nullable
     public Player getCarriedByPlayer() {
@@ -541,17 +388,11 @@ public class StretcherEntity extends Entity {
         return this.carryingPlayer;
     }
 
-    /**
-     * クライアントサイドからアクセス可能な運搬者取得メソッド
-     */
     @Nullable
     public Player getCarriedByPlayerFromDataPublic() {
         return getCarriedByPlayerFromData();
     }
 
-    /**
-     * クライアントサイドからアクセス可能な乗車者取得メソッド
-     */
     @Nullable
     public Player getCarryingPlayerFromDataPublic() {
         return getCarryingPlayerFromData();
@@ -569,7 +410,7 @@ public class StretcherEntity extends Entity {
         if (pCompound.hasUUID("Carrying")) {
             UUID carryingUUID = pCompound.getUUID("Carrying");
             this.entityData.set(CARRYING_PLAYER, Optional.of(carryingUUID));
-            if (!this.level().isClientSide() && this.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            if (!this.level().isClientSide() && this.level() instanceof ServerLevel serverLevel) {
                 ServerPlayer restoredPlayer = (ServerPlayer) serverLevel.getPlayerByUUID(carryingUUID);
                 if (restoredPlayer != null) {
                     this.carryingPlayer = restoredPlayer;
@@ -596,10 +437,10 @@ public class StretcherEntity extends Entity {
         pCompound.putBoolean("HasInitializedPlayerAngle", this.hasInitializedPlayerAngle);
     }
 
-    // remove メソッドの修正版
     @Override
     public void remove(RemovalReason pReason) {
         if (this.carryingPlayer != null) {
+            PoseController.setStretcherPose(this.carryingPlayer, false);
         }
         super.remove(pReason);
     }
@@ -608,6 +449,4 @@ public class StretcherEntity extends Entity {
     public Packet<ClientGamePacketListener> getAddEntityPacket() {
         return NetworkHooks.getEntitySpawningPacket(this);
     }
-
-
 }
