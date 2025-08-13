@@ -1,9 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.util.AngleUtils;
-import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import org.slf4j.Logger;
@@ -11,10 +10,11 @@ import com.mojang.logging.LogUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * クライアントサイドでの姿勢制御管理
+ * クライアントサイドでの姿勢制御管理（完全修正版）
  * サーバーサイドのPoseControllerと同様の優先度システムを使用し、
  * ネットワークレイテンシーに関係なく即座に姿勢制御を適用
  */
@@ -91,13 +91,20 @@ public class ClientPoseController {
     private static final Map<UUID, ClientPoseControlState> playerStates = new HashMap<>();
 
     /**
+     * 状態を取得または作成する（修正：このメソッドが不足していました）
+     */
+    private static ClientPoseControlState getOrCreateState(UUID playerId) {
+        return playerStates.computeIfAbsent(playerId, k -> new ClientPoseControlState());
+    }
+
+    /**
      * クライアントサイドでの姿勢制御設定
      */
     public static void setPoseControl(Player player, PoseReason reason, boolean active) {
         if (player == null) return;
 
         UUID playerId = player.getUUID();
-        ClientPoseControlState state = playerStates.computeIfAbsent(playerId, k -> new ClientPoseControlState());
+        ClientPoseControlState state = getOrCreateState(playerId);
 
         boolean wasControlled = state.isControlled();
         Pose previousPose = state.getTargetPose();
@@ -137,24 +144,22 @@ public class ClientPoseController {
         }
     }
 
-
     /**
      * ストレッチャー用の特別な姿勢制御（クライアントサイド）
-     * 完全修正版：B=C関係を実現
+     * 完全修正版：反対方向回転を防ぐ
      */
     private static void applyStretcherPose(Player player, Pose targetPose) {
         // ストレッチャーエンティティから向きを取得
         if (player.getVehicle() instanceof StretcherEntity stretcher) {
             float stretcherYaw = AngleUtils.normalizeAngle(stretcher.getYRot());  // B°
 
-            // *** 完全修正：正しい角度関係を適用 ***
-            // C° = B°（担架の向きとプレイヤーの向きは同じ）
-            float playerBodyYaw = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);  // C° = B°
+            // プレイヤーの体の向きは担架と完全に同じ（B = C）
+            float playerBodyYaw = stretcherYaw;  // 修正：calculatePlayerBodyYawを使わず直接使用
 
-            // *** クライアントサイドでの安全な角度設定 ***
+            // クライアントサイドでの安全な角度設定
             float currentBodyYaw = AngleUtils.normalizeAngle(player.yBodyRot);
 
-            // 角度差分を計算（修正：playerBodyYawとの差分を計算）
+            // 角度差分を正しく計算
             float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, playerBodyYaw);
 
             // 高速回転検出（クライアント側での暴走を防ぐ）
@@ -164,23 +169,33 @@ public class ClientPoseController {
                     float maxChangePerFrame = 10.0f;
 
                     if (Math.abs(angleDifference) <= maxChangePerFrame) {
-                        // *** 修正：両方ともplayerBodyYawを使用 ***
+                        // 修正：両方とも同じplayerBodyYawを使用
                         player.yBodyRot = playerBodyYaw;
-                        player.yBodyRotO = playerBodyYaw;  // ここを修正！stretcherYaw → playerBodyYaw
+                        player.yBodyRotO = playerBodyYaw;
                     } else {
-                        // 段階的に変更（修正：playerBodyYawに向かって変化）
+                        // 段階的に変更（修正：正しい方向への変化）
                         float changeAmount = Math.signum(angleDifference) * maxChangePerFrame;
                         float newYaw = AngleUtils.normalizeAngle(currentBodyYaw + changeAmount);
                         player.yBodyRot = newYaw;
-                        player.yBodyRotO = newYaw;  // ここも修正！
+                        player.yBodyRotO = newYaw;
+                    }
+
+                    // デバッグ情報（クライアント側）
+                    if (player.tickCount % 40 == 0) { // 2秒毎
+                        player.sendSystemMessage(Component.literal(String.format(
+                                "§7Client: 担架=%.1f° → プレイヤー=%.1f° (差分=%.1f°)",
+                                stretcherYaw, player.yBodyRot, angleDifference
+                        )));
                     }
                 }
+            } else {
+                // 高速回転が検出された場合は変更を無視
+                if (player.tickCount % 60 == 0) { // 3秒毎
+                    player.sendSystemMessage(Component.literal(
+                            "§c高速回転検出：角度変更をブロックしました (差分=" + String.format("%.1f°", angleDifference) + ")"
+                    ));
+                }
             }
-
-            // 視点（頭の向き）は変更しない - プレイヤーが自由に操作可能
-            // player.setYRot() は呼び出さない
-            // player.setXRot() は呼び出さない
-            // player.setYHeadRot() は呼び出さない
         }
 
         // 姿勢を設定
@@ -238,10 +253,17 @@ public class ClientPoseController {
     }
 
     /**
-     * ストレッチャーシステム用のヘルパーメソッド
+     * ストレッチャーシステム用のヘルパーメソッド（修正版）
      */
     public static void setStretcherPose(Player player, boolean onStretcher) {
         setPoseControl(player, PoseReason.STRETCHER, onStretcher);
+
+        // デバッグ情報
+        if (onStretcher) {
+            player.sendSystemMessage(Component.literal("§aクライアント：ストレッチャー姿勢を有効化"));
+        } else {
+            player.sendSystemMessage(Component.literal("§eクライアント：ストレッチャー姿勢を無効化"));
+        }
     }
 
     /**
@@ -270,9 +292,9 @@ public class ClientPoseController {
     public static void updateFromMedicalData(Player player) {
         if (player == null) return;
 
-        // 意識状態をチェック
+        // 意識状態をチェック（既存のClientMedicalDataに合わせて修正）
         ClientMedicalDataManager.getPlayerData(player).ifPresent(data -> {
-            boolean isUnconscious = !data.isConscious;
+            boolean isUnconscious = !data.isConscious;  // 既存のフィールド名を使用
             setUnconsciousPose(player, isUnconscious);
         });
 
@@ -299,5 +321,4 @@ public class ClientPoseController {
         playerStates.clear();
         LOGGER.debug("Cleared all client pose control states");
     }
-
 }
