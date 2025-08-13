@@ -1,3 +1,4 @@
+
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
@@ -13,26 +14,29 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * シンプルなストレッチャー姿勢管理
- * PlayerAnimationライブラリを使わない軽量版
+ * ストレッチャー姿勢管理 - レンダリング拡張版
  */
 public class StretcherPoseManager {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<UUID, StretcherPoseData> playerPoses = new HashMap<>();
 
     /**
-     * ストレッチャー姿勢データ
+     * ストレッチャー姿勢データ（拡張版）
      */
     private static class StretcherPoseData {
         float targetYaw;
         float currentYaw;
+        float renderYaw;  // レンダリング用の滑らかな角度
         boolean isOnStretcher;
+        boolean shouldRenderCustom;  // カスタムレンダリングを行うか
         int tickCount = 0;
 
         StretcherPoseData(float yaw, boolean onStretcher) {
             this.targetYaw = yaw;
             this.currentYaw = yaw;
+            this.renderYaw = yaw;
             this.isOnStretcher = onStretcher;
+            this.shouldRenderCustom = onStretcher;
         }
     }
 
@@ -49,20 +53,45 @@ public class StretcherPoseManager {
             if (data == null) {
                 data = new StretcherPoseData(stretcherYaw, true);
                 playerPoses.put(playerId, data);
-                LOGGER.debug("Started stretcher pose for player: {}", player.getName().getString());
+                LOGGER.info("Started custom stretcher rendering for player: {}", player.getName().getString());
             } else {
                 data.targetYaw = stretcherYaw;
                 data.isOnStretcher = true;
+                data.shouldRenderCustom = true;
             }
 
-            // プレイヤーの姿勢をSTANDINGに設定（レンダリングで制御）
+            // プレイヤーの姿勢をSTANDINGに設定（カスタムレンダリングで制御）
             player.setPose(Pose.STANDING);
 
         } else {
-            playerPoses.remove(playerId);
+            StretcherPoseData data = playerPoses.get(playerId);
+            if (data != null) {
+                data.isOnStretcher = false;
+                data.shouldRenderCustom = false;
+            }
             player.setPose(Pose.STANDING);
-            LOGGER.debug("Stopped stretcher pose for player: {}", player.getName().getString());
+            LOGGER.info("Stopped custom stretcher rendering for player: {}", player.getName().getString());
         }
+    }
+
+    /**
+     * カスタムレンダリングが必要かチェック
+     */
+    public static boolean shouldCustomRender(Player player) {
+        if (player == null) return false;
+
+        StretcherPoseData data = playerPoses.get(player.getUUID());
+        return data != null && data.shouldRenderCustom && data.isOnStretcher;
+    }
+
+    /**
+     * レンダリング用の角度を取得
+     */
+    public static float getRenderYaw(Player player) {
+        if (player == null) return 0.0f;
+
+        StretcherPoseData data = playerPoses.get(player.getUUID());
+        return data != null ? data.renderYaw : 0.0f;
     }
 
     /**
@@ -78,27 +107,7 @@ public class StretcherPoseManager {
     }
 
     /**
-     * プレイヤーがストレッチャーに乗っているかチェック
-     */
-    public static boolean isOnStretcher(Player player) {
-        if (player == null) return false;
-
-        StretcherPoseData data = playerPoses.get(player.getUUID());
-        return data != null && data.isOnStretcher;
-    }
-
-    /**
-     * ストレッチャーの目標角度を取得
-     */
-    public static float getTargetYaw(Player player) {
-        if (player == null) return 0.0f;
-
-        StretcherPoseData data = playerPoses.get(player.getUUID());
-        return data != null ? data.targetYaw : 0.0f;
-    }
-
-    /**
-     * 毎tick呼び出される更新処理
+     * 毎tick呼び出される更新処理（拡張版）
      */
     public static void tick() {
         Minecraft mc = Minecraft.getInstance();
@@ -120,13 +129,22 @@ public class StretcherPoseManager {
             if (!actuallyOnStretcher && data.isOnStretcher) {
                 // ストレッチャーから降りた
                 data.isOnStretcher = false;
+                data.shouldRenderCustom = false;
                 player.setPose(Pose.STANDING);
                 return true; // データを削除
             }
 
-            // 角度の滑らかな補間
-            if (data.isOnStretcher && Math.abs(AngleUtils.getAngleDifference(data.currentYaw, data.targetYaw)) > 1.0f) {
-                data.currentYaw = AngleUtils.lerpAngle(data.currentYaw, data.targetYaw, 0.1f);
+            // レンダリング用角度の滑らかな補間
+            if (data.isOnStretcher) {
+                // 目標角度への補間
+                if (Math.abs(AngleUtils.getAngleDifference(data.currentYaw, data.targetYaw)) > 1.0f) {
+                    data.currentYaw = AngleUtils.lerpAngle(data.currentYaw, data.targetYaw, 0.1f);
+                }
+
+                // レンダリング用のさらに滑らかな補間
+                if (Math.abs(AngleUtils.getAngleDifference(data.renderYaw, data.currentYaw)) > 0.5f) {
+                    data.renderYaw = AngleUtils.lerpAngle(data.renderYaw, data.currentYaw, 0.2f);
+                }
             }
 
             data.tickCount++;
@@ -135,9 +153,32 @@ public class StretcherPoseManager {
     }
 
     /**
+     * プレイヤーがストレッチャーに乗っているかチェック
+     */
+    public static boolean isOnStretcher(Player player) {
+        if (player == null) return false;
+
+        StretcherPoseData data = playerPoses.get(player.getUUID());
+        return data != null && data.isOnStretcher;
+    }
+
+    /**
      * 全データをクリア
      */
     public static void clear() {
         playerPoses.clear();
+    }
+
+    /**
+     * デバッグ情報を取得
+     */
+    public static String getDebugInfo(Player player) {
+        if (player == null) return "No player";
+
+        StretcherPoseData data = playerPoses.get(player.getUUID());
+        if (data == null) return "No data";
+
+        return String.format("Target: %.1f°, Current: %.1f°, Render: %.1f°, OnStretcher: %s, CustomRender: %s",
+                data.targetYaw, data.currentYaw, data.renderYaw, data.isOnStretcher, data.shouldRenderCustom);
     }
 }

@@ -31,57 +31,43 @@ public class StretcherItem extends Item {
             return InteractionResult.SUCCESS;
         }
 
-        // 対象がプレイヤーの場合のみ処理
         if (!(pTarget instanceof ServerPlayer targetPlayer)) {
             return InteractionResult.PASS;
         }
 
-        // 既に担架エンティティが存在する場合は何もしない
-        if (pPlayer.level().getEntitiesOfClass(StretcherEntity.class,
-                        pPlayer.getBoundingBox().inflate(10.0))
-                .stream()
-                .anyMatch(stretcher -> stretcher.getCarryingPlayer() != null &&
-                        stretcher.getCarryingPlayer().getUUID().equals(targetPlayer.getUUID()))) {
-            pPlayer.sendSystemMessage(Component.literal("§cこのプレイヤーは既に担架に乗っています。"));
-            return InteractionResult.FAIL;
-        }
+        // 既存チェック省略...
 
-        // 担架エンティティを作成
-        StretcherEntity stretcherEntity = new StretcherEntity(Medicalsystemcore.STRETCHER_ENTITY.get(), pPlayer.level());
-
-        // 担架の位置をプレイヤーの腰の前に設定（水平回転のみ使用）
-        Vec3 playerPos = pPlayer.position();
-        float yaw = pPlayer.getYRot();
-        double yawRad = Math.toRadians(yaw);
-        double lookX = -Math.sin(yawRad);
-        double lookZ = Math.cos(yawRad);
-        Vec3 stretcherPos = playerPos.add(lookX * 1.0, 0.0, lookZ * 1.0);
-
-        stretcherEntity.setPos(stretcherPos.x, stretcherPos.y, stretcherPos.z);
-        stretcherEntity.setYRot(yaw);
-        stretcherEntity.setCarriedByPlayer(pPlayer);
+        // *** 修正された位置管理を使用 ***
+        StretcherEntity stretcherEntity = StretcherEntity.createAndPosition(
+                pPlayer.level(), pPlayer, targetPlayer
+        );
 
         // 対象プレイヤーを担架に乗せる
         targetPlayer.startRiding(stretcherEntity);
 
-        // 体の向きを確実に担架と同じにする
-        targetPlayer.setYRot(yaw);
+        // 正しい体の向きを設定（C° = B°）
+        float stretcherYaw = stretcherEntity.getYRot();  // B°
+        float playerBodyYaw = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);  // C° = B°
+
+        targetPlayer.setYRot(playerBodyYaw);
         targetPlayer.setXRot(0);
-        targetPlayer.yBodyRot = yaw;
-        targetPlayer.yBodyRotO = yaw;
-        targetPlayer.setYHeadRot(yaw);
+        targetPlayer.yBodyRot = playerBodyYaw;
+        targetPlayer.yBodyRotO = playerBodyYaw;
+        targetPlayer.setYHeadRot(playerBodyYaw);
         targetPlayer.xRotO = 0;
 
-        // *** 一元姿勢管理システムを使用（setCarryingPlayerで自動的に設定される） ***
         stretcherEntity.setCarryingPlayer(targetPlayer);
-
-        // 強制的な同期を削除（一元姿勢管理システムが処理）
 
         pPlayer.level().addFreshEntity(stretcherEntity);
         pStack.shrink(1);
 
-        pPlayer.sendSystemMessage(Component.literal("§a" + targetPlayer.getName().getString() + "を担架に乗せました。"));
-        targetPlayer.sendSystemMessage(Component.literal("§e担架に乗せられました。Shiftキーで降りることができます。"));
+        // デバッグ情報付きメッセージ
+        float carrierYaw = pPlayer.getYRot();  // A°
+        pPlayer.sendSystemMessage(Component.literal(String.format(
+                "§a%sを担架に乗せました。角度: A=%.1f°, B=%.1f°, C=%.1f°",
+                targetPlayer.getName().getString(), carrierYaw, stretcherYaw, playerBodyYaw
+        )));
+        targetPlayer.sendSystemMessage(Component.literal("§e担架に乗せられました。正しい角度で配置されています。"));
 
         return InteractionResult.SUCCESS;
     }

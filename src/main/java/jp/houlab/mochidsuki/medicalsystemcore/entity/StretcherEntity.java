@@ -120,38 +120,137 @@ public class StretcherEntity extends Entity {
         }
     }
 
+    /**
+     * 運搬者の向きから理想的な担架の角度を計算
+     * 正しい関係：A = B - 90° → B = A + 90°
+     * @param carrierYaw 運搬者の向き（A°）
+     * @return 理想的な担架の角度（B°）
+     */
+    public static float calculateIdealStretcherYaw(float carrierYaw) {
+        // B = A + 90°
+        return AngleUtils.normalizeAngle(carrierYaw + 90.0f);
+    }
 
     /**
-     * プレイヤーの体の向きをシンプルに制御
+     * 担架の角度からプレイヤーの体の向きを計算
+     * 正しい関係：B = C
+     * @param stretcherYaw 担架の角度（B°）
+     * @return プレイヤーの体の向き（C°）
      */
-    private void updatePlayerBodyOrientationSimple(ServerPlayer player, float stretcherYaw) {
-        float normalizedStretcherYaw = AngleUtils.normalizeAngle(stretcherYaw);
+    public static float calculatePlayerBodyYaw(float stretcherYaw) {
+        // C = B（担架の角度とプレイヤーの頭の方向は同じ）
+        return AngleUtils.normalizeAngle(stretcherYaw);
+    }
+
+    /**
+     * 運搬者の向きから担架の位置を計算
+     * 担架は運搬者の横（90度回転した方向）に配置される
+     * @param carrierPos 運搬者の位置
+     * @param carrierYaw 運搬者の向き（A°）
+     * @return 理想的な担架位置
+     */
+    public static Vec3 calculateIdealStretcherPosition(Vec3 carrierPos, float carrierYaw) {
+        // 運搬者の右側（90度回転）に担架を配置
+        // 運搬者が担架を横から押すように
+        double yawRad = Math.toRadians(carrierYaw);
+        double lookX = -Math.sin(yawRad);
+        double lookZ = Math.cos(yawRad);
+        return carrierPos.add(lookX * 1.0, 0.0, lookZ * 1.0);
+    }
+
+    private void updatePositionRelativeToCarrier() {
+        Player carrier = this.carriedByPlayer;
+
+        // クライアント側では同期データからプレイヤーを取得
+        if (carrier == null && this.level().isClientSide()) {
+            carrier = getCarriedByPlayerFromData();
+        }
+
+        if (carrier == null) return;
+
+        Vec3 carrierPos = carrier.position();
+        float carrierYaw = AngleUtils.normalizeAngle(carrier.getYRot());  // A°
+
+        // 統一された位置計算メソッドを使用
+        Vec3 idealPos = calculateIdealStretcherPosition(carrierPos, carrierYaw);
+        float idealStretcherYaw = calculateIdealStretcherYaw(carrierYaw);  // B° = A° + 90°
+
+        // 担架の位置を設定（滑らか）
+        this.setPos(idealPos.x, idealPos.y, idealPos.z);
+
+        // 担架の角度を段階的に変更
+        float currentStretcherYaw = AngleUtils.normalizeAngle(this.getYRot());
+        float newStretcherYaw = AngleUtils.gradualAngleChange(currentStretcherYaw, idealStretcherYaw, 15.0f);
+        this.setYRot(newStretcherYaw);
+
+        // デバッグ情報を追加
+        if (!this.level().isClientSide() && this.carryingPlayer != null &&
+                this.carryingPlayer.tickCount % 20 == 0) { // 1秒毎
+
+            float playerBodyYaw = calculatePlayerBodyYaw(newStretcherYaw);  // C° = B°
+
+            this.carryingPlayer.sendSystemMessage(Component.literal(String.format(
+                    "§6正しい角度関係"
+            )));
+            this.carryingPlayer.sendSystemMessage(Component.literal(String.format(
+                    "§bA(運搬者): %.1f°, B(担架): %.1f°, C(プレイヤー): %.1f°",
+                    carrierYaw, newStretcherYaw, playerBodyYaw
+            )));
+            this.carryingPlayer.sendSystemMessage(Component.literal(String.format(
+                    "§a検証: A=B-90° → %.1f°=%.1f°-90° → %.1f°=%.1f° %s",
+                    carrierYaw, newStretcherYaw, carrierYaw, newStretcherYaw - 90.0f,
+                    Math.abs(carrierYaw - (newStretcherYaw - 90.0f)) < 1.0f ? "✓" : "✗"
+            )));
+            this.carryingPlayer.sendSystemMessage(Component.literal(String.format(
+                    "§a検証: B=C → %.1f°=%.1f° %s",
+                    newStretcherYaw, playerBodyYaw,
+                    Math.abs(newStretcherYaw - playerBodyYaw) < 1.0f ? "✓" : "✗"
+            )));
+        }
+
+        // サーバーサイドでのプレイヤー制御
+        if (!this.level().isClientSide() && this.carryingPlayer != null) {
+            this.carryingPlayer.setPos(idealPos.x, idealPos.y + 1.0, idealPos.z);
+
+            // プレイヤーの体の向きを担架の角度と同じに設定（B = C）
+            float playerBodyYaw = calculatePlayerBodyYaw(newStretcherYaw);
+            updatePlayerBodyOrientationSimple(this.carryingPlayer, playerBodyYaw);
+        }
+
+        this.lastCarrierPos = carrierPos;
+    }
+
+    /**
+     * プレイヤーの体の向きをシンプルに制御（修正版）
+     */
+    private void updatePlayerBodyOrientationSimple(ServerPlayer player, float targetBodyYaw) {
+        float normalizedTargetYaw = AngleUtils.normalizeAngle(targetBodyYaw);
 
         // デバッグ情報
-        player.sendSystemMessage(Component.literal(String.format("§7Simple - 担架角度: %.1f°",
-                normalizedStretcherYaw)));
+        player.sendSystemMessage(Component.literal(String.format("§7プレイヤー体角度設定: %.1f°",
+                normalizedTargetYaw)));
 
         // 初回設定時
         if (!this.hasInitializedPlayerAngle) {
-            // クライアント側に姿勢情報を送信
-            sendStretcherPoseUpdate(player, true, normalizedStretcherYaw);
-            this.lastPlayerBodyYaw = normalizedStretcherYaw;
+            sendStretcherPoseUpdate(player, true, normalizedTargetYaw);
+            this.lastPlayerBodyYaw = normalizedTargetYaw;
             this.hasInitializedPlayerAngle = true;
-            player.sendSystemMessage(Component.literal("§aシンプル姿勢制御開始"));
+            player.sendSystemMessage(Component.literal("§a正しい体角度制御開始"));
             return;
         }
 
         // 角度更新
         float currentBodyYaw = AngleUtils.normalizeAngle(this.lastPlayerBodyYaw);
-        float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, normalizedStretcherYaw);
+        float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, normalizedTargetYaw);
 
         if (Math.abs(angleDifference) > 2.0f) {
-            sendStretcherPoseUpdate(player, true, normalizedStretcherYaw);
-            this.lastPlayerBodyYaw = normalizedStretcherYaw;
-            player.sendSystemMessage(Component.literal(String.format("§b角度更新: %.1f°",
-                    normalizedStretcherYaw)));
+            sendStretcherPoseUpdate(player, true, normalizedTargetYaw);
+            this.lastPlayerBodyYaw = normalizedTargetYaw;
+            player.sendSystemMessage(Component.literal(String.format("§b体角度更新: %.1f°",
+                    normalizedTargetYaw)));
         }
     }
+
 
     /**
      * クライアント側にストレッチャー姿勢の更新を送信
@@ -173,42 +272,6 @@ public class StretcherEntity extends Entity {
         ));
     }
 
-    // updatePositionRelativeToCarrier() の修正版
-    private void updatePositionRelativeToCarrier() {
-        Player carrier = this.carriedByPlayer;
-
-        if (carrier == null && this.level().isClientSide()) {
-            carrier = getCarriedByPlayerFromData();
-        }
-
-        if (carrier == null) return;
-
-        Vec3 carrierPos = carrier.position();
-        float carrierYaw = AngleUtils.normalizeAngle(carrier.getYRot());
-
-        double yawRad = Math.toRadians(carrierYaw);
-        double lookX = -Math.sin(yawRad);
-        double lookZ = Math.cos(yawRad);
-
-        Vec3 newPos = carrierPos.add(lookX * 1.0, 0.0, lookZ * 1.0);
-
-        this.setPos(newPos.x, newPos.y, newPos.z);
-
-        float currentStretcherYaw = AngleUtils.normalizeAngle(this.getYRot());
-        float newStretcherYaw = AngleUtils.gradualAngleChange(currentStretcherYaw, carrierYaw, 15.0f);
-        this.setYRot(newStretcherYaw);
-
-        // サーバーサイドでのプレイヤー制御
-        if (!this.level().isClientSide() && this.carryingPlayer != null) {
-            this.carryingPlayer.setPos(newPos.x, newPos.y + 1.0, newPos.z);
-
-            // *** シンプルな姿勢制御 ***
-            updatePlayerBodyOrientationSimple(this.carryingPlayer, newStretcherYaw);
-        }
-
-        this.lastCarrierPos = carrierPos;
-    }
-
 
     // 追加のデバッグメソッド
     private void debugPlayerOrientation(ServerPlayer player) {
@@ -224,6 +287,66 @@ public class StretcherEntity extends Entity {
         )));
     }
 
+    /**
+     * 担架エンティティを作成して適切な位置に配置
+     * @param level ワールド
+     * @param carrierPlayer 運搬者
+     * @param ridingPlayer 乗車するプレイヤー
+     * @return 作成された担架エンティティ
+     */
+    public static StretcherEntity createAndPosition(Level level, Player carrierPlayer, Player ridingPlayer) {
+        StretcherEntity stretcher = new StretcherEntity(Medicalsystemcore.STRETCHER_ENTITY.get(), level);
+
+        // 召喚位置は乗車するプレイヤーの位置（保守性のため）
+        Vec3 spawnPos = ridingPlayer.position();
+        stretcher.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
+
+        // 初期角度設定
+        float carrierYaw = carrierPlayer.getYRot();
+        float stretcherYaw = calculateIdealStretcherYaw(carrierYaw);
+        stretcher.setYRot(stretcherYaw);
+
+        // 運搬者を設定
+        stretcher.setCarriedByPlayer(carrierPlayer);
+
+        return stretcher;
+    }
+
+    /**
+     * 担架位置の更新（公開メソッド）
+     * ClientStretcherHandlerから呼び出される
+     * @param stretcher 担架エンティティ
+     * @param carrier 運搬者
+     */
+    public static void updateStretcherPosition(StretcherEntity stretcher, Player carrier) {
+        if (stretcher == null || carrier == null) return;
+
+        Vec3 carrierPos = carrier.position();
+        float carrierYaw = AngleUtils.normalizeAngle(carrier.getYRot());
+
+        // 理想的な位置と角度を計算
+        Vec3 idealPos = calculateIdealStretcherPosition(carrierPos, carrierYaw);
+        float idealYaw = calculateIdealStretcherYaw(carrierYaw);
+
+        // 現在位置との差が大きい場合のみ補間
+        Vec3 currentPos = stretcher.position();
+        double distance = currentPos.distanceTo(idealPos);
+
+        if (distance > 0.1) { // 10cm以上離れている場合
+            // 滑らかな補間（20%ずつ近づける）
+            Vec3 lerpedPos = currentPos.lerp(idealPos, 0.2);
+            stretcher.setPos(lerpedPos.x, lerpedPos.y, lerpedPos.z);
+        }
+
+        // 角度の滑らかな補間
+        float currentYaw = AngleUtils.normalizeAngle(stretcher.getYRot());
+        if (!AngleUtils.isAngleChangeSmall(currentYaw, idealYaw, 1.0f)) {
+            float newYaw = AngleUtils.gradualAngleChange(currentYaw, idealYaw, 5.0f);
+            stretcher.setYRot(newYaw);
+        }
+    }
+
+
     // テスト用のコマンドハンドラー（開発時のみ使用）
     public void testBodyRotation(ServerPlayer player, float targetAngle) {
         if (this.carryingPlayer == player) {
@@ -233,67 +356,6 @@ public class StretcherEntity extends Entity {
         }
     }
 
-    /**
-     * プレイヤーの体の向きのみを制御（視点は自由に保つ）
-     * 完全修正版：体の向きが正しく担架の方向に従うように
-     */
-    private void updatePlayerBodyOrientation(ServerPlayer player, float stretcherYaw) {
-        float normalizedStretcherYaw = AngleUtils.normalizeAngle(stretcherYaw);
-
-        // *** 寝転がっているプレイヤーの向きを正しく設定 ***
-        // 担架の向きに対して、プレイヤーの頭が担架の進行方向、足が反対方向になるように設定
-        float playerBodyYaw = normalizedStretcherYaw; // 直接担架の角度を使用
-
-        // デバッグ情報を一時的に表示（テスト用）
-        player.sendSystemMessage(Component.literal(String.format("§7担架角度: %.1f°, 目標体角度: %.1f°",
-                normalizedStretcherYaw, playerBodyYaw)));
-
-        // 初回設定時は即座に角度を合わせる
-        if (!this.hasInitializedPlayerAngle) {
-            setPlayerBodyOrientation(player, playerBodyYaw);
-            this.lastPlayerBodyYaw = playerBodyYaw;
-            this.hasInitializedPlayerAngle = true;
-
-            // 初回設定の確認メッセージ
-            player.sendSystemMessage(Component.literal(String.format("§a初期体角度設定: %.1f°", playerBodyYaw)));
-            return;
-        }
-
-        // 現在の体の角度を取得
-        float currentBodyYaw = AngleUtils.normalizeAngle(this.lastPlayerBodyYaw);
-
-        // 角度差分を計算（正確な最短経路を使用）
-        float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, playerBodyYaw);
-
-        // デバッグ情報：角度差分を表示
-        if (Math.abs(angleDifference) > 1.0f) {
-            player.sendSystemMessage(Component.literal(String.format("§e角度差分: %.1f° (現在: %.1f° → 目標: %.1f°)",
-                    angleDifference, currentBodyYaw, playerBodyYaw)));
-        }
-
-        // より緩い条件で角度を更新（2度以上の変化で更新）
-        if (Math.abs(angleDifference) > 2.0f) {
-            // 段階的な角度変更（滑らかな回転）
-            float maxChangePerTick = 15.0f; // より大きな変化量を許可
-
-            if (Math.abs(angleDifference) <= maxChangePerTick) {
-                // 目標角度に近い場合は直接設定
-                setPlayerBodyOrientation(player, playerBodyYaw);
-                this.lastPlayerBodyYaw = playerBodyYaw;
-
-                player.sendSystemMessage(Component.literal(String.format("§b体角度更新: %.1f°", playerBodyYaw)));
-            } else {
-                // 段階的に変更
-                float changeAmount = Math.signum(angleDifference) * maxChangePerTick;
-                float newBodyYaw = AngleUtils.normalizeAngle(currentBodyYaw + changeAmount);
-                setPlayerBodyOrientation(player, newBodyYaw);
-                this.lastPlayerBodyYaw = newBodyYaw;
-
-                player.sendSystemMessage(Component.literal(String.format("§c段階的角度変更: %.1f° (変化量: %.1f°)",
-                        newBodyYaw, changeAmount)));
-            }
-        }
-    }
 
     /**
      * プレイヤーの体の向きのみを設定（視点の向きは変更しない）

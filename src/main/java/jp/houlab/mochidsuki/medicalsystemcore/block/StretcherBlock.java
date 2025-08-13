@@ -70,34 +70,24 @@ public class StretcherBlock extends BaseEntityBlock {
             ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
 
             if (occupyingPlayer != null) {
-                // プレイヤーが乗っている場合、担架エンティティとして回収
-                StretcherEntity stretcherEntity = new StretcherEntity(Medicalsystemcore.STRETCHER_ENTITY.get(), pLevel);
+                // *** 集約された位置管理を使用 ***
+                StretcherEntity stretcherEntity = StretcherEntity.createAndPosition(
+                        pLevel, pPlayer, occupyingPlayer
+                );
 
-                // 担架回収時も水平回転のみ使用
-                Vec3 playerPos = pPlayer.position();
-                float yaw = pPlayer.getYRot();
-                double yawRad = Math.toRadians(yaw);
-                double lookX = -Math.sin(yawRad);
-                double lookZ = Math.cos(yawRad);
-                Vec3 stretcherPos = playerPos.add(lookX * 1.0, 0.0, lookZ * 1.0);
-
-                stretcherEntity.setPos(stretcherPos.x, stretcherPos.y, stretcherPos.z);
-                stretcherEntity.setYRot(yaw);
-                stretcherEntity.setCarriedByPlayer(pPlayer);
-
-                // プレイヤーを担架エンティティに移動（姿勢制御は自動的に移行される）
-                occupyingPlayer.teleportTo(stretcherPos.x, stretcherPos.y, stretcherPos.z);
+                // プレイヤーを担架エンティティに移動
+                occupyingPlayer.stopRiding();
                 occupyingPlayer.startRiding(stretcherEntity);
 
-                // 体の向きを確実に設定
-                occupyingPlayer.setYRot(yaw);
+                // 体の向きを担架と同じに設定（次のtickで正しい位置に移動する）
+                float stretcherYaw = stretcherEntity.getYRot();
+                occupyingPlayer.setYRot(stretcherYaw);
                 occupyingPlayer.setXRot(0);
-                occupyingPlayer.yBodyRot = yaw;
-                occupyingPlayer.yBodyRotO = yaw;
-                occupyingPlayer.setYHeadRot(yaw);
+                occupyingPlayer.yBodyRot = stretcherYaw;
+                occupyingPlayer.yBodyRotO = stretcherYaw;
+                occupyingPlayer.setYHeadRot(stretcherYaw);
                 occupyingPlayer.xRotO = 0;
 
-                // *** 担架エンティティの姿勢制御設定（setCarryingPlayerで自動的に設定される） ***
                 stretcherEntity.setCarryingPlayer(occupyingPlayer);
 
                 pLevel.addFreshEntity(stretcherEntity);
