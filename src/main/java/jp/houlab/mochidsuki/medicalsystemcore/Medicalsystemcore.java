@@ -3,11 +3,14 @@ package jp.houlab.mochidsuki.medicalsystemcore;
 import com.mojang.logging.LogUtils;
 import jp.houlab.mochidsuki.medicalsystemcore.block.HeadsideMonitorBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.block.DefibrillatorBlock;
+import jp.houlab.mochidsuki.medicalsystemcore.block.StretcherBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.HeadsideMonitorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.PackColor;
+import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
@@ -26,8 +29,13 @@ import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
+import net.minecraft.client.renderer.entity.EntityRenderers;
+import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -72,6 +80,7 @@ public class Medicalsystemcore {
             DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, MODID);
     public static final DeferredRegister<MobEffect> MOB_EFFECTS =
             DeferredRegister.create(ForgeRegistries.MOB_EFFECTS, MODID);
+    public static final DeferredRegister<EntityType<?>> ENTITY_TYPES = DeferredRegister.create(ForgeRegistries.ENTITY_TYPES, MODID);
     // Create a Deferred Register to hold CreativeModeTabs which will all be registered under the "medicalsystemcore" namespace
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
     public static final DeferredRegister<MenuType<?>> MENU_TYPES =
@@ -94,12 +103,23 @@ public class Medicalsystemcore {
     public static final RegistryObject<MobEffect> TRANEXAMIC_ACID_EFFECT = MOB_EFFECTS.register("tranexamic_acid_effect",
             TranexamicAcidEffect::new);
 
+    //Entity
+    public static final RegistryObject<EntityType<StretcherEntity>> STRETCHER_ENTITY =
+            ENTITY_TYPES.register("stretcher_entity", () -> EntityType.Builder.<StretcherEntity>of(
+                            StretcherEntity::new, MobCategory.MISC)
+                    .sized(1.0F, 0.5F)
+                    .clientTrackingRange(10)
+                    .updateInterval(20)
+                    .build("stretcher_entity"));
     //Block
     public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);
     public static final RegistryObject<Block> DEFIBRILLATOR_BLOCK = BLOCKS.register("defibrillator_block",
             () -> new DefibrillatorBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)));
     public static final RegistryObject<Block> HEAD_SIDE_MONITOR_BLOCK = BLOCKS.register("head_side_monitor",
             () -> new HeadsideMonitorBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)));
+    public static final RegistryObject<Block> STRETCHER_BLOCK = BLOCKS.register("stretcher",
+            () -> new StretcherBlock(BlockBehaviour.Properties.copy(Blocks.WHITE_WOOL)));
+
 
 
     //BlockEntity
@@ -113,6 +133,9 @@ public class Medicalsystemcore {
     public static final RegistryObject<BlockEntityType<HeadsideMonitorBlockEntity>> HEAD_SIDE_MONITOR_BLOCK_ENTITY =
             BLOCK_ENTITIES.register("head_side_monitor_block_entity", () ->
                     BlockEntityType.Builder.of(HeadsideMonitorBlockEntity::new, HEAD_SIDE_MONITOR_BLOCK.get()).build(null));
+    public static final RegistryObject<BlockEntityType<StretcherBlockEntity>> STRETCHER_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("stretcher_block_entity", () ->
+                    BlockEntityType.Builder.of(StretcherBlockEntity::new, STRETCHER_BLOCK.get()).build(null));
 
 
     //Item
@@ -150,6 +173,8 @@ public class Medicalsystemcore {
 
     public static final RegistryObject<Item> ELECTRODE = ITEMS.register("electrode",
             () -> new ElectrodeItem(new Item.Properties().stacksTo(1)));
+    public static final RegistryObject<Item> STRETCHER =ITEMS.register("stretcher",
+            () -> new StretcherItem(new Item.Properties().stacksTo(1)) );
 
     // Creates a creative tab with the id "medicalsystemcore:example_tab" for the example item, that is placed after the combat tab
     public static final RegistryObject<CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder().withTabsBefore(CreativeModeTabs.COMBAT).icon(() -> DEFIBRILLATOR_BLOCK_ITEM.get().getDefaultInstance()).displayItems((parameters, output) -> {
@@ -164,6 +189,7 @@ public class Medicalsystemcore {
         output.accept(GLUCOSE_PACK.get()); // ブドウ糖パックを追加
         output.accept(TUBE.get());
         output.accept(HEAD_SIDE_MONITOR_BLOCK_ITEM.get());
+        output.accept(STRETCHER.get());
 
     }).build());
 
@@ -180,6 +206,8 @@ public class Medicalsystemcore {
         BLOCKS.register(modEventBus);
         // Register the Deferred Register to the mod event bus so items get registered
         ITEMS.register(modEventBus);
+
+        ENTITY_TYPES.register(modEventBus);
 
         BLOCK_ENTITIES.register(modEventBus);
 
@@ -231,6 +259,9 @@ public class Medicalsystemcore {
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
+            EntityRenderers.register(STRETCHER_ENTITY.get(), NoopRenderer::new);
+
+
             BlockEntityRenderers.register(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), DefibrillatorBlockEntityRenderer::new);
             BlockEntityRenderers.register(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK_ENTITY.get(), HeadsideMonitorBlockEntityRenderer::new);
             BlockEntityRenderers.register(Medicalsystemcore.IV_STAND_BLOCK_ENTITY.get(), IVStandBlockEntityRenderer::new);
