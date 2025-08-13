@@ -82,7 +82,7 @@ public class StretcherEntity extends Entity {
         double offsetX = -Math.sin(radians);
         double offsetZ = Math.cos(radians);
 
-        Vec3 targetPos = carrierPos.add(offsetX, 0, offsetZ);
+        Vec3 targetPos = carrierPos.add(offsetX, 1, offsetZ);
         this.setPos(targetPos.x, targetPos.y, targetPos.z);
 
         // ストレッチャーの向きは運搬者と垂直（90度回転）
@@ -100,8 +100,7 @@ public class StretcherEntity extends Entity {
         serverPlayer.yBodyRot = stretcherYaw;
         serverPlayer.yBodyRotO = stretcherYaw;
 
-        // 寝そべりポーズに設定
-        serverPlayer.setPose(Pose.SLEEPING);
+        // SLEEPINGポーズは設定しない（通常のSTANDINGのまま）
     }
 
     /**
@@ -152,11 +151,6 @@ public class StretcherEntity extends Entity {
         }
 
         this.discard();
-    }
-
-    @Override
-    public boolean shouldRiderSit() {
-        return false; // 横たわる
     }
 
     @Override

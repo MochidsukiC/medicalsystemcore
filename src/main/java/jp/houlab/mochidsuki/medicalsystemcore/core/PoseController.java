@@ -95,25 +95,29 @@ public class PoseController {
      * ストレッチャーシステム用のヘルパーメソッド（単純化版）
      */
     public static void setStretcherPose(ServerPlayer player, boolean onStretcher) {
-        // 単純にストレッチャーの姿勢制御を設定
-        setPoseControl(player, PoseReason.STRETCHER, onStretcher);
+        // ストレッチャーでもSLEEPINGポーズは使用しない
+        // 向きの同期のみ行い、ポーズは通常のSTANDINGのまま
+        if (onStretcher) {
+            // 必要に応じて向きの同期処理をここに追加
+            // 現在は何もしない（StretcherEntityで処理）
+        }
     }
+
+
 
     /**
      * ストレッチャー用の特別な姿勢制御（単純化版）
      */
     private static void applyStretcherPose(ServerPlayer player, Pose targetPose) {
-        // 複雑な角度計算を削除し、基本的な寝そべりポーズのみ
-        player.setPose(targetPose);
-        player.setForcedPose(targetPose);
-
+        // SLEEPINGポーズは設定しない
         // ストレッチャーエンティティから直接向きを取得
         if (player.getVehicle() instanceof StretcherEntity stretcher) {
-            // シンプルな向き同期
+            // シンプルな向き同期のみ
             float stretcherYaw = stretcher.getYRot();
             player.yBodyRot = stretcherYaw;
             player.yBodyRotO = stretcherYaw;
         }
+        // ポーズは変更しない（STANDINGのまま）
     }
 
 

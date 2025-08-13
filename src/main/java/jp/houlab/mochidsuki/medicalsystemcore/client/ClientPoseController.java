@@ -99,11 +99,12 @@ public class ClientPoseController {
 
 
 
+
     /**
      * ストレッチャーシステム用のヘルパーメソッド（単純化版）
      */
     public static void setStretcherPose(Player player, boolean onStretcher) {
-        setPoseControl(player, PoseReason.STRETCHER, onStretcher);
+        //setPoseControl(player, PoseReason.STRETCHER, onStretcher);
     }
 
     /**
