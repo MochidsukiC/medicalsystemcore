@@ -18,7 +18,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.Vec3;
 
 public class StretcherItem extends Item {
     public StretcherItem(Properties pProperties) {
@@ -35,39 +34,27 @@ public class StretcherItem extends Item {
             return InteractionResult.PASS;
         }
 
-        // 既存チェック省略...
+        // 基本的なチェック
+        if (targetPlayer.isPassenger()) {
+            pPlayer.sendSystemMessage(Component.literal("§cプレイヤーは既に何かに乗っています。"));
+            return InteractionResult.FAIL;
+        }
 
-        // *** 修正された位置管理を使用 ***
-        StretcherEntity stretcherEntity = StretcherEntity.createAndPosition(
+        // 単純化されたストレッチャー作成
+        StretcherEntity stretcherEntity = StretcherEntity.create(
                 pPlayer.level(), pPlayer, targetPlayer
         );
 
-        // 対象プレイヤーを担架に乗せる
-        targetPlayer.startRiding(stretcherEntity);
+        // 姿勢制御を設定
+        PoseController.setStretcherPose(targetPlayer, true);
 
-        // 正しい体の向きを設定（C° = B°）
-        float stretcherYaw = stretcherEntity.getYRot();  // B°
-        float playerBodyYaw = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);  // C° = B°
-
-        targetPlayer.setYRot(playerBodyYaw);
-        targetPlayer.setXRot(0);
-        targetPlayer.yBodyRot = playerBodyYaw;
-        targetPlayer.yBodyRotO = playerBodyYaw;
-        targetPlayer.setYHeadRot(playerBodyYaw);
-        targetPlayer.xRotO = 0;
-
-        stretcherEntity.setCarryingPlayer(targetPlayer);
-
-        pPlayer.level().addFreshEntity(stretcherEntity);
         pStack.shrink(1);
 
-        // デバッグ情報付きメッセージ
-        float carrierYaw = pPlayer.getYRot();  // A°
         pPlayer.sendSystemMessage(Component.literal(String.format(
-                "§a%sを担架に乗せました。角度: A=%.1f°, B=%.1f°, C=%.1f°",
-                targetPlayer.getName().getString(), carrierYaw, stretcherYaw, playerBodyYaw
+                "§a%sを担架に乗せました。",
+                targetPlayer.getName().getString()
         )));
-        targetPlayer.sendSystemMessage(Component.literal("§e担架に乗せられました。正しい角度で配置されています。"));
+        targetPlayer.sendSystemMessage(Component.literal("§e担架に乗せられました。"));
 
         return InteractionResult.SUCCESS;
     }
@@ -95,8 +82,8 @@ public class StretcherItem extends Item {
         StretcherEntity carriedStretcher = level.getEntitiesOfClass(StretcherEntity.class,
                         player.getBoundingBox().inflate(10.0))
                 .stream()
-                .filter(stretcher -> stretcher.getCarriedByPlayer() != null &&
-                        stretcher.getCarriedByPlayer().getUUID().equals(player.getUUID()))
+                .filter(stretcher -> stretcher.getCarrier() != null &&
+                        stretcher.getCarrier().getUUID().equals(player.getUUID()))
                 .findFirst()
                 .orElse(null);
 
@@ -106,21 +93,22 @@ public class StretcherItem extends Item {
         level.setBlock(placePos, stretcherState, 3);
 
         // プレイヤーが乗っていた場合の処理
-        if (carriedStretcher != null && carriedStretcher.getCarryingPlayer() != null) {
-            ServerPlayer ridingPlayer = carriedStretcher.getCarryingPlayer();
+        if (carriedStretcher != null && carriedStretcher.getPassenger() != null) {
+            ServerPlayer ridingPlayer = (ServerPlayer) carriedStretcher.getPassenger();
 
-            // ブロックエンティティにプレイヤー情報を設定（一元姿勢管理システムが自動的に処理）
+            // ブロックエンティティにプレイヤー情報を設定
             if (level.getBlockEntity(placePos) instanceof StretcherBlockEntity stretcherBE) {
                 ridingPlayer.stopRiding();
                 ridingPlayer.teleportTo(placePos.getX() + 0.5, placePos.getY() + 0.3, placePos.getZ() + 0.5);
 
-                // *** 一元姿勢管理システムを使用（setOccupyingPlayerで自動的に設定される） ***
+                // 姿勢制御を更新
                 stretcherBE.setOccupyingPlayer(ridingPlayer);
+                PoseController.setStretcherPose(ridingPlayer, true);
 
                 ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
             }
 
-            // エンティティを削除（姿勢制御の解除は自動的に処理される）
+            // エンティティを削除
             carriedStretcher.discard();
         }
 

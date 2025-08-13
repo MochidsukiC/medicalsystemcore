@@ -24,7 +24,6 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
@@ -70,27 +69,13 @@ public class StretcherBlock extends BaseEntityBlock {
             ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
 
             if (occupyingPlayer != null) {
-                // *** 集約された位置管理を使用 ***
-                StretcherEntity stretcherEntity = StretcherEntity.createAndPosition(
+                // 単純化されたストレッチャー作成
+                StretcherEntity stretcherEntity = StretcherEntity.create(
                         pLevel, pPlayer, occupyingPlayer
                 );
 
-                // プレイヤーを担架エンティティに移動
-                occupyingPlayer.stopRiding();
-                occupyingPlayer.startRiding(stretcherEntity);
-
-                // 体の向きを担架と同じに設定（次のtickで正しい位置に移動する）
-                float stretcherYaw = stretcherEntity.getYRot();
-                occupyingPlayer.setYRot(stretcherYaw);
-                occupyingPlayer.setXRot(0);
-                occupyingPlayer.yBodyRot = stretcherYaw;
-                occupyingPlayer.yBodyRotO = stretcherYaw;
-                occupyingPlayer.setYHeadRot(stretcherYaw);
-                occupyingPlayer.xRotO = 0;
-
-                stretcherEntity.setCarryingPlayer(occupyingPlayer);
-
-                pLevel.addFreshEntity(stretcherEntity);
+                // 姿勢制御を更新
+                PoseController.setStretcherPose(occupyingPlayer, true);
 
                 pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
                 occupyingPlayer.sendSystemMessage(Component.literal("§e担架が移動式になりました。"));
@@ -113,11 +98,11 @@ public class StretcherBlock extends BaseEntityBlock {
                 return InteractionResult.FAIL;
             }
 
-            // *** 一元姿勢管理システムを使用（setOccupyingPlayerで自動的に設定される） ***
+            // プレイヤーを担架に乗せる
             stretcherBE.setOccupyingPlayer(serverPlayer);
             serverPlayer.teleportTo(pPos.getX() + 0.5, pPos.getY() + 0.3, pPos.getZ() + 0.5);
 
-            // 体の向きをブロックの向きに確実に合わせる
+            // 体の向きをブロックの向きに合わせる（単純化）
             float blockYaw = pState.getValue(FACING).toYRot();
             serverPlayer.setYRot(blockYaw);
             serverPlayer.setXRot(0);
@@ -126,43 +111,23 @@ public class StretcherBlock extends BaseEntityBlock {
             serverPlayer.setYHeadRot(blockYaw);
             serverPlayer.xRotO = 0;
 
-            serverPlayer.sendSystemMessage(Component.literal("§e担架に乗りました。Shiftキーで降りることができます。"));
+            // 姿勢制御を設定
+            PoseController.setStretcherPose(serverPlayer, true);
 
-            return InteractionResult.SUCCESS;
+            serverPlayer.sendSystemMessage(Component.literal("§e担架に乗りました。"));
         }
 
-        return InteractionResult.PASS;
+        return InteractionResult.SUCCESS;
     }
 
     @Override
-    public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
-        // ブロックが破壊された場合の処理
-        if (!pState.is(pNewState.getBlock()) && !pLevel.isClientSide()) {
-            if (pLevel.getBlockEntity(pPos) instanceof StretcherBlockEntity stretcherBE) {
-                ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
-
-                if (occupyingPlayer != null) {
-                    // *** 一元姿勢管理システムを使用してプレイヤーを解放 ***
-                    PoseController.setStretcherPose(occupyingPlayer, false);
-                    occupyingPlayer.sendSystemMessage(Component.literal("§e担架が破壊されたため降ろされました。"));
-                }
-
-                // 担架アイテムをドロップ
-                popResource(pLevel, pPos, new ItemStack(Medicalsystemcore.STRETCHER.get()));
-            }
-        }
-
-        super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
+    public RenderShape getRenderShape(BlockState pState) {
+        return RenderShape.MODEL;
     }
 
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pPos, BlockState pState) {
         return new StretcherBlockEntity(pPos, pState);
-    }
-
-    @Override
-    public RenderShape getRenderShape(BlockState pState) {
-        return RenderShape.MODEL;
     }
 }

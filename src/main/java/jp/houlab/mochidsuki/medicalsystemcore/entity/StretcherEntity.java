@@ -65,10 +65,8 @@ public class StretcherEntity extends Entity {
         // 位置と向きを更新
         updatePosition();
 
-        // 乗車者の向きを同期
-        if (this.passenger != null) {
-            syncPassengerRotation();
-        }
+        // 乗車者の処理
+        handlePassenger();
     }
 
     /**
@@ -125,15 +123,19 @@ public class StretcherEntity extends Entity {
     }
 
     /**
-     * Shiftキーで降車
+     * 乗車者の処理（tick内で呼び出し）
      */
-    @Override
-    public void positionRider(Entity rider) {
-        super.positionRider(rider);
+    private void handlePassenger() {
+        if (this.passenger != null) {
+            // Shiftキーで降車
+            if (this.passenger.isShiftKeyDown()) {
+                this.passenger.stopRiding();
+                this.passenger = null;
+                return;
+            }
 
-        if (rider instanceof Player player && player.isShiftKeyDown()) {
-            player.stopRiding();
-            this.passenger = null;
+            // 乗車者の向きを同期
+            syncPassengerRotation();
         }
     }
 
@@ -182,6 +184,14 @@ public class StretcherEntity extends Entity {
         return NetworkHooks.getEntitySpawningPacket(this);
     }
 
+    // アクセサメソッドを追加（他のクラスからアクセスするため）
+    public Player getCarrier() {
+        return this.carrier;
+    }
+
+    public Player getPassenger() {
+        return this.passenger;
+    }
     // === 静的ファクトリーメソッド ===
     public static StretcherEntity create(Level level, Player carrier, Player passenger) {
         StretcherEntity stretcher = new StretcherEntity(Medicalsystemcore.STRETCHER_ENTITY.get(), level);
