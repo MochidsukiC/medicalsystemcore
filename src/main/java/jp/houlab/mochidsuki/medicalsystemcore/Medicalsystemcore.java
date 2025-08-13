@@ -10,6 +10,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.PackColor;
+import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.StretcherPlayerRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
@@ -282,6 +283,15 @@ public class Medicalsystemcore {
             // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");
             LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+        }
+    }
+
+    @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
+    public class PlayerAnimationInitializer {
+
+        @SubscribeEvent
+        public static void onCommonSetup(FMLCommonSetupEvent event) {
+            // PlayerAnimationライブラリの初期化
         }
     }
 

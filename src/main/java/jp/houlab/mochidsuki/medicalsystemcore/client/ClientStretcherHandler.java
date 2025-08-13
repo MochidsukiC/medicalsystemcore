@@ -38,10 +38,7 @@ public class ClientStretcherHandler {
         }
     }
 
-    /**
-     * クライアントティックイベント
-     * ストレッチャーエンティティとプレイヤーの処理を分離
-     */
+
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
@@ -49,13 +46,35 @@ public class ClientStretcherHandler {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
 
+        // ストレッチャー姿勢管理の更新
+        StretcherPoseManager.tick();
+
         // ストレッチャーエンティティの更新処理
         mc.level.getEntitiesOfClass(StretcherEntity.class, mc.player.getBoundingBox().inflate(50.0))
                 .forEach(ClientStretcherHandler::updateStretcherClientSide);
 
         // プレイヤーのストレッチャー状態チェック
-        updatePlayerStretcherState(mc.player);
+        updatePlayerStretcherStateSimple(mc.player);
     }
+
+    /**
+     * プレイヤーのストレッチャー状態を更新（シンプル版）
+     */
+    private static void updatePlayerStretcherStateSimple(Player player) {
+        boolean isOnStretcherEntity = player.getVehicle() instanceof StretcherEntity;
+
+        if (isOnStretcherEntity) {
+            StretcherEntity stretcher = (StretcherEntity) player.getVehicle();
+            float stretcherYaw = AngleUtils.normalizeAngle(stretcher.getYRot());
+
+            // シンプルな姿勢管理に登録
+            StretcherPoseManager.setStretcherPose(player, true, stretcherYaw);
+        } else {
+            // 姿勢管理から削除
+            StretcherPoseManager.setStretcherPose(player, false, 0.0f);
+        }
+    }
+
 
     /**
      * プレイヤーのストレッチャー状態を更新
