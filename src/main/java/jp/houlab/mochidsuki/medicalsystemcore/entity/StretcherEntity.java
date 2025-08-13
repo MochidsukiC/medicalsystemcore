@@ -8,6 +8,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -33,6 +34,8 @@ public class StretcherEntity extends Entity {
     private Player carriedByPlayer; // 担架を持っているプレイヤー
     private ServerPlayer carryingPlayer; // 担架に乗っているプレイヤー
     private Vec3 lastCarrierPos = Vec3.ZERO;
+    private int stableAngleFrames = 0; // 安定している角度フレーム数
+    private float lastStableBodyYaw = 0.0f; // 最後に安定していた体の角度
 
     // 角度制御用フィールド
     private float lastPlayerBodyYaw = 0.0f;
@@ -160,49 +163,90 @@ public class StretcherEntity extends Entity {
 
     /**
      * プレイヤーの体の向きのみを制御（視点は自由に保つ）
+     * バグ修正版：視点操作時の乱れと体の角度問題を解決
      */
     private void updatePlayerBodyOrientation(ServerPlayer player, float stretcherYaw) {
         float normalizedStretcherYaw = AngleUtils.normalizeAngle(stretcherYaw);
 
         // *** 寝転がっているプレイヤーの向きを正しく設定 ***
-        // 頭の方向を担架の進行方向に合わせる
-        // 担架が北向き(0度)の時、プレイヤーの頭が北向きになるように調整
-        float playerBodyYaw = normalizedStretcherYaw + 90.0f; // 90度オフセットで正しい向きに
-        playerBodyYaw = AngleUtils.normalizeAngle(playerBodyYaw);
+        // 担架の向きに対して、プレイヤーの頭が担架の進行方向、足が反対方向になるように設定
+        // 担架が北向き(0度)の時、プレイヤーの体も北向き(0度)になるように調整
+        float playerBodyYaw = normalizedStretcherYaw; // オフセットを削除して直接担架の角度を使用
 
         // 初回設定時は即座に角度を合わせる
         if (!this.hasInitializedPlayerAngle) {
             setPlayerBodyOrientation(player, playerBodyYaw);
             this.lastPlayerBodyYaw = playerBodyYaw;
+            this.lastStableBodyYaw = playerBodyYaw;
+            this.stableAngleFrames = 0;
             this.hasInitializedPlayerAngle = true;
             return;
         }
 
-        // 段階的な体の向き変更
+        // 現在の体の角度を取得
         float currentBodyYaw = AngleUtils.normalizeAngle(this.lastPlayerBodyYaw);
 
-        // 角度変化が小さい場合のみ更新
-        if (!AngleUtils.isAngleChangeSmall(currentBodyYaw, playerBodyYaw, 2.0f)) {
-            float newBodyYaw = AngleUtils.gradualAngleChange(currentBodyYaw, playerBodyYaw, 10.0f);
-            setPlayerBodyOrientation(player, newBodyYaw);
-            this.lastPlayerBodyYaw = newBodyYaw;
+        // 角度差分を計算（正確な最短経路を使用）
+        float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, playerBodyYaw);
+
+        // 角度が安定しているかチェック
+        if (Math.abs(angleDifference) <= 2.0f) {
+            this.stableAngleFrames++;
+            if (this.stableAngleFrames > 5) { // 5フレーム安定した場合
+                this.lastStableBodyYaw = playerBodyYaw;
+            }
+        } else {
+            this.stableAngleFrames = 0;
+
+            // 角度変化が閾値を超える場合のみ更新（視点操作での乱れを防ぐ）
+            if (Math.abs(angleDifference) > 5.0f) {
+                // 段階的な角度変更（滑らかな回転）
+                float maxChangePerTick = 6.0f; // より保守的な変化量
+
+                if (Math.abs(angleDifference) <= maxChangePerTick) {
+                    // 目標角度に近い場合は直接設定
+                    setPlayerBodyOrientation(player, playerBodyYaw);
+                    this.lastPlayerBodyYaw = playerBodyYaw;
+                } else {
+                    // 段階的に変更
+                    float changeAmount = Math.signum(angleDifference) * maxChangePerTick;
+                    float newBodyYaw = AngleUtils.normalizeAngle(currentBodyYaw + changeAmount);
+                    setPlayerBodyOrientation(player, newBodyYaw);
+                    this.lastPlayerBodyYaw = newBodyYaw;
+                }
+            }
         }
     }
 
     /**
      * プレイヤーの体の向きのみを設定（視点の向きは変更しない）
+     * バグ修正版：より安全で確実な角度設定
      */
     private void setPlayerBodyOrientation(ServerPlayer player, float bodyYaw) {
         float normalizedBodyYaw = AngleUtils.normalizeAngle(bodyYaw);
 
         // *** 体の向きのみ設定、視点（頭の向き）は変更しない ***
+        // より確実な同期のため、現在の値も保存
+        float oldBodyYaw = player.yBodyRot;
+
         player.yBodyRot = normalizedBodyYaw;
         player.yBodyRotO = normalizedBodyYaw;
+
+        // デバッグログ（開発時のみ有効化）
+        // LOGGER.debug("Body rotation updated: {} -> {} (stretcher carrying)", oldBodyYaw, normalizedBodyYaw);
 
         // 視点関連の角度は変更しない - プレイヤーが自由に視点移動可能
         // player.setYRot() は呼び出さない
         // player.setXRot() は呼び出さない
         // player.setYHeadRot() は呼び出さない
+
+        // クライアント側への同期を強化
+        if (true) {
+            // 体の角度変更をクライアントに確実に送信
+            player.connection.send(new ClientboundSetEntityDataPacket(
+                    player.getId(), player.getEntityData().packDirty()
+            ));
+        }
     }
 
     private void dropStretcher() {
@@ -382,4 +426,6 @@ public class StretcherEntity extends Entity {
     public Packet<ClientGamePacketListener> getAddEntityPacket() {
         return NetworkHooks.getEntitySpawningPacket(this);
     }
+
+
 }

@@ -139,24 +139,43 @@ public class ClientPoseController {
 
     /**
      * ストレッチャー用の特別な姿勢制御（クライアントサイド）
+     * バグ修正版：クライアント側での視点乱れを防ぐ
      */
     private static void applyStretcherPose(Player player, Pose targetPose) {
         // ストレッチャーエンティティから向きを取得
         if (player.getVehicle() instanceof StretcherEntity stretcher) {
             float stretcherYaw = AngleUtils.normalizeAngle(stretcher.getYRot());
 
-            // *** クライアントサイドでも安全な角度設定 ***
-            float currentPlayerYaw = AngleUtils.normalizeAngle(player.getYRot());
+            // *** クライアントサイドでの安全な角度設定 ***
+            float currentBodyYaw = AngleUtils.normalizeAngle(player.yBodyRot);
 
-            // 角度変化が小さい場合のみ更新（クライアントサイドでの高速回転を防ぐ）
-            if (!AngleUtils.isAngleChangeSmall(currentPlayerYaw, stretcherYaw, 5.0f)) {
-                float newYaw = AngleUtils.gradualAngleChange(currentPlayerYaw, stretcherYaw, 20.0f);
+            // 角度差分を計算
+            float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, stretcherYaw);
 
-                // 体の向きを担架に合わせる（段階的に）
-                player.yBodyRot = newYaw;
-                player.yBodyRotO = newYaw;
-                player.setYHeadRot(newYaw);
+            // 高速回転検出（クライアント側での暴走を防ぐ）
+            if (!AngleUtils.isFastRotationDetected(angleDifference, 15.0f)) {
+                // 安全な範囲内での角度変更のみ許可
+                if (Math.abs(angleDifference) > 3.0f) { // 3度以上の変化がある場合のみ更新
+                    float maxChangePerFrame = 10.0f;
+
+                    if (Math.abs(angleDifference) <= maxChangePerFrame) {
+                        // 目標角度に直接設定
+                        player.yBodyRot = stretcherYaw;
+                        player.yBodyRotO = stretcherYaw;
+                    } else {
+                        // 段階的に変更
+                        float changeAmount = Math.signum(angleDifference) * maxChangePerFrame;
+                        float newYaw = AngleUtils.normalizeAngle(currentBodyYaw + changeAmount);
+                        player.yBodyRot = newYaw;
+                        player.yBodyRotO = newYaw;
+                    }
+                }
             }
+
+            // 視点（頭の向き）は変更しない - プレイヤーが自由に操作可能
+            // player.setYRot() は呼び出さない
+            // player.setXRot() は呼び出さない
+            // player.setYHeadRot() は呼び出さない
         }
 
         // 姿勢を設定
@@ -275,4 +294,5 @@ public class ClientPoseController {
         playerStates.clear();
         LOGGER.debug("Cleared all client pose control states");
     }
+
 }

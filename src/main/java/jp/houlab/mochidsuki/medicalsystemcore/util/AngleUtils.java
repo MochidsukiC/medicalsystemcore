@@ -74,4 +74,26 @@ public class AngleUtils {
         float change = Math.signum(diff) * maxChangePerTick;
         return normalizeAngle(currentAngle + change);
     }
+
+    /**
+     * 角度変化の安定性をチェック（視点操作での乱れを防ぐ）
+     * @param oldAngle 前の角度
+     * @param newAngle 新しい角度
+     * @param consecutiveStableFrames 連続して安定している必要があるフレーム数
+     * @return 安定している場合true
+     */
+    public static boolean isAngleStable(float oldAngle, float newAngle, int consecutiveStableFrames) {
+        float diff = Math.abs(getAngleDifference(oldAngle, newAngle));
+        return diff <= 1.0f; // 1度以下の変化は安定とみなす
+    }
+
+    /**
+     * 高速回転を検出して防ぐ
+     * @param angleDifference 角度差分
+     * @param maxAllowedChange 許可される最大変化量
+     * @return 高速回転が検出された場合true
+     */
+    public static boolean isFastRotationDetected(float angleDifference, float maxAllowedChange) {
+        return Math.abs(angleDifference) > maxAllowedChange;
+    }
 }
