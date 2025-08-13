@@ -38,13 +38,27 @@ public class StretcherItem extends Item {
             return InteractionResult.FAIL;
         }
 
-        // 単純化されたストレッチャー作成
+        // プレイヤーが既にストレッチャーエンティティを持っているかチェック
+        StretcherEntity existingStretcher = pPlayer.level().getEntitiesOfClass(StretcherEntity.class,
+                        pPlayer.getBoundingBox().inflate(10.0))
+                .stream()
+                .filter(stretcher -> stretcher.getCarrier() != null &&
+                        stretcher.getCarrier().getUUID().equals(pPlayer.getUUID()))
+                .findFirst()
+                .orElse(null);
+
+        if (existingStretcher != null) {
+            pPlayer.sendSystemMessage(Component.literal("§c既にストレッチャーを所持しています。"));
+            return InteractionResult.FAIL;
+        }
+
+        // ストレッチャーエンティティを作成（アイテムは消費しない）
         StretcherEntity stretcherEntity = StretcherEntity.create(
                 pPlayer.level(), pPlayer, targetPlayer
         );
 
-        // 修正1: プレイヤーに使用した場合のみアイテムを削除
-        pStack.shrink(1);
+        // 修正1: アイテムを消費しない（pStack.shrink(1)を削除）
+        // プレイヤーがストレッチャーエンティティを「持っている」状態として管理
 
         pPlayer.sendSystemMessage(Component.literal(String.format(
                 "§a%sを担架に乗せました。",
@@ -103,11 +117,14 @@ public class StretcherItem extends Item {
                 ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
             }
 
-            // エンティティを削除
+            // 修正: ストレッチャーエンティティを確実に削除
             carriedStretcher.discard();
+            player.sendSystemMessage(Component.literal("§a担架を設置しました。"));
+            return InteractionResult.SUCCESS;
         }
 
-        // 修正2: 地面に設置する場合もアイテムを削除
+        // ストレッチャーエンティティがない場合（通常のアイテムから設置）
+        // 修正2: この場合のみアイテムを消費
         stack.shrink(1);
         player.sendSystemMessage(Component.literal("§a担架を設置しました。"));
 

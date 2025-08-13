@@ -145,8 +145,9 @@ public class Medicalsystemcore {
             ENTITY_TYPES.register("stretcher_entity", () -> EntityType.Builder.<StretcherEntity>of(
                             StretcherEntity::new, MobCategory.MISC)
                     .sized(1.0F, 0.5F)
-                    .clientTrackingRange(10)
-                    .updateInterval(20)
+                    .clientTrackingRange(64)      // 修正: 追跡範囲を64ブロックに拡大（プレイヤーと同等）
+                    .updateInterval(1)            // 修正: 毎ティック更新（20→1）で滑らかな動作
+                    .setShouldReceiveVelocityUpdates(true)  // 速度更新を受信
                     .build("stretcher_entity"));
 
     // Creative Tab
