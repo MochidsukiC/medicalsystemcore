@@ -27,11 +27,7 @@ public class ClientInputHandler {
             ClientHealingManager.tick();
 
             if (player != null) {
-                // *** クライアントサイドでの姿勢制御更新 ***
-                ClientPoseController.updateFromMedicalData(player);
 
-                // *** バニラの姿勢制御を確実に上書き ***
-                ClientPoseController.maintainPoseControl(player);
 
                 boolean isUnconscious = ClientMedicalDataManager.isPlayerUnconscious(player);
 

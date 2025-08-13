@@ -97,6 +97,32 @@ public class ClientPoseController {
         return playerStates.computeIfAbsent(playerId, k -> new ClientPoseControlState());
     }
 
+
+
+    /**
+     * ストレッチャーシステム用のヘルパーメソッド（単純化版）
+     */
+    public static void setStretcherPose(Player player, boolean onStretcher) {
+        setPoseControl(player, PoseReason.STRETCHER, onStretcher);
+    }
+
+    /**
+     * ストレッチャー用の特別な姿勢制御（クライアントサイド・単純化版）
+     */
+    private static void applyStretcherPose(Player player, Pose targetPose) {
+        // 複雑な角度計算とvalidationを削除
+        if (player.getVehicle() instanceof StretcherEntity stretcher) {
+            // シンプルな向き同期
+            float stretcherYaw = stretcher.getYRot();
+            player.yBodyRot = stretcherYaw;
+            player.yBodyRotO = stretcherYaw;
+        }
+
+        // 姿勢を設定
+        player.setPose(targetPose);
+    }
+
+
     /**
      * クライアントサイドでの姿勢制御設定
      */
@@ -144,63 +170,6 @@ public class ClientPoseController {
         }
     }
 
-    /**
-     * ストレッチャー用の特別な姿勢制御（クライアントサイド）
-     * 完全修正版：反対方向回転を防ぐ
-     */
-    private static void applyStretcherPose(Player player, Pose targetPose) {
-        // ストレッチャーエンティティから向きを取得
-        if (player.getVehicle() instanceof StretcherEntity stretcher) {
-            float stretcherYaw = AngleUtils.normalizeAngle(stretcher.getYRot());  // B°
-
-            // プレイヤーの体の向きは担架と完全に同じ（B = C）
-            float playerBodyYaw = stretcherYaw;  // 修正：calculatePlayerBodyYawを使わず直接使用
-
-            // クライアントサイドでの安全な角度設定
-            float currentBodyYaw = AngleUtils.normalizeAngle(player.yBodyRot);
-
-            // 角度差分を正しく計算
-            float angleDifference = AngleUtils.getAngleDifference(currentBodyYaw, playerBodyYaw);
-
-            // 高速回転検出（クライアント側での暴走を防ぐ）
-            if (!AngleUtils.isFastRotationDetected(angleDifference, 15.0f)) {
-                // 安全な範囲内での角度変更のみ許可
-                if (Math.abs(angleDifference) > 3.0f) { // 3度以上の変化がある場合のみ更新
-                    float maxChangePerFrame = 10.0f;
-
-                    if (Math.abs(angleDifference) <= maxChangePerFrame) {
-                        // 修正：両方とも同じplayerBodyYawを使用
-                        player.yBodyRot = playerBodyYaw;
-                        player.yBodyRotO = playerBodyYaw;
-                    } else {
-                        // 段階的に変更（修正：正しい方向への変化）
-                        float changeAmount = Math.signum(angleDifference) * maxChangePerFrame;
-                        float newYaw = AngleUtils.normalizeAngle(currentBodyYaw + changeAmount);
-                        player.yBodyRot = newYaw;
-                        player.yBodyRotO = newYaw;
-                    }
-
-                    // デバッグ情報（クライアント側）
-                    if (player.tickCount % 40 == 0) { // 2秒毎
-                        player.sendSystemMessage(Component.literal(String.format(
-                                "§7Client: 担架=%.1f° → プレイヤー=%.1f° (差分=%.1f°)",
-                                stretcherYaw, player.yBodyRot, angleDifference
-                        )));
-                    }
-                }
-            } else {
-                // 高速回転が検出された場合は変更を無視
-                if (player.tickCount % 60 == 0) { // 3秒毎
-                    player.sendSystemMessage(Component.literal(
-                            "§c高速回転検出：角度変更をブロックしました (差分=" + String.format("%.1f°", angleDifference) + ")"
-                    ));
-                }
-            }
-        }
-
-        // 姿勢を設定
-        player.setPose(targetPose);
-    }
 
     /**
      * クライアントサイドでの姿勢制御解除
@@ -252,19 +221,6 @@ public class ClientPoseController {
         setPoseControl(player, PoseReason.UNCONSCIOUS, unconscious);
     }
 
-    /**
-     * ストレッチャーシステム用のヘルパーメソッド（修正版）
-     */
-    public static void setStretcherPose(Player player, boolean onStretcher) {
-        setPoseControl(player, PoseReason.STRETCHER, onStretcher);
-
-        // デバッグ情報
-        if (onStretcher) {
-            player.sendSystemMessage(Component.literal("§aクライアント：ストレッチャー姿勢を有効化"));
-        } else {
-            player.sendSystemMessage(Component.literal("§eクライアント：ストレッチャー姿勢を無効化"));
-        }
-    }
 
     /**
      * バニラの姿勢制御を上書きするための強制的な姿勢維持

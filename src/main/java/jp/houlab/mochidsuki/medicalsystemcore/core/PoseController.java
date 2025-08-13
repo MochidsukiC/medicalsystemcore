@@ -90,6 +90,33 @@ public class PoseController {
         }
     }
 
+
+    /**
+     * ストレッチャーシステム用のヘルパーメソッド（単純化版）
+     */
+    public static void setStretcherPose(ServerPlayer player, boolean onStretcher) {
+        // 単純にストレッチャーの姿勢制御を設定
+        setPoseControl(player, PoseReason.STRETCHER, onStretcher);
+    }
+
+    /**
+     * ストレッチャー用の特別な姿勢制御（単純化版）
+     */
+    private static void applyStretcherPose(ServerPlayer player, Pose targetPose) {
+        // 複雑な角度計算を削除し、基本的な寝そべりポーズのみ
+        player.setPose(targetPose);
+        player.setForcedPose(targetPose);
+
+        // ストレッチャーエンティティから直接向きを取得
+        if (player.getVehicle() instanceof StretcherEntity stretcher) {
+            // シンプルな向き同期
+            float stretcherYaw = stretcher.getYRot();
+            player.yBodyRot = stretcherYaw;
+            player.yBodyRotO = stretcherYaw;
+        }
+    }
+
+
     // プレイヤーごとの姿勢制御状態を管理
     private static final Map<UUID, PoseControlState> playerStates = new HashMap<>();
 
@@ -142,36 +169,6 @@ public class PoseController {
         forceSyncPoseToClients(player);
     }
 
-    /**
-     * ストレッチャー用の特別な姿勢制御（完全修正版）
-     */
-    private static void applyStretcherPose(ServerPlayer player, Pose targetPose) {
-        // ストレッチャーエンティティから向きを取得
-        if (player.getVehicle() instanceof StretcherEntity stretcher) {
-            float stretcherYaw = stretcher.getYRot();  // B°
-
-            // *** 完全修正：正しい角度関係を適用 ***
-            // C° = B°（担架の向きとプレイヤーの向きは同じ）
-            float playerBodyYaw = StretcherEntity.calculatePlayerBodyYaw(stretcherYaw);  // C° = B°
-
-            // *** 修正：全てplayerBodyYawを使用 ***
-            player.setYRot(playerBodyYaw);      // 修正：yaw → playerBodyYaw
-            player.setXRot(0);
-            player.yBodyRot = playerBodyYaw;    // 既に修正済み
-            player.yBodyRotO = playerBodyYaw;   // 修正：yaw → playerBodyYaw
-            player.setYHeadRot(playerBodyYaw);  // 修正：yaw → playerBodyYaw
-            player.xRotO = 0;
-
-            // デバッグ情報
-            player.sendSystemMessage(Component.literal(String.format(
-                    "§ePoseController完全修正: B°=%.1f°, C°=%.1f°", stretcherYaw, playerBodyYaw
-            )));
-        }
-
-        // 姿勢を設定
-        player.setPose(targetPose);
-        player.setForcedPose(targetPose);
-    }
 
     /**
      * 姿勢制御を解除
@@ -248,12 +245,6 @@ public class PoseController {
         setPoseControl(player, PoseReason.UNCONSCIOUS, unconscious);
     }
 
-    /**
-     * ストレッチャーシステム用のヘルパーメソッド
-     */
-    public static void setStretcherPose(ServerPlayer player, boolean onStretcher) {
-        setPoseControl(player, PoseReason.STRETCHER, onStretcher);
-    }
 
     /**
      * 定期的な姿勢制御の維持（他のシステムによる上書きを防ぐ）
