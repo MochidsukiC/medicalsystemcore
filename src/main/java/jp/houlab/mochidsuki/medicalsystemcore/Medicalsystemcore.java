@@ -20,6 +20,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.Defibr
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.IVStandScreen;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.HeadsideMonitorBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.IVStandBlockEntityRenderer;
+import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.StretcherRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
@@ -223,7 +224,7 @@ public class Medicalsystemcore {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
             // Entity Renderers
-            EntityRenderers.register(STRETCHER_ENTITY.get(), NoopRenderer::new);
+            EntityRenderers.register(STRETCHER_ENTITY.get(), StretcherRenderer::new);
 
             // Block Entity Renderers
             BlockEntityRenderers.register(DEFIBRILLATOR_BLOCK_ENTITY.get(), DefibrillatorBlockEntityRenderer::new);
