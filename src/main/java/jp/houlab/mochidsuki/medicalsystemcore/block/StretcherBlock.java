@@ -52,6 +52,7 @@ public class StretcherBlock extends BaseEntityBlock {
     public VoxelShape getShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
         return SHAPE;
     }
+
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (pLevel.isClientSide()) {
@@ -62,47 +63,37 @@ public class StretcherBlock extends BaseEntityBlock {
             return InteractionResult.FAIL;
         }
 
-        // Shiftクリックで担架を回収（修正版）
+        // 新仕様: Shiftクリックで担架をエンティティ化（アイテムは取得/ドロップしない）
         if (pPlayer.isShiftKeyDown()) {
             ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
-
-            // 担架アイテムを作成
-            ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
 
             if (occupyingPlayer != null) {
                 // プレイヤーがストレッチャーの近くにいるかチェック
                 double distance = occupyingPlayer.distanceToSqr(pPos.getX() + 0.5, pPos.getY() + 0.3, pPos.getZ() + 0.5);
 
                 if (distance > 9.0) { // 3ブロック^2
-                    // プレイヤーが遠くにいる場合は警告して空の担架として回収
-                    pPlayer.sendSystemMessage(Component.literal("§c登録されたプレイヤーがストレッチャーから離れています。空の担架として回収します。"));
+                    // プレイヤーが遠くにいる場合は警告してエンティティ作成をスキップ
+                    pPlayer.sendSystemMessage(Component.literal("§c登録されたプレイヤーがストレッチャーから離れています。"));
+                    return InteractionResult.FAIL;
                 } else {
-                    // プレイヤーが近くにいる場合は移動式に変換
+                    // プレイヤーが近くにいる場合はエンティティ化
                     StretcherEntity stretcherEntity = StretcherEntity.create(
                             pLevel, pPlayer, occupyingPlayer
                     );
 
                     pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
                     occupyingPlayer.sendSystemMessage(Component.literal("§e担架が移動式になりました。"));
-
-                    // ブロックを削除してメソッド終了（アイテムは追加しない）
-                    pLevel.removeBlock(pPos, false);
-                    return InteractionResult.SUCCESS;
                 }
-            }
-
-            // 修正2: 担架アイテムを回収しようとしているプレイヤーのインベントリに直接追加
-            boolean added = pPlayer.getInventory().add(stretcherItem);
-
-            if (added) {
-                pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
             } else {
-                // インベントリがフルの場合は地面にドロップ
-                pPlayer.spawnAtLocation(stretcherItem);
-                pPlayer.sendSystemMessage(Component.literal("§eインベントリがフルのため、担架を地面にドロップしました。"));
+                // プレイヤーが乗っていない場合でも、空のエンティティとして回収
+                StretcherEntity stretcherEntity = StretcherEntity.create(
+                        pLevel, pPlayer, null
+                );
+
+                pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
             }
 
-            // ブロックを削除
+            // ブロックを削除（新仕様：アイテムは取得しない）
             pLevel.removeBlock(pPos, false);
             return InteractionResult.SUCCESS;
         }

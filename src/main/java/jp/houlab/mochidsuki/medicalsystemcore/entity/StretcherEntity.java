@@ -73,7 +73,7 @@ public class StretcherEntity extends Entity {
         // サーバーサイドの処理
         // 修正: 基本的な有効性チェックを毎ティック実行
         if (this.carrier == null || !this.carrier.isAlive() || this.carrier.isRemoved()) {
-            this.dropStretcher();
+            this.returnStretcherToCarrier(); // 新仕様: 運搬者無効時はアイテム返還
             return;
         }
 
@@ -81,7 +81,7 @@ public class StretcherEntity extends Entity {
         if (this.tickCount % 5 == 0) { // 0.25秒ごと（5ティック）に距離チェック
             double distance = this.distanceToSqr(this.carrier);
             if (distance > 100.0) { // 10ブロック以上離れた場合
-                this.dropStretcher();
+                this.returnStretcherToCarrier(); // 新仕様: 距離が離れた場合アイテム返還
                 return;
             }
         }
@@ -90,7 +90,7 @@ public class StretcherEntity extends Entity {
         if (this.passenger != null) {
             if (!this.passenger.isAlive() || this.passenger.isRemoved()) {
                 this.passenger = null;
-                this.dropStretcher();
+                this.returnStretcherToCarrier(); // 新仕様: 乗車者無効時はアイテム返還
                 return;
             }
         }
@@ -153,7 +153,7 @@ public class StretcherEntity extends Entity {
             // プレイヤーが有効かチェック
             if (this.passenger.isRemoved() || !this.passenger.isAlive()) {
                 this.passenger = null;
-                this.dropStretcher(); // 修正: プレイヤーが無効な場合エンティティを削除
+                this.returnStretcherToCarrier(); // 新仕様: プレイヤーが無効な場合アイテム返還
                 return;
             }
 
@@ -161,13 +161,44 @@ public class StretcherEntity extends Entity {
             if (this.passenger.isShiftKeyDown()) {
                 this.passenger.stopRiding();
                 this.passenger = null;
-                this.dropStretcher(); // 修正: 降車時にエンティティを削除
+                this.returnStretcherToCarrier(); // 新仕様: 降車時にアイテム返還
                 return;
             }
 
             // 乗車者の向きを同期（サーバーサイド・補間あり）
             syncPassengerRotationSmooth();
         }
+    }
+
+    /**
+     * 新仕様: ストレッチャーを運搬者に返還（アイテムとして）
+     */
+    private void returnStretcherToCarrier() {
+        // 既に削除されている場合は何もしない
+        if (this.isRemoved()) {
+            return;
+        }
+
+        if (!this.level().isClientSide()) {
+            ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
+
+            // 新仕様: 運搬者がいる場合は必ずアイテムを返還
+            if (this.carrier != null && this.carrier.isAlive()) {
+                boolean added = this.carrier.getInventory().add(stretcherItem);
+                if (added) {
+                    this.carrier.sendSystemMessage(net.minecraft.network.chat.Component.literal("§aストレッチャーがインベントリに戻りました。"));
+                } else {
+                    dropItemAtCarrierLocation(stretcherItem);
+                    this.carrier.sendSystemMessage(net.minecraft.network.chat.Component.literal("§eインベントリがフルのため、ストレッチャーを地面にドロップしました。"));
+                }
+            } else {
+                // 運搬者がいない場合は現在位置にドロップ
+                this.spawnAtLocation(stretcherItem);
+            }
+        }
+
+        // エンティティを削除
+        this.discard();
     }
 
     /**
@@ -206,43 +237,7 @@ public class StretcherEntity extends Entity {
     }
 
     /**
-     * ストレッチャーを削除してアイテムをドロップ（修正版）
-     */
-    private void dropStretcher() {
-        // 既に削除されている場合は何もしない
-        if (this.isRemoved()) {
-            return;
-        }
-
-        if (this.passenger != null) {
-            this.passenger.stopRiding();
-            this.passenger = null;
-        }
-
-        if (!this.level().isClientSide()) {
-            ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
-
-            // 修正: 運搬者がいる場合は直接インベントリに追加
-            if (this.carrier != null && this.carrier.isAlive()) {
-                boolean added = this.carrier.getInventory().add(stretcherItem);
-                if (added) {
-                    this.carrier.sendSystemMessage(net.minecraft.network.chat.Component.literal("§aストレッチャーがインベントリに戻りました。"));
-                } else {
-                    dropItemAtCarrierLocation(stretcherItem);
-                    this.carrier.sendSystemMessage(net.minecraft.network.chat.Component.literal("§eインベントリがフルのため、ストレッチャーを地面にドロップしました。"));
-                }
-            } else {
-                // 運搬者がいない場合は現在位置にドロップ
-                this.spawnAtLocation(stretcherItem);
-            }
-        }
-
-        // 修正: 確実にエンティティを削除
-        this.discard();
-    }
-
-    /**
-     * エンティティが削除される際の処理
+     * エンティティが削除される際の処理（新仕様対応）
      */
     @Override
     public void remove(RemovalReason pReason) {
@@ -252,56 +247,6 @@ public class StretcherEntity extends Entity {
         }
         super.remove(pReason);
     }
-
-
-    /**
-     * 位置と向きの更新（滑らか版）
-     */
-    private void updatePosition() {
-        if (this.carrier == null) return;
-
-        // 運搬者の現在位置と向き
-        Vec3 carrierPos = this.carrier.position();
-        float carrierYaw = this.carrier.getYRot();
-
-        // 前方への位置計算
-        double radians = Math.toRadians(carrierYaw);
-        double offsetX = -Math.sin(radians) * 1.2; // 少し距離を調整
-        double offsetZ = Math.cos(radians) * 1.2;
-
-        // 目標位置を計算
-        Vec3 targetPos = carrierPos.add(offsetX, 0, offsetZ);
-
-        // 現在の位置から目標位置への補間（滑らかな移動）
-        Vec3 currentPos = this.position();
-        double lerpFactor = 0.3; // 補間係数（0.1-0.5の範囲で調整可能）
-
-        double newX = currentPos.x + (targetPos.x - currentPos.x) * lerpFactor;
-        double newY = targetPos.y; // Y座標は即座に更新
-        double newZ = currentPos.z + (targetPos.z - currentPos.z) * lerpFactor;
-
-        this.setPos(newX, newY, newZ);
-
-        // ストレッチャーの向きは運搬者と垂直（90度回転）
-        float targetYaw = carrierYaw + 90.0f;
-
-        // 向きも滑らかに補間
-        float currentYaw = this.getYRot();
-        float yawDiff = targetYaw - currentYaw;
-
-        // 角度の正規化（-180度から180度の範囲に調整）
-        while (yawDiff > 180.0f) yawDiff -= 360.0f;
-        while (yawDiff < -180.0f) yawDiff += 360.0f;
-
-        float newYaw = currentYaw + yawDiff * 0.2f; // 向きの補間係数
-        this.setYRot(newYaw);
-
-        // クライアントに位置と向きの変更を通知
-        if (!this.level().isClientSide()) {
-            this.level().broadcastEntityEvent(this, (byte) 1);
-        }
-    }
-
     /**
      * 運搬者を設定
      */
@@ -371,13 +316,26 @@ public class StretcherEntity extends Entity {
         return this.passenger;
     }
 
-    // === 静的ファクトリーメソッド ===
+    // === 静的ファクトリーメソッド（更新版） ===
     public static StretcherEntity create(Level level, Player carrier, Player passenger) {
         StretcherEntity stretcher = new StretcherEntity(Medicalsystemcore.STRETCHER_ENTITY.get(), level);
-        stretcher.setPos(passenger.position());
+
+        // 乗車者がいる場合はその位置に、いない場合は運搬者の位置に配置
+        if (passenger != null) {
+            stretcher.setPos(passenger.position());
+        } else {
+            stretcher.setPos(carrier.position());
+        }
+
         stretcher.setCarrier(carrier);
-        stretcher.setPassenger(passenger);
+
+        // 乗車者がいる場合のみ設定
+        if (passenger != null) {
+            stretcher.setPassenger(passenger);
+        }
+
         level.addFreshEntity(stretcher);
         return stretcher;
     }
+
 }

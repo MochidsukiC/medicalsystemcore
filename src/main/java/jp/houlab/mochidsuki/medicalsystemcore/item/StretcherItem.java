@@ -52,13 +52,13 @@ public class StretcherItem extends Item {
             return InteractionResult.FAIL;
         }
 
-        // ストレッチャーエンティティを作成
+        // 新仕様: ストレッチャーエンティティを作成し、アイテムを消費
         StretcherEntity stretcherEntity = StretcherEntity.create(
                 pPlayer.level(), pPlayer, targetPlayer
         );
 
-        // 修正: プレイヤーに使用した場合はアイテムを消費しない（エンティティとして管理）
-        // pStack.shrink(1); を削除
+        // アイテムを消費（新仕様）
+        pStack.shrink(1);
 
         pPlayer.sendSystemMessage(Component.literal(String.format(
                 "§a%sを担架に乗せました。",
@@ -80,15 +80,8 @@ public class StretcherItem extends Item {
             return InteractionResult.SUCCESS;
         }
 
-        // クリックしたブロックの上に担架を設置
-        BlockPos placePos = pos.above();
-
-        // 設置可能かチェック
-        if (!level.getBlockState(placePos).canBeReplaced()) {
-            return InteractionResult.FAIL;
-        }
-
-        // 担架エンティティがあるかチェック（プレイヤーが担架を持っている場合）
+        // 新仕様: ストレッチャーを持っている + 素手 + しゃがみ + 地面右クリックでブロック設置
+        // まず、プレイヤーがストレッチャーエンティティを持っているかチェック
         StretcherEntity carriedStretcher = level.getEntitiesOfClass(StretcherEntity.class,
                         player.getBoundingBox().inflate(10.0))
                 .stream()
@@ -97,40 +90,45 @@ public class StretcherItem extends Item {
                 .findFirst()
                 .orElse(null);
 
-        // 担架ブロックを設置
-        BlockState stretcherState = Medicalsystemcore.STRETCHER_BLOCK.get().defaultBlockState()
-                .setValue(StretcherBlock.FACING, player.getDirection());
-        level.setBlock(placePos, stretcherState, 3);
+        // 新仕様の条件チェック: ストレッチャー持ち + 素手 + しゃがみ
+        if (carriedStretcher != null && player.getMainHandItem().isEmpty() && player.isShiftKeyDown()) {
+            // クリックしたブロックの上に担架を設置
+            BlockPos placePos = pos.above();
 
-        // プレイヤーが乗っていた場合の処理
-        if (carriedStretcher != null && carriedStretcher.getPassenger() != null) {
-            ServerPlayer ridingPlayer = (ServerPlayer) carriedStretcher.getPassenger();
-
-            // ブロックエンティティにプレイヤー情報を設定
-            if (level.getBlockEntity(placePos) instanceof StretcherBlockEntity stretcherBE) {
-                ridingPlayer.stopRiding();
-                ridingPlayer.teleportTo(placePos.getX() + 0.5, placePos.getY() + 0.3, placePos.getZ() + 0.5);
-
-                // プレイヤーを担架に乗せる
-                stretcherBE.setOccupyingPlayer(ridingPlayer);
-
-                ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
+            // 設置可能かチェック
+            if (!level.getBlockState(placePos).canBeReplaced()) {
+                player.sendSystemMessage(Component.literal("§cここには担架を設置できません。"));
+                return InteractionResult.FAIL;
             }
 
-            // エンティティを削除
-            carriedStretcher.discard();
+            // 担架ブロックを設置
+            BlockState stretcherState = Medicalsystemcore.STRETCHER_BLOCK.get().defaultBlockState()
+                    .setValue(StretcherBlock.FACING, player.getDirection());
+            level.setBlock(placePos, stretcherState, 3);
 
-            // 修正: ストレッチャーエンティティから設置する場合もアイテムを消費
-            stack.shrink(1);
+            // プレイヤーが乗っていた場合の処理
+            if (carriedStretcher.getPassenger() != null) {
+                ServerPlayer ridingPlayer = (ServerPlayer) carriedStretcher.getPassenger();
+
+                // ブロックエンティティにプレイヤー情報を設定
+                if (level.getBlockEntity(placePos) instanceof StretcherBlockEntity stretcherBE) {
+                    ridingPlayer.stopRiding();
+                    ridingPlayer.teleportTo(placePos.getX() + 0.5, placePos.getY() + 0.3, placePos.getZ() + 0.5);
+
+                    // プレイヤーを担架に乗せる
+                    stretcherBE.setOccupyingPlayer(ridingPlayer);
+
+                    ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
+                }
+            }
+
+            // エンティティを削除（アイテムは返還しない）
+            carriedStretcher.discard();
             player.sendSystemMessage(Component.literal("§a担架を設置しました。"));
             return InteractionResult.SUCCESS;
         }
 
-        // ストレッチャーエンティティがない場合（通常のアイテムから設置）
-        // 修正1: ブロック設置時は必ずアイテムを消費
-        stack.shrink(1);
-        player.sendSystemMessage(Component.literal("§a担架を設置しました。"));
-
-        return InteractionResult.SUCCESS;
+        // 新仕様では通常のアイテムからのブロック設置は無効
+        return InteractionResult.PASS;
     }
 }
