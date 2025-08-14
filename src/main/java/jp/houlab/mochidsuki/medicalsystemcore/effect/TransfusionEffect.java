@@ -1,6 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.effect;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
@@ -9,6 +10,7 @@ import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 
 public class TransfusionEffect extends MobEffect {
     public TransfusionEffect() {

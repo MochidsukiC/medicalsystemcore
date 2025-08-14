@@ -5,6 +5,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
+import jp.houlab.mochidsuki.medicalsystemcore.item.FluidPackItem;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import net.minecraft.core.BlockPos;
@@ -186,7 +187,7 @@ public class ModEvents {
         if (!(event.player instanceof ServerPlayer serverPlayer)) return;
 
         serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-            handleIVStandTreatment(serverPlayer, medicalData);
+            handleIVTransfusion(serverPlayer, medicalData);
 
             int ticks = medicalData.getTickCounter();
             medicalData.setTickCounter(ticks + 1);
@@ -240,7 +241,7 @@ public class ModEvents {
     }
 
     // [その他のメソッドは変更なし - handleIVStandTreatment, applyPackEffect, handleCardiacArrest等]
-    private static void handleIVStandTreatment(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+    private static void handleIVTransfusion(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
             BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
             double maxRangeSquared = Config.IV_RANGE * Config.IV_RANGE;
@@ -253,32 +254,35 @@ public class ModEvents {
 
                 for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
                     ItemStack packStack = standEntity.itemHandler.getStackInSlot(i);
-                    if (packStack.isEmpty()) continue;
+                    if (packStack.isEmpty() || !(packStack.getItem() instanceof FluidPackItem)) continue;
 
-                    CompoundTag nbt = packStack.getOrCreateTag();
-
-                    if (!nbt.contains("FluidVolumeTicks")) {
-                        nbt.putInt("FluidVolumeTicks", Config.IV_PACK_DURATION * 20);
-                    }
-
-                    int ticksLeft = nbt.getInt("FluidVolumeTicks");
+                    // FluidPackItemのヘルパーメソッドを使用
+                    int ticksLeft = FluidPackItem.getRemainingTicks(packStack);
 
                     if (ticksLeft > 0) {
-                        nbt.putInt("FluidVolumeTicks", ticksLeft - 1);
+                        // 残量を1tick減らす
+                        FluidPackItem.setRemainingTicks(packStack, ticksLeft - 1);
                         hasAnyPack = true;
                         Item packItem = packStack.getItem();
                         applyPackEffect(serverPlayer, packItem);
+
+                        // BlockEntityを更新して表示を同期
+                        standEntity.setChanged();
                     } else {
+                        // パックが空になった場合の処理
                         if (packStack.getCount() > 1) {
+                            // スタックに複数ある場合、1つ減らして新しいものをフル容量で作成
                             packStack.shrink(1);
-                            nbt.putInt("FluidVolumeTicks", Config.IV_PACK_DURATION * 20);
+                            FluidPackItem.setRemainingTicks(packStack, Config.IV_PACK_DURATION * 20);
                             hasAnyPack = true;
                             Item packItem = packStack.getItem();
                             applyPackEffect(serverPlayer, packItem);
                         } else {
+                            // 最後の1つが空になったので削除
                             standEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
                             hasEmptyPackThisTick = true;
                         }
+                        standEntity.setChanged();
                     }
                 }
 

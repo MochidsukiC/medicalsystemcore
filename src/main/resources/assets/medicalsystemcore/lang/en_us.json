@@ -1,3 +1,72 @@
 {
-  "item.medicalsystemcore.bandage": "Bandage"
+  "creativetab.medical_system_core_tab": "Medical System Core",
+
+  "_comment_blocks": "=== BLOCKS ===",
+  "block.medicalsystemcore.iv_stand": "IV Stand",
+  "block.medicalsystemcore.defibrillator_block": "Defibrillator",
+  "block.medicalsystemcore.head_side_monitor": "Bedside Monitor",
+  "block.medicalsystemcore.stretcher": "Stretcher",
+
+  "_comment_items": "=== ITEMS ===",
+  "item.medicalsystemcore.bandage": "Bandage",
+  "item.medicalsystemcore.electrode": "Electrode",
+  "item.medicalsystemcore.head_side_cable": "Bedside Cable",
+  "item.medicalsystemcore.tube": "Medical Tube",
+
+  "_comment_medical_packs": "=== MEDICAL PACKS ===",
+  "item.medicalsystemcore.blood_pack": "Blood Pack",
+  "item.medicalsystemcore.adrenaline_pack": "Adrenaline Pack",
+  "item.medicalsystemcore.tranexamic_acid_pack": "Tranexamic Acid Pack",
+  "item.medicalsystemcore.fibrinogen_pack": "Fibrinogen Pack",
+  "item.medicalsystemcore.noradrenaline_pack": "Noradrenaline Pack",
+  "item.medicalsystemcore.glucose_pack": "Glucose Pack",
+
+  "_comment_block_items": "=== BLOCK ITEMS ===",
+  "item.medicalsystemcore.defibrillator_block": "Defibrillator",
+  "item.medicalsystemcore.iv_stand": "IV Stand",
+  "item.medicalsystemcore.head_side_monitor": "Bedside Monitor",
+  "item.medicalsystemcore.stretcher": "Stretcher",
+
+  "_comment_effects": "=== EFFECTS ===",
+  "effect.medicalsystemcore.transfusion": "Transfusion",
+  "effect.medicalsystemcore.bandage_effect": "Bandaged",
+  "effect.medicalsystemcore.adrenaline_effect": "Adrenaline",
+  "effect.medicalsystemcore.fibrinogen_effect": "Fibrinogen",
+  "effect.medicalsystemcore.tranexamic_acid_effect": "Tranexamic Acid",
+
+  "_comment_entities": "=== ENTITIES ===",
+  "entity.medicalsystemcore.stretcher_entity": "Stretcher",
+
+  "_comment_menus": "=== MENUS/GUIS ===",
+  "container.medicalsystemcore.iv_stand_menu": "IV Stand",
+
+  "_comment_tooltips": "=== TOOLTIPS & DESCRIPTIONS ===",
+  "tooltip.medicalsystemcore.bandage": "Used to treat wounds and stop bleeding",
+  "tooltip.medicalsystemcore.electrode": "Connect to defibrillator for cardiac treatment",
+  "tooltip.medicalsystemcore.blood_pack": "Restores blood volume when used with IV stand",
+  "tooltip.medicalsystemcore.adrenaline_pack": "Emergency cardiac stimulant",
+  "tooltip.medicalsystemcore.tranexamic_acid_pack": "Reduces bleeding and blood loss",
+  "tooltip.medicalsystemcore.fibrinogen_pack": "Helps with blood clotting",
+  "tooltip.medicalsystemcore.noradrenaline_pack": "Vasoconstrictor for blood pressure",
+  "tooltip.medicalsystemcore.glucose_pack": "Energy and blood sugar restoration",
+  "tooltip.medicalsystemcore.tube": "Connects medical equipment",
+  "tooltip.medicalsystemcore.head_side_cable": "Connects bedside monitor to patient",
+
+  "_comment_gui_elements": "=== GUI ELEMENTS ===",
+  "gui.medicalsystemcore.iv_stand.blood_slot": "Blood Pack",
+  "gui.medicalsystemcore.iv_stand.drug_slot_1": "Medicine Pack 1",
+  "gui.medicalsystemcore.iv_stand.drug_slot_2": "Medicine Pack 2",
+
+  "_comment_messages": "=== SYSTEM MESSAGES ===",
+  "message.medicalsystemcore.treatment_started": "Treatment started",
+  "message.medicalsystemcore.treatment_completed": "Treatment completed",
+  "message.medicalsystemcore.insufficient_blood": "Insufficient blood volume",
+  "message.medicalsystemcore.defibrillator_ready": "Defibrillator ready",
+  "message.medicalsystemcore.defibrillator_charging": "Defibrillator charging...",
+
+  "_comment_advancement": "=== ADVANCEMENTS ===",
+  "advancement.medicalsystemcore.first_aid": "First Aid",
+  "advancement.medicalsystemcore.first_aid.desc": "Use a bandage to treat wounds",
+  "advancement.medicalsystemcore.medical_professional": "Medical Professional",
+  "advancement.medicalsystemcore.medical_professional.desc": "Use all medical equipment"
 }

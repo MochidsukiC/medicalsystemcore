@@ -1,3 +1,72 @@
 {
-  "item.medicalsystemcore.bandage": "包帯"
+  "creativetab.medical_system_core_tab": "医療システムコア",
+
+  "_comment_blocks": "=== ブロック ===",
+  "block.medicalsystemcore.iv_stand": "点滴スタンド",
+  "block.medicalsystemcore.defibrillator_block": "除細動器",
+  "block.medicalsystemcore.head_side_monitor": "ベッドサイドモニター",
+  "block.medicalsystemcore.stretcher": "ストレッチャー",
+
+  "_comment_items": "=== アイテム ===",
+  "item.medicalsystemcore.bandage": "包帯",
+  "item.medicalsystemcore.electrode": "電極",
+  "item.medicalsystemcore.head_side_cable": "ベッドサイドケーブル",
+  "item.medicalsystemcore.tube": "医療用チューブ",
+
+  "_comment_medical_packs": "=== 医療パック ===",
+  "item.medicalsystemcore.blood_pack": "輸血パック",
+  "item.medicalsystemcore.adrenaline_pack": "アドレナリンパック",
+  "item.medicalsystemcore.tranexamic_acid_pack": "トラネキサム酸パック",
+  "item.medicalsystemcore.fibrinogen_pack": "フィブリノーゲンパック",
+  "item.medicalsystemcore.noradrenaline_pack": "ノルアドレナリンパック",
+  "item.medicalsystemcore.glucose_pack": "グルコースパック",
+
+  "_comment_block_items": "=== ブロックアイテム ===",
+  "item.medicalsystemcore.defibrillator_block": "除細動器",
+  "item.medicalsystemcore.iv_stand": "点滴スタンド",
+  "item.medicalsystemcore.head_side_monitor": "ベッドサイドモニター",
+  "item.medicalsystemcore.stretcher": "ストレッチャー",
+
+  "_comment_effects": "=== エフェクト ===",
+  "effect.medicalsystemcore.transfusion": "輸血",
+  "effect.medicalsystemcore.bandage_effect": "包帯処置",
+  "effect.medicalsystemcore.adrenaline_effect": "アドレナリン",
+  "effect.medicalsystemcore.fibrinogen_effect": "フィブリノーゲン",
+  "effect.medicalsystemcore.tranexamic_acid_effect": "トラネキサム酸",
+
+  "_comment_entities": "=== エンティティ ===",
+  "entity.medicalsystemcore.stretcher_entity": "ストレッチャー",
+
+  "_comment_menus": "=== メニュー/GUI ===",
+  "container.medicalsystemcore.iv_stand_menu": "点滴スタンド",
+
+  "_comment_tooltips": "=== ツールチップ・説明 ===",
+  "tooltip.medicalsystemcore.bandage": "傷の治療と止血に使用します",
+  "tooltip.medicalsystemcore.electrode": "除細動器に接続して心臓治療を行います",
+  "tooltip.medicalsystemcore.blood_pack": "点滴スタンドと組み合わせて血液量を回復します",
+  "tooltip.medicalsystemcore.adrenaline_pack": "緊急時の心臓刺激剤",
+  "tooltip.medicalsystemcore.tranexamic_acid_pack": "出血と血液損失を軽減します",
+  "tooltip.medicalsystemcore.fibrinogen_pack": "血液凝固を助けます",
+  "tooltip.medicalsystemcore.noradrenaline_pack": "血圧調整用の血管収縮剤",
+  "tooltip.medicalsystemcore.glucose_pack": "エネルギーと血糖値の回復",
+  "tooltip.medicalsystemcore.tube": "医療機器を接続します",
+  "tooltip.medicalsystemcore.head_side_cable": "ベッドサイドモニターを患者に接続します",
+
+  "_comment_gui_elements": "=== GUI要素 ===",
+  "gui.medicalsystemcore.iv_stand.blood_slot": "輸血パック",
+  "gui.medicalsystemcore.iv_stand.drug_slot_1": "薬剤パック1",
+  "gui.medicalsystemcore.iv_stand.drug_slot_2": "薬剤パック2",
+
+  "_comment_messages": "=== システムメッセージ ===",
+  "message.medicalsystemcore.treatment_started": "治療を開始しました",
+  "message.medicalsystemcore.treatment_completed": "治療が完了しました",
+  "message.medicalsystemcore.insufficient_blood": "血液量が不足しています",
+  "message.medicalsystemcore.defibrillator_ready": "除細動器の準備完了",
+  "message.medicalsystemcore.defibrillator_charging": "除細動器を充電中...",
+
+  "_comment_advancement": "=== 進歩 ===",
+  "advancement.medicalsystemcore.first_aid": "応急手当",
+  "advancement.medicalsystemcore.first_aid.desc": "包帯を使って傷を治療する",
+  "advancement.medicalsystemcore.medical_professional": "医療従事者",
+  "advancement.medicalsystemcore.medical_professional.desc": "すべての医療機器を使用する"
 }

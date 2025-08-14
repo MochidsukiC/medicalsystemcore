@@ -3,5 +3,15 @@
   "textures": {
     "layer0": "medicalsystemcore:item/pack_base",
     "layer1": "medicalsystemcore:item/pack_overlay"
-  }
+  },
+  "overrides": [
+    {"predicate": {"fluid_level": 0.1}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay1"}}},
+    {"predicate": {"fluid_level": 0.2}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay2"}}},
+    {"predicate": {"fluid_level": 0.3}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay3"}}},
+    {"predicate": {"fluid_level": 0.4}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay4"}}},
+    {"predicate": {"fluid_level": 0.5}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay5"}}},
+    {"predicate": {"fluid_level": 0.6}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay6"}}},
+    {"predicate": {"fluid_level": 0.7}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay7"}}},
+    {"predicate": {"fluid_level": 0.8}, "model": {"parent": "minecraft:item/generated", "textures": {"layer0": "medicalsystemcore:item/pack_base", "layer1": "medicalsystemcore:item/pack_overlay8"}}}
+  ]
 }

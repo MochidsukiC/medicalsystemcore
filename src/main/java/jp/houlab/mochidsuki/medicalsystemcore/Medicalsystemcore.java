@@ -10,6 +10,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.PackColor;
+import jp.houlab.mochidsuki.medicalsystemcore.client.SimpleFluidLevelProperty;
 import jp.houlab.mochidsuki.medicalsystemcore.client.model.StretcherModel;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
@@ -29,7 +30,9 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.client.renderer.entity.NoopRenderer;
+import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -118,19 +121,19 @@ public class Medicalsystemcore {
 
     // Medical Packs
     public static final RegistryObject<Item> BLOOD_PACK = ITEMS.register("blood_pack",
-            () -> new Item(new Item.Properties().stacksTo(16)));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(16)));
     public static final RegistryObject<Item> ADRENALINE_PACK = ITEMS.register("adrenaline_pack",
-            () -> new Item(new Item.Properties().stacksTo(16)));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(16)));
     public static final RegistryObject<Item> TRANEXAMIC_ACID_PACK = ITEMS.register("tranexamic_acid_pack",
-            () -> new Item(new Item.Properties().stacksTo(16)));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(16)));
     public static final RegistryObject<Item> FIBRINOGEN_PACK = ITEMS.register("fibrinogen_pack",
-            () -> new Item(new Item.Properties().stacksTo(16)));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(16)));
     public static final RegistryObject<Item> NORADRENALINE_PACK = ITEMS.register("noradrenaline_pack",
-            () -> new Item(new Item.Properties().stacksTo(16)));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(16)));
     public static final RegistryObject<Item> GLUCOSE_PACK = ITEMS.register("glucose_pack",
-            () -> new Item(new Item.Properties().stacksTo(16)));
+            () -> new FluidPackItem(new Item.Properties().stacksTo(16)));
     public static final RegistryObject<Item> TUBE = ITEMS.register("tube",
-            () -> new TubeItem(new Item.Properties().stacksTo(1)));
+            () -> new TubeItem(new Item.Properties().stacksTo(64)));
 
     // Menu
     public static final RegistryObject<MenuType<IVStandMenu>> IV_STAND_MENU =
@@ -239,6 +242,26 @@ public class Medicalsystemcore {
             // Render Layers
             event.enqueueWork(() -> {
                 ItemBlockRenderTypes.setRenderLayer(HEAD_SIDE_MONITOR_BLOCK.get(), RenderType.cutout());
+
+
+                ItemProperties.register(BLOOD_PACK.get(),
+                        new ResourceLocation("fluid_level"),
+                        new SimpleFluidLevelProperty());
+                ItemProperties.register(ADRENALINE_PACK.get(),
+                        new ResourceLocation("fluid_level"),
+                        new SimpleFluidLevelProperty());
+                ItemProperties.register(TRANEXAMIC_ACID_PACK.get(),
+                        new ResourceLocation("fluid_level"),
+                        new SimpleFluidLevelProperty());
+                ItemProperties.register(FIBRINOGEN_PACK.get(),
+                        new ResourceLocation("fluid_level"),
+                        new SimpleFluidLevelProperty());
+                ItemProperties.register(NORADRENALINE_PACK.get(),
+                        new ResourceLocation("fluid_level"),
+                        new SimpleFluidLevelProperty());
+                ItemProperties.register(GLUCOSE_PACK.get(),
+                        new ResourceLocation("fluid_level"),
+                        new SimpleFluidLevelProperty());
             });
 
             // Item Colors
@@ -248,10 +271,9 @@ public class Medicalsystemcore {
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00FFAA), FIBRINOGEN_PACK.get());
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00FF00), GLUCOSE_PACK.get());
 
+
             LOGGER.info("Medical System Core - Client Setup Complete");
         }
-
-
 
         @SubscribeEvent
         public static void registerRenderers(final EntityRenderersEvent.RegisterRenderers event) {

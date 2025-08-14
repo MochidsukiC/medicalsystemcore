@@ -89,6 +89,7 @@ public class TubeItem extends Item {
                     }
 
                     nbt.remove(TAG_START_POS);
+                    pStack.shrink(1); // ケーブルを消費
                     return InteractionResult.SUCCESS;
                 }
                 pPlayer.sendSystemMessage(Component.literal("§cエラー: 点滴スタンドが見つかりません。"));

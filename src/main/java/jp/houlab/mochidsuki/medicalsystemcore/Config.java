@@ -107,7 +107,7 @@ public class Config {
         BLEEDING_RECOVERY_BASE_RATE_SPEC = BUILDER.comment("出血回復の基本レート")
                 .defineInRange("bleeding_recovery_base_rate", 0.1, 0.0, 10.0);
         BLEEDING_RECOVERY_BANDAGE_MULTIPLIER_SPEC = BUILDER.comment("包帯エフェクトの出血回復倍率")
-                .defineInRange("bleeding_recovery_bandage_multiplier", 1.0, 0.0, 100.0);
+                .defineInRange("bleeding_recovery_bandage_multiplier", 0.5, 0.0, 100.0);
         BLEEDING_RECOVERY_PLATELET_MULTIPLIER_SPEC = BUILDER.comment("血小板エフェクトの出血回復倍率")
                 .defineInRange("bleeding_recovery_platelet_multiplier", 5.0, 0.0, 100.0);
 
@@ -117,9 +117,9 @@ public class Config {
         BUILDER.comment("止血剤に関する設定");
 
         FIBRINOGEN_BLEEDING_REDUCTION_RATE_SPEC = BUILDER.comment("フィブリノゲン製剤の出血速度減少率（%/秒）")
-                .defineInRange("fibrinogen_bleeding_reduction_rate", 5.0, 0.0, 100.0);
+                .defineInRange("fibrinogen_bleeding_reduction_rate", 2.0, 0.0, 100.0);
         TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE_SPEC = BUILDER.comment("トラネキサム酸の出血速度減少率（%/秒）")
-                .defineInRange("tranexamic_acid_bleeding_reduction_rate", 5.0, 0.0, 100.0);
+                .defineInRange("tranexamic_acid_bleeding_reduction_rate", 2.0, 0.0, 100.0);
 
         BUILDER.pop();
 
@@ -173,11 +173,11 @@ public class Config {
         BUILDER.comment("包帯システムに関する設定");
 
         BANDAGE_SELF_USE_DURATION_SPEC = BUILDER.comment("自分への包帯使用時間（秒）")
-                .defineInRange("bandage_self_use_duration", 6, 1, 60);
+                .defineInRange("bandage_self_use_duration", 5, 1, 60);
         BANDAGE_OTHER_USE_DURATION_SPEC = BUILDER.comment("他人への包帯使用時間（秒）")
-                .defineInRange("bandage_other_use_duration", 4, 1, 60);
+                .defineInRange("bandage_other_use_duration", 3, 1, 60);
         BANDAGE_EFFECT_DURATION_SPEC = BUILDER.comment("包帯エフェクトの持続時間（秒）")
-                .defineInRange("bandage_effect_duration", 60, 1, 3600);
+                .defineInRange("bandage_effect_duration", 300, 1, 3600);
         BANDAGE_SELF_LEVEL_INCREASE_SPEC = BUILDER.comment("自分への包帯使用時のエフェクトレベル増加")
                 .defineInRange("bandage_self_level_increase", 1, 1, 10);
         BANDAGE_OTHER_LEVEL_INCREASE_SPEC = BUILDER.comment("他人への包帯使用時のエフェクトレベル増加")
