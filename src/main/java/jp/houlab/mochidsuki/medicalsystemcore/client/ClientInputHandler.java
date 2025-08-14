@@ -34,8 +34,24 @@ public class ClientInputHandler {
                 if (isUnconscious) {
                     // 意識障害時の視点固定処理を呼び出し
                     ClientMouseHandler.handleUnconsciousView();
+                    ClientPoseController.maintainPoseControl(player);
+                    enforceUnconsciousRestrictions(player);
+
                 }
             }
+        }
+    }
+
+    /**
+      * 意識不明時の追加制限を強制適用
+     */
+    private static void enforceUnconsciousRestrictions(Player player) {
+        // 移動の完全停止（追加の安全策）
+        player.setDeltaMovement(player.getDeltaMovement().multiply(0, 1, 0)); // Y軸（重力）は維持
+
+        // ジャンプ状態の強制解除
+        if (player.onGround()) {
+            player.setOnGround(true);
         }
     }
 
@@ -56,13 +72,46 @@ public class ClientInputHandler {
     }
 
     /**
-     * マウスボタンの入力イベント
+     * 意識不明時のマウスクリック制限
      */
     @SubscribeEvent
-    public static void onMouseButton(InputEvent.MouseButton.Post event) {
-        // 右クリックが「離された」時、かつQTEがアクティブな場合
+    public static void onMouseButton(InputEvent.MouseButton.Pre event) {
+        // QTE用の右クリック処理は特別に許可
         if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && event.getAction() == GLFW.GLFW_RELEASE && ClientQTEManager.isActive()) {
             ClientQTEManager.stop();
+            return;
+        }
+
+        // 意識不明時は全てのマウスクリックを無効化
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.player != null && ClientMedicalDataManager.isPlayerUnconscious(mc.player)) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * 意識不明時のキーボード入力制限
+     */
+    @SubscribeEvent
+    public static void onKeyInput(InputEvent.Key event) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.player != null && ClientMedicalDataManager.isPlayerUnconscious(mc.player)) {
+            // 特定のキー以外は全て無効化
+            // ESCキー（一時停止）とF3（デバッグ）は許可
+            if (event.getKey() != GLFW.GLFW_KEY_ESCAPE && event.getKey() != GLFW.GLFW_KEY_F3) {
+                event.setCanceled(true);
+            }
+        }
+    }
+
+    /**
+     * 意識不明時のマウススクロール制限
+     */
+    @SubscribeEvent
+    public static void onMouseScroll(InputEvent.MouseScrollingEvent event) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.player != null && ClientMedicalDataManager.isPlayerUnconscious(mc.player)) {
+            event.setCanceled(true);
         }
     }
 }

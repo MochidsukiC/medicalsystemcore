@@ -42,6 +42,11 @@ public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
                 default -> false;
             };
         }
+
+        @Override
+        public int getSlotLimit(int i){
+            return 1;
+        }
     };
 
     private LazyOptional<ItemStackHandler> lazyItemHandler = LazyOptional.empty();

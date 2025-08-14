@@ -115,11 +115,14 @@ public class ModEvents {
         });
     }
 
+    /**
+     * 意識不明時のアイテムドロップ制限（強化版）
+     */
     @SubscribeEvent
     public static void onItemToss(ItemTossEvent event) {
         ItemStack tossedItem = event.getEntity().getItem();
 
-        // 電極が投げ捨てられた場合
+        // 電極が投げ捨てられた場合の特別処理（既存のロジック）
         if (tossedItem.is(Medicalsystemcore.ELECTRODE.get())) {
             CompoundTag nbt = tossedItem.getTag();
             if (nbt != null && nbt.contains("DefibrillatorPos")) {
@@ -141,14 +144,37 @@ public class ModEvents {
                         }
                         defibrillator.setChanged();
                         event.getEntity().discard();
+                        return; // 電極の場合は以下の意識不明チェックをスキップ
                     }
                 }
             }
         }
 
-        // 意識障害時のアイテム投げ捨てを防ぐ
+        // 意識不明時のアイテム投げ捨てを防ぐ（強化版）
         if (event.getPlayer() != null && isPlayerUnconscious(event.getPlayer())) {
             event.setCanceled(true);
+
+            // アイテムを強制的にプレイヤーのインベントリに戻す
+            Player player = event.getPlayer();
+            ItemStack droppedStack = event.getEntity().getItem();
+
+            // インベントリに空きがあれば戻す、なければ強制的に手に持たせる
+            if (!player.getInventory().add(droppedStack)) {
+                // インベントリが満杯の場合は、現在持っているアイテムと交換
+                ItemStack currentItem = player.getMainHandItem();
+                player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, droppedStack);
+                if (!currentItem.isEmpty()) {
+                    // 交換されたアイテムを地面にドロップ（正常時のみ）
+                    if (!isPlayerUnconscious(player)) {
+                        player.drop(currentItem, false);
+                    }
+                }
+            }
+
+            // デバッグメッセージ
+            if (player instanceof ServerPlayer serverPlayer) {
+                serverPlayer.sendSystemMessage(Component.literal("§c意識不明のためアイテムを落とすことができません。"));
+            }
         }
     }
 
