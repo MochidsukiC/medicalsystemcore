@@ -37,6 +37,7 @@ public class TubeItem extends Item {
         Player player = pContext.getPlayer();
         ItemStack heldItem = pContext.getItemInHand();
 
+
         if (!level.isClientSide && player != null) {
             if (level.getBlockState(clickedPos).getBlock() instanceof IVStandBlock) {
                 CompoundTag nbt = heldItem.getOrCreateTag();

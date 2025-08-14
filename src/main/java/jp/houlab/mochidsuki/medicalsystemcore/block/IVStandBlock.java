@@ -79,14 +79,14 @@ public class IVStandBlock extends BaseEntityBlock {
         if (pLevel.getBlockEntity(bePos) instanceof IVStandBlockEntity blockEntity) {
             ItemStack heldItem = pPlayer.getItemInHand(pHand);
 
-            if (heldItem.isEmpty()) {
+            if (heldItem.isEmpty() && !pPlayer.isShiftKeyDown()) {
                 // 手ぶらの場合はアイテム取り出し
                 handleItemRemoval(pPlayer, blockEntity);
-            } else if (heldItem.is(ModTags.Items.BLOOD_PACKS) || heldItem.is(ModTags.Items.DRUG_PACKS)) {
+            } else if ((heldItem.is(ModTags.Items.BLOOD_PACKS) || heldItem.is(ModTags.Items.DRUG_PACKS )) && !pPlayer.isShiftKeyDown()) {
                 // パックの場合はアイテム挿入
                 handleItemInsertion(pPlayer, blockEntity, heldItem);
             } else if (heldItem.is(Medicalsystemcore.TUBE.get())){
-                return InteractionResult.PASS;
+                return InteractionResult.FAIL;
             } else {
                 // その他のアイテムの場合はGUIを開く
                 if (pPlayer instanceof ServerPlayer serverPlayer) {
