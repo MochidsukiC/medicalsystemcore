@@ -175,6 +175,22 @@ public class StretcherBlockEntity extends BlockEntity {
         return null;
     }
 
+    private boolean isBeingCollected = false;
+
+    /**
+     * 回収フラグを設定（シフトクリック回収時に使用）
+     */
+    public void setBeingCollected(boolean beingCollected) {
+        this.isBeingCollected = beingCollected;
+    }
+
+    /**
+     * 回収フラグを取得
+     */
+    public boolean isBeingCollected() {
+        return this.isBeingCollected;
+    }
+
     @Override
     protected void saveAdditional(CompoundTag pTag) {
         super.saveAdditional(pTag);

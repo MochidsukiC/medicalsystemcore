@@ -77,8 +77,15 @@ public class StretcherPlacementHandler {
 
                 // プレイヤーを担架に乗せる
                 stretcherBE.setOccupyingPlayer(ridingPlayer);
+                // 設置時は回収フラグをfalseに設定
+                stretcherBE.setBeingCollected(false);
 
                 ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
+            }
+        } else {
+            // 空の担架の場合も回収フラグを初期化
+            if (level.getBlockEntity(placePos) instanceof StretcherBlockEntity stretcherBE) {
+                stretcherBE.setBeingCollected(false);
             }
         }
 

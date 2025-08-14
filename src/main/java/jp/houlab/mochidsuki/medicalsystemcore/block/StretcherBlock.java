@@ -52,7 +52,6 @@ public class StretcherBlock extends BaseEntityBlock {
     public VoxelShape getShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
         return SHAPE;
     }
-
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (pLevel.isClientSide()) {
@@ -128,7 +127,7 @@ public class StretcherBlock extends BaseEntityBlock {
 
     /**
      * ブロックが破壊された時の処理
-     * 修正3: ストレッチャーアイテムをドロップする
+     * 修正3: ストレッチャーアイテムをドロップする（シフトクリック時は除く）
      */
     @Override
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
@@ -142,11 +141,15 @@ public class StretcherBlock extends BaseEntityBlock {
                     // 姿勢制御の解除（必要に応じて）
                     occupyingPlayer.sendSystemMessage(Component.literal("§e担架が破壊されました。"));
                 }
-            }
 
-            // ストレッチャーアイテムをドロップ
-            ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
-            popResource(pLevel, pPos, stretcherItem);
+                // 修正: シフトクリックによる回収の場合はアイテムをドロップしない
+                // BlockEntityに回収フラグがある場合はドロップしない仕組みを追加
+                if (!stretcherBE.isBeingCollected()) {
+                    // ストレッチャーアイテムをドロップ（通常の破壊時のみ）
+                    ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
+                    popResource(pLevel, pPos, stretcherItem);
+                }
+            }
         }
 
         super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
