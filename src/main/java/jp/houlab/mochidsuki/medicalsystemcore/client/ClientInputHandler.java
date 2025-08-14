@@ -5,6 +5,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.MovementInputUpdateEvent;
+import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -82,27 +83,21 @@ public class ClientInputHandler {
             return;
         }
 
-        // 意識不明時は全てのマウスクリックを無効化
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+
+
+        if (mc.screen != null) {
+            return;
+        }
+
+        // 意識不明時は全てのマウスクリックを無効化
         if (mc.player != null && ClientMedicalDataManager.isPlayerUnconscious(mc.player)) {
             event.setCanceled(true);
         }
     }
 
-    /**
-     * 意識不明時のキーボード入力制限
-     */
-    @SubscribeEvent
-    public static void onKeyInput(InputEvent.Key event) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.player != null && ClientMedicalDataManager.isPlayerUnconscious(mc.player)) {
-            // 特定のキー以外は全て無効化
-            // ESCキー（一時停止）とF3（デバッグ）は許可
-            if (event.getKey() != GLFW.GLFW_KEY_ESCAPE && event.getKey() != GLFW.GLFW_KEY_F3) {
-                event.setCanceled(true);
-            }
-        }
-    }
+
+
 
     /**
      * 意識不明時のマウススクロール制限

@@ -10,6 +10,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.PackColor;
+import jp.houlab.mochidsuki.medicalsystemcore.client.model.StretcherModel;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
@@ -250,9 +251,18 @@ public class Medicalsystemcore {
             LOGGER.info("Medical System Core - Client Setup Complete");
         }
 
+
+
         @SubscribeEvent
-        public static void registerLayerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions event) {
-            event.registerLayerDefinition(StretcherRenderer.StretcherModel.LAYER_LOCATION, StretcherRenderer.StretcherModel::createBodyLayer);
+        public static void registerRenderers(final EntityRenderersEvent.RegisterRenderers event) {
+            // StretcherEntityが描画される際に、StretcherRendererを使用するよう登録します。
+            event.registerEntityRenderer(STRETCHER_ENTITY.get(), StretcherRenderer::new);
+        }
+
+        @SubscribeEvent
+        public static void registerLayerDefinitions(final EntityRenderersEvent.RegisterLayerDefinitions event) {
+            // StretcherModelのレイヤー定義（形状）を登録します。
+            event.registerLayerDefinition(StretcherModel.LAYER_LOCATION, StretcherModel::createBodyLayer);
         }
     }
 }

@@ -39,7 +39,7 @@ public class StretcherBlock extends BaseEntityBlock {
     public static final EnumProperty<DoubleBlockHalf> PART = BlockStateProperties.DOUBLE_BLOCK_HALF;
 
     // ベッドのような低い当たり判定
-    protected static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 6.0D, 16.0D);
+    protected static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 2.0D, 16.0D);
 
     public StretcherBlock(Properties pProperties) {
         super(pProperties);

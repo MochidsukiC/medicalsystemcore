@@ -46,129 +46,134 @@ public class StretcherEntity extends Entity {
         this.entityData.define(CARRIER_UUID, Optional.empty());
     }
 
+    // C:/Users/dora2/IdeaProjects/medicalsystemcore/src/main/java/jp/houlab/mochidsuki/medicalsystemcore/entity/StretcherEntity.java
+
     /**
-     * エンティティの更新処理（クライアント・サーバー共通ラグフリー版）
+     * エンティティの更新処理
+     * クライアントサイド予測とサーバーサイド補正のハイブリッドモデルを実装
      */
     @Override
     public void tick() {
         super.tick();
 
-        if (this.level().isClientSide()) {
-            // クライアントサイドでの運搬者の復元
-            if (this.carrier == null) {
-                Optional<UUID> carrierUUID = this.entityData.get(CARRIER_UUID);
-                if (carrierUUID.isPresent()) {
-                    this.carrier = this.level().getPlayerByUUID(carrierUUID.get());
-                }
+        // --- サーバーサイドの処理 ---
+        if (!this.level().isClientSide()) {
+            // 運搬者の有効性チェック
+            if (this.carrier == null || !this.carrier.isAlive() || this.carrier.isRemoved()) {
+                this.returnStretcherToCarrier();
+                return;
+            }
+            // 距離チェック
+            if (this.tickCount % 10 == 0 && this.distanceToSqr(this.carrier) > 100.0) {
+                this.returnStretcherToCarrier();
+                return;
             }
 
-            // クライアントサイドでのリアルタイム位置更新（ラグフリー）
-            if (this.carrier != null && this.carrier.isAlive()) {
-                updatePositionRealtime();
-                handlePassengerClientSide();
-            }
+            // サーバーは常に「正解」の位置と向きを計算し、設定する
+            // このデータはMinecraftの標準的な同期メカニズムでクライアントに送られる
+            StretcherPositionCalculator.PositionResult result =
+                    StretcherPositionCalculator.calculateStretcherTransform(
+                            this.carrier, this.position(), this.getYRot(), false
+                    );
+            this.setPos(result.position.x, result.position.y, result.position.z);
+            this.setYRot(result.yaw);
+
+            // 乗車者の処理
+            handlePassengerServerSide();
             return;
         }
 
-        // サーバーサイドの処理
-        // 修正: 基本的な有効性チェックを毎ティック実行
-        if (this.carrier == null || !this.carrier.isAlive() || this.carrier.isRemoved()) {
-            this.returnStretcherToCarrier(); // 新仕様: 運搬者無効時はアイテム返還
-            return;
+
+        // --- クライアントサイドの処理 ---
+        // 運搬者インスタンスを復元
+        if (this.carrier == null) {
+            this.entityData.get(CARRIER_UUID).ifPresent(uuid ->
+                    this.carrier = this.level().getPlayerByUUID(uuid)
+            );
         }
 
-        // 修正: 距離チェックを軽量化（より頻繁にチェック）
-        if (this.tickCount % 5 == 0) { // 0.25秒ごと（5ティック）に距離チェック
-            double distance = this.distanceToSqr(this.carrier);
-            if (distance > 100.0) { // 10ブロック以上離れた場合
-                this.returnStretcherToCarrier(); // 新仕様: 距離が離れた場合アイテム返還
-                return;
-            }
+        if (this.carrier == null || !this.carrier.isAlive()) {
+            return; // 運搬者がいなければ何もしない
         }
 
-        // 乗車者の有効性チェック（毎ティック）
-        if (this.passenger != null) {
-            if (!this.passenger.isAlive() || this.passenger.isRemoved()) {
-                this.passenger = null;
-                this.returnStretcherToCarrier(); // 新仕様: 乗車者無効時はアイテム返還
-                return;
-            }
+        // 運搬者がこのクライアントのプレイヤーである場合、完全な予測を行う
+        if (this.carrier.isLocalPlayer()) {
+            // プレイヤーの入力から「あるべき位置と向き」を即座に計算
+            StretcherPositionCalculator.PositionResult targetResult =
+                    StretcherPositionCalculator.calculateStretcherTransform(
+                            this.carrier, this.position(), this.getYRot(), true
+                    );
+
+            // ★★★ 最重要: サーバーからの補正を考慮しつつ、滑らかに追従 ★★★
+            // サーバーから送られてくる位置(this.position())と予測位置(targetResult.position)を補間する
+            // これにより、操作のレスポンスを維持しつつ、サーバーとの大きなズレを防ぐ
+            float interpolationFactor = 0.5f; // 補間の強さ（0.0～1.0）。大きいほど予測に近くなる。
+            Vec3 interpolatedPos = this.position().lerp(targetResult.position, interpolationFactor);
+            float interpolatedYaw = lerpYaw(this.getYRot(), targetResult.yaw, interpolationFactor);
+
+            this.setPos(interpolatedPos);
+            this.setYRot(interpolatedYaw);
+
         }
+        // 他のプレイヤーが運搬者の場合、Minecraftの標準補間に任せる
+        // (サーバーから送られてくる位置情報に自動で滑らかに追従する)
 
-        // 位置と向きを更新（共通ロジック使用）
-        updatePositionWithCommonLogic();
 
-        // 乗車者の処理（毎ティック実行）
-        handlePassenger();
-    }
-
-    /**
-     * クライアントサイドでのリアルタイム位置更新（ラグフリー）
-     */
-    private void updatePositionRealtime() {
-        // 共通計算ロジックを使用（即座に更新）
-        StretcherPositionCalculator.PositionResult result =
-                StretcherPositionCalculator.calculateStretcherTransform(
-                        this.carrier, this.position(), this.getYRot(), true
-                );
-
-        // 位置と向きを即座に設定（クライアントサイドでのラグフリー動作）
-        this.setPos(result.position.x, result.position.y, result.position.z);
-        this.setYRot(result.yaw);
-    }
-
-    /**
-     * サーバーサイドでの位置更新（共通ロジック使用）
-     */
-    private void updatePositionWithCommonLogic() {
-        // 共通計算ロジックを使用（補間あり）
-        StretcherPositionCalculator.PositionResult result =
-                StretcherPositionCalculator.calculateStretcherTransform(
-                        this.carrier, this.position(), this.getYRot(), false
-                );
-
-        // 位置と向きを設定
-        this.setPos(result.position.x, result.position.y, result.position.z);
-        this.setYRot(result.yaw);
-
-        // クライアントに位置変更を通知
-        this.level().broadcastEntityEvent(this, (byte) 1);
-    }
-
-    /**
-     * クライアントサイドでの乗車者処理
-     */
-    private void handlePassengerClientSide() {
+        // 乗車者の向きをリアルタイムで同期
         if (this.passenger != null && this.passenger.isAlive()) {
-            // クライアントサイドでの向き同期（ラグフリー）
             syncPassengerRotationRealtime();
         }
     }
 
     /**
-     * 乗車者の処理（高頻度更新版）
+     * 角度を滑らかに補間する（-180～180度のラップアラウンドを考慮）
+     * @param startAngle 開始角度
+     * @param endAngle 終了角度
+     * @param t 補間係数 (0.0 - 1.0)
+     * @return 補間された角度
      */
-    private void handlePassenger() {
-        if (this.passenger != null) {
-            // プレイヤーが有効かチェック
-            if (this.passenger.isRemoved() || !this.passenger.isAlive()) {
-                this.passenger = null;
-                this.returnStretcherToCarrier(); // 新仕様: プレイヤーが無効な場合アイテム返還
-                return;
-            }
+    private float lerpYaw(float startAngle, float endAngle, float t) {
+        float diff = endAngle - startAngle;
+        while (diff < -180.0F) diff += 360.0F;
+        while (diff >= 180.0F) diff -= 360.0F;
+        return startAngle + diff * t;
+    }
 
-            // Shiftキーで降車
-            if (this.passenger.isShiftKeyDown()) {
-                this.passenger.stopRiding();
-                this.passenger = null;
-                this.returnStretcherToCarrier(); // 新仕様: 降車時にアイテム返還
-                return;
-            }
+    /**
+     * 乗車者の処理（サーバーサイド専用）
+     */
+    private void handlePassengerServerSide() {
+        if (this.passenger == null) {
+            return;
+        }
 
-            // 乗車者の向きを同期（サーバーサイド・補間あり）
-            syncPassengerRotationSmooth();
+        if (this.passenger.isRemoved() || !this.passenger.isAlive()) {
+            this.passenger = null;
+            this.returnStretcherToCarrier();
+            return;
+        }
+
+        if (this.passenger.isShiftKeyDown()) {
+            this.passenger.stopRiding();
+            this.passenger = null;
+            this.returnStretcherToCarrier();
+            return;
+        }
+
+        // サーバーサイドで乗車者の体の向きをストレッチャーに同期
+        if (this.passenger instanceof ServerPlayer serverPlayer) {
+            float targetYaw = this.getYRot();
+            serverPlayer.yBodyRot = lerpYaw(serverPlayer.yBodyRot, targetYaw, 0.3f);
+            serverPlayer.yHeadRot = lerpYaw(serverPlayer.yHeadRot, targetYaw, 0.3f);
         }
     }
+
+    // 以前のtick()メソッドで使われていた以下のヘルパーメソッドは不要になります。
+    // private void updatePositionRealtime() { ... }
+    // private void updatePositionWithCommonLogic() { ... }
+    // private void handlePassengerClientSide() { ... }
+    // private void handlePassenger() { ... }
+    // private void syncPassengerRotationSmooth() { ... }
 
     /**
      * 新仕様: ストレッチャーを運搬者に返還（アイテムとして）
@@ -201,28 +206,6 @@ public class StretcherEntity extends Entity {
         this.discard();
     }
 
-    /**
-     * 乗車者の向きを同期（サーバーサイド用・滑らか版）
-     */
-    private void syncPassengerRotationSmooth() {
-        if (!(this.passenger instanceof ServerPlayer serverPlayer)) return;
-
-        // ストレッチャーの向きに合わせてプレイヤーの体の向きを設定
-        float stretcherYaw = this.getYRot();
-
-        // 滑らかな向きの補間
-        float currentBodyYaw = serverPlayer.yBodyRot;
-        float yawDiff = stretcherYaw - currentBodyYaw;
-
-        // 角度の正規化
-        while (yawDiff > 180.0f) yawDiff -= 360.0f;
-        while (yawDiff < -180.0f) yawDiff += 360.0f;
-
-        // 滑らかに補間して設定
-        float newBodyYaw = currentBodyYaw + yawDiff * 0.3f;
-        serverPlayer.yBodyRot = newBodyYaw;
-        serverPlayer.yBodyRotO = newBodyYaw;
-    }
 
     /**
      * 乗車者の向きを同期（リアルタイム版 - クライアントサイド用）
