@@ -52,13 +52,13 @@ public class StretcherItem extends Item {
             return InteractionResult.FAIL;
         }
 
-        // ストレッチャーエンティティを作成（アイテムは消費しない）
+        // ストレッチャーエンティティを作成
         StretcherEntity stretcherEntity = StretcherEntity.create(
                 pPlayer.level(), pPlayer, targetPlayer
         );
 
-        // 修正1: アイテムを消費しない（pStack.shrink(1)を削除）
-        // プレイヤーがストレッチャーエンティティを「持っている」状態として管理
+        // 修正: プレイヤーに使用した場合はアイテムを消費しない（エンティティとして管理）
+        // pStack.shrink(1); を削除
 
         pPlayer.sendSystemMessage(Component.literal(String.format(
                 "§a%sを担架に乗せました。",
@@ -117,14 +117,17 @@ public class StretcherItem extends Item {
                 ridingPlayer.sendSystemMessage(Component.literal("§e担架が設置されました。"));
             }
 
-            // 修正: ストレッチャーエンティティを確実に削除
+            // エンティティを削除
             carriedStretcher.discard();
+
+            // 修正: ストレッチャーエンティティから設置する場合もアイテムを消費
+            stack.shrink(1);
             player.sendSystemMessage(Component.literal("§a担架を設置しました。"));
             return InteractionResult.SUCCESS;
         }
 
         // ストレッチャーエンティティがない場合（通常のアイテムから設置）
-        // 修正2: この場合のみアイテムを消費
+        // 修正1: ブロック設置時は必ずアイテムを消費
         stack.shrink(1);
         player.sendSystemMessage(Component.literal("§a担架を設置しました。"));
 

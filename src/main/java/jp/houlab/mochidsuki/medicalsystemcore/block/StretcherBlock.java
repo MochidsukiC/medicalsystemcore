@@ -52,7 +52,6 @@ public class StretcherBlock extends BaseEntityBlock {
     public VoxelShape getShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
         return SHAPE;
     }
-
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (pLevel.isClientSide()) {
@@ -63,50 +62,47 @@ public class StretcherBlock extends BaseEntityBlock {
             return InteractionResult.FAIL;
         }
 
-        // Shiftクリックで担架を回収
+        // Shiftクリックで担架を回収（修正版）
         if (pPlayer.isShiftKeyDown()) {
             ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
 
+            // 担架アイテムを作成
+            ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
+
             if (occupyingPlayer != null) {
-                // 修正: プレイヤーがストレッチャーの近くにいるかチェック
+                // プレイヤーがストレッチャーの近くにいるかチェック
                 double distance = occupyingPlayer.distanceToSqr(pPos.getX() + 0.5, pPos.getY() + 0.3, pPos.getZ() + 0.5);
 
                 if (distance > 9.0) { // 3ブロック^2
-                    // プレイヤーが遠くにいる場合は警告してエンティティ作成をスキップ
+                    // プレイヤーが遠くにいる場合は警告して空の担架として回収
                     pPlayer.sendSystemMessage(Component.literal("§c登録されたプレイヤーがストレッチャーから離れています。空の担架として回収します。"));
-
-                    // 空のストレッチャーとして回収
-                    ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
-                    boolean added = pPlayer.getInventory().add(stretcherItem);
-
-                    if (added) {
-                        pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
-                    } else {
-                        pPlayer.spawnAtLocation(stretcherItem);
-                        pPlayer.sendSystemMessage(Component.literal("§eインベントリがフルのため、担架を地面にドロップしました。"));
-                    }
                 } else {
-                    // プレイヤーが近くにいる場合は通常の回収処理
+                    // プレイヤーが近くにいる場合は移動式に変換
                     StretcherEntity stretcherEntity = StretcherEntity.create(
                             pLevel, pPlayer, occupyingPlayer
                     );
 
                     pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
                     occupyingPlayer.sendSystemMessage(Component.literal("§e担架が移動式になりました。"));
-                }
-            } else {
-                // プレイヤーが乗っていない場合、アイテムとして回収
-                ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
-                boolean added = pPlayer.getInventory().add(stretcherItem);
 
-                if (added) {
-                    pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
-                } else {
-                    pPlayer.spawnAtLocation(stretcherItem);
-                    pPlayer.sendSystemMessage(Component.literal("§eインベントリがフルのため、担架を地面にドロップしました。"));
+                    // ブロックを削除してメソッド終了（アイテムは追加しない）
+                    pLevel.removeBlock(pPos, false);
+                    return InteractionResult.SUCCESS;
                 }
             }
 
+            // 修正2: 担架アイテムを回収しようとしているプレイヤーのインベントリに直接追加
+            boolean added = pPlayer.getInventory().add(stretcherItem);
+
+            if (added) {
+                pPlayer.sendSystemMessage(Component.literal("§a担架を回収しました。"));
+            } else {
+                // インベントリがフルの場合は地面にドロップ
+                pPlayer.spawnAtLocation(stretcherItem);
+                pPlayer.sendSystemMessage(Component.literal("§eインベントリがフルのため、担架を地面にドロップしました。"));
+            }
+
+            // ブロックを削除
             pLevel.removeBlock(pPos, false);
             return InteractionResult.SUCCESS;
         }
@@ -124,7 +120,7 @@ public class StretcherBlock extends BaseEntityBlock {
             stretcherBE.setOccupyingPlayer(serverPlayer);
             serverPlayer.teleportTo(pPos.getX() + 0.5, pPos.getY() + 0.3, pPos.getZ() + 0.5);
 
-            // 体の向きをブロックの向きに合わせる（単純化）
+            // 体の向きをブロックの向きに合わせる
             float blockYaw = pState.getValue(FACING).toYRot();
             serverPlayer.setYRot(blockYaw);
             serverPlayer.setXRot(0);
@@ -133,12 +129,36 @@ public class StretcherBlock extends BaseEntityBlock {
             serverPlayer.setYHeadRot(blockYaw);
             serverPlayer.xRotO = 0;
 
-            // ポーズ制御は行わない（通常のSTANDINGのまま）
-
             serverPlayer.sendSystemMessage(Component.literal("§e担架に乗りました。"));
         }
 
         return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * ブロックが破壊された時の処理
+     * 修正3: ストレッチャーアイテムをドロップする
+     */
+    @Override
+    public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
+        if (!pState.is(pNewState.getBlock()) && !pLevel.isClientSide()) {
+            // ブロックエンティティからプレイヤー情報を取得
+            if (pLevel.getBlockEntity(pPos) instanceof StretcherBlockEntity stretcherBE) {
+                ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
+
+                // プレイヤーが乗っている場合は姿勢制御を解除
+                if (occupyingPlayer != null) {
+                    // 姿勢制御の解除（必要に応じて）
+                    occupyingPlayer.sendSystemMessage(Component.literal("§e担架が破壊されました。"));
+                }
+            }
+
+            // ストレッチャーアイテムをドロップ
+            ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
+            popResource(pLevel, pPos, stretcherItem);
+        }
+
+        super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
     }
 
     @Override
