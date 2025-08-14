@@ -191,12 +191,15 @@ public class StretcherBlockEntity extends BlockEntity {
         return this.isBeingCollected;
     }
 
+
     @Override
     protected void saveAdditional(CompoundTag pTag) {
         super.saveAdditional(pTag);
         if (this.occupyingPlayerUUID != null) {
             pTag.putUUID("OccupyingPlayer", this.occupyingPlayerUUID);
         }
+        // 回収フラグもNBTに保存
+        pTag.putBoolean("IsBeingCollected", this.isBeingCollected);
     }
 
     @Override
@@ -207,6 +210,8 @@ public class StretcherBlockEntity extends BlockEntity {
         } else {
             this.occupyingPlayerUUID = null;
         }
+        // 回収フラグを読み込み
+        this.isBeingCollected = pTag.getBoolean("IsBeingCollected");
         this.cachedOccupyingPlayer = null; // キャッシュをクリア
     }
 

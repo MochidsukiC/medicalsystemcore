@@ -33,7 +33,7 @@ public class StretcherPositionCalculator {
         double offsetX = -Math.sin(radians) * STRETCHER_DISTANCE;
         double offsetZ = Math.cos(radians) * STRETCHER_DISTANCE;
 
-        return carrierPos.add(offsetX, 0, offsetZ);
+        return carrierPos.add(offsetX, 1, offsetZ);
     }
 
     /**

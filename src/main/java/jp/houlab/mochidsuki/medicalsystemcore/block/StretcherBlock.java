@@ -52,6 +52,8 @@ public class StretcherBlock extends BaseEntityBlock {
     public VoxelShape getShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
         return SHAPE;
     }
+
+
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (pLevel.isClientSide()) {
@@ -66,6 +68,9 @@ public class StretcherBlock extends BaseEntityBlock {
         if (pPlayer.isShiftKeyDown()) {
             ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
 
+            // 重要: 回収フラグを先に設定してonRemoveでのアイテムドロップを防ぐ
+            stretcherBE.setBeingCollected(true);
+
             if (occupyingPlayer != null) {
                 // プレイヤーがストレッチャーの近くにいるかチェック
                 double distance = occupyingPlayer.distanceToSqr(pPos.getX() + 0.5, pPos.getY() + 0.3, pPos.getZ() + 0.5);
@@ -73,6 +78,7 @@ public class StretcherBlock extends BaseEntityBlock {
                 if (distance > 9.0) { // 3ブロック^2
                     // プレイヤーが遠くにいる場合は警告してエンティティ作成をスキップ
                     pPlayer.sendSystemMessage(Component.literal("§c登録されたプレイヤーがストレッチャーから離れています。"));
+                    stretcherBE.setBeingCollected(false); // フラグをリセット
                     return InteractionResult.FAIL;
                 } else {
                     // プレイヤーが近くにいる場合はエンティティ化
@@ -126,7 +132,7 @@ public class StretcherBlock extends BaseEntityBlock {
     }
 
     /**
-     * ブロックが破壊された時の処理
+     * ブロックが破壊された時の処理（デバッグ版）
      * 修正3: ストレッチャーアイテムをドロップする（シフトクリック時は除く）
      */
     @Override
@@ -136,6 +142,10 @@ public class StretcherBlock extends BaseEntityBlock {
             if (pLevel.getBlockEntity(pPos) instanceof StretcherBlockEntity stretcherBE) {
                 ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
 
+                // デバッグ: 回収フラグの状態をログ出力
+                boolean isBeingCollected = stretcherBE.isBeingCollected();
+                System.out.println("StretcherBlock.onRemove: isBeingCollected = " + isBeingCollected);
+
                 // プレイヤーが乗っている場合は姿勢制御を解除
                 if (occupyingPlayer != null) {
                     // 姿勢制御の解除（必要に応じて）
@@ -143,12 +153,16 @@ public class StretcherBlock extends BaseEntityBlock {
                 }
 
                 // 修正: シフトクリックによる回収の場合はアイテムをドロップしない
-                // BlockEntityに回収フラグがある場合はドロップしない仕組みを追加
-                if (!stretcherBE.isBeingCollected()) {
+                if (!isBeingCollected) {
                     // ストレッチャーアイテムをドロップ（通常の破壊時のみ）
                     ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
                     popResource(pLevel, pPos, stretcherItem);
+                    System.out.println("StretcherBlock.onRemove: アイテムをドロップしました");
+                } else {
+                    System.out.println("StretcherBlock.onRemove: 回収フラグがtrueのため、アイテムドロップをスキップしました");
                 }
+            } else {
+                System.out.println("StretcherBlock.onRemove: StretcherBlockEntityが見つかりません");
             }
         }
 
