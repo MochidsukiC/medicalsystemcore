@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModTags;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,6 +26,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.MapColor;
@@ -37,11 +39,15 @@ import org.jetbrains.annotations.Nullable;
 public class IVStandBlock extends BaseEntityBlock {
     // ブロックが上半身か下半身かを定義するプロパティ
     public static final EnumProperty<DoubleBlockHalf> HALF = BlockStateProperties.DOUBLE_BLOCK_HALF;
+    // FACING プロパティを追加
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
     protected static final VoxelShape SHAPE = Block.box(7.0D, 0.0D, 7.0D, 9.0D, 16.0D, 9.0D);
 
     public IVStandBlock() {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(1.5f).sound(SoundType.METAL).noOcclusion());
-        this.registerDefaultState(this.stateDefinition.any().setValue(HALF, DoubleBlockHalf.LOWER));
+        this.registerDefaultState(this.stateDefinition.any()
+                .setValue(HALF, DoubleBlockHalf.LOWER)
+                .setValue(FACING, Direction.NORTH));
     }
 
     // --- onRemoveメソッドを追加 (破壊時にアイテムをドロップ) ---
@@ -49,12 +55,11 @@ public class IVStandBlock extends BaseEntityBlock {
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
         if (!pState.is(pNewState.getBlock())) {
             BlockPos bePos = pState.getValue(HALF) == DoubleBlockHalf.LOWER ? pPos : pPos.below();
-            BlockEntity blockEntity = pLevel.getBlockEntity(bePos);
-            if (blockEntity instanceof IVStandBlockEntity ivStandEntity) {
-                for(int i = 0; i < ivStandEntity.itemHandler.getSlots(); ++i) {
-                    ItemStack itemStack = ivStandEntity.itemHandler.getStackInSlot(i);
-                    if (!itemStack.isEmpty()) {
-                        pLevel.addFreshEntity(new ItemEntity(pLevel, pPos.getX(), pPos.getY(), pPos.getZ(), itemStack));
+            if (pLevel.getBlockEntity(bePos) instanceof IVStandBlockEntity blockEntity) {
+                for (int i = 0; i < blockEntity.itemHandler.getSlots(); i++) {
+                    ItemStack stack = blockEntity.itemHandler.getStackInSlot(i);
+                    if (!stack.isEmpty()) {
+                        pLevel.addFreshEntity(new ItemEntity(pLevel, bePos.getX() + 0.5, bePos.getY() + 0.5, bePos.getZ() + 0.5, stack));
                     }
                 }
             }
@@ -62,25 +67,36 @@ public class IVStandBlock extends BaseEntityBlock {
         super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
     }
 
-    // --- useメソッドを再設計 ---
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
-        if (!pLevel.isClientSide) {
-            // 上半身をクリックした場合のみGUIを開く
-            if (pState.getValue(HALF) == DoubleBlockHalf.UPPER) {
-                BlockPos bePos = pPos.below();
-                BlockEntity entity = pLevel.getBlockEntity(bePos);
-                if (entity instanceof IVStandBlockEntity blockEntity) {
-                    // GUIを開く
-                    NetworkHooks.openScreen((ServerPlayer) pPlayer, blockEntity, bePos);
+        if (pLevel.isClientSide) {
+            return InteractionResult.SUCCESS;
+        }
+
+        // 下半身のブロックエンティティを取得
+        BlockPos bePos = pState.getValue(HALF) == DoubleBlockHalf.LOWER ? pPos : pPos.below();
+        if (pLevel.getBlockEntity(bePos) instanceof IVStandBlockEntity blockEntity) {
+            ItemStack heldItem = pPlayer.getItemInHand(pHand);
+
+            if (heldItem.isEmpty()) {
+                // 手ぶらの場合はアイテム取り出し
+                handleItemRemoval(pPlayer, blockEntity);
+            } else if (heldItem.is(ModTags.Items.BLOOD_PACKS) || heldItem.is(ModTags.Items.DRUG_PACKS)) {
+                // パックの場合はアイテム挿入
+                handleItemInsertion(pPlayer, blockEntity, heldItem);
+            } else {
+                // その他のアイテムの場合はGUIを開く
+                if (pPlayer instanceof ServerPlayer serverPlayer) {
+                    NetworkHooks.openScreen(serverPlayer, blockEntity, bePos);
                 }
             }
         }
         return InteractionResult.SUCCESS;
     }
 
-    private void handleItemPlacement(Player player, ItemStack heldItem, IVStandBlockEntity blockEntity) {
+    private void handleItemInsertion(Player player, IVStandBlockEntity blockEntity, ItemStack heldItem) {
         int targetSlot = -1;
+
         if (heldItem.is(ModTags.Items.BLOOD_PACKS)) {
             targetSlot = 0;
         } else if (heldItem.is(ModTags.Items.DRUG_PACKS)) {
@@ -104,10 +120,11 @@ public class IVStandBlock extends BaseEntityBlock {
             }
         }
     }
-    // ブロックの状態定義にHALFプロパティを追加
+
+    // ブロックの状態定義にHALFプロパティとFACINGプロパティを追加
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> pBuilder) {
-        pBuilder.add(HALF);
+        pBuilder.add(HALF, FACING);
     }
 
     // 当たり判定を返す
@@ -119,7 +136,7 @@ public class IVStandBlock extends BaseEntityBlock {
     // ブロックが設置された時の処理
     @Override
     public void setPlacedBy(Level pLevel, BlockPos pPos, BlockState pState, @Nullable LivingEntity pPlacer, ItemStack pStack) {
-        // 上のブロックを設置
+        // 上のブロックを設置（FACINGも引き継ぐ）
         pLevel.setBlock(pPos.above(), pState.setValue(HALF, DoubleBlockHalf.UPPER), 3);
     }
 
@@ -147,7 +164,7 @@ public class IVStandBlock extends BaseEntityBlock {
         BlockPos pos = pContext.getClickedPos();
         Level level = pContext.getLevel();
         if (pos.getY() < level.getMaxBuildHeight() - 1 && level.getBlockState(pos.above()).canBeReplaced(pContext)) {
-            return this.defaultBlockState();
+            return this.defaultBlockState().setValue(FACING, pContext.getHorizontalDirection());
         }
         return null;
     }

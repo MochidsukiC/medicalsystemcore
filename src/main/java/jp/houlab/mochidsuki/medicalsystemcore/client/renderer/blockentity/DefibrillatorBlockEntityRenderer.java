@@ -10,6 +10,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.core.Direction;
 import org.joml.Matrix4f;
 
 public class DefibrillatorBlockEntityRenderer implements BlockEntityRenderer<DefibrillatorBlockEntity> {
@@ -23,6 +24,13 @@ public class DefibrillatorBlockEntityRenderer implements BlockEntityRenderer<Def
     public void render(DefibrillatorBlockEntity pBlockEntity, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBuffer, int pPackedLight, int pPackedOverlay) {
         boolean isPowered = pBlockEntity.getBlockState().getValue(DefibrillatorBlock.POWERED);
         boolean isCharged = pBlockEntity.getBlockState().getValue(DefibrillatorBlock.CHARGED);
+        Direction facing = pBlockEntity.getBlockState().getValue(DefibrillatorBlock.FACING);
+
+        // ブロックの向きに応じた回転を適用
+        pPoseStack.pushPose();
+        pPoseStack.translate(0.5, 0, 0.5); // 中心に移動
+        pPoseStack.mulPose(Axis.YP.rotationDegrees(facing.toYRot())); // FACINGに応じて回転
+        pPoseStack.translate(-0.5, 0, -0.5); // 元の位置に戻す
 
         // 描画が成功したデバッグ用のRenderTypeを使用
         VertexConsumer buffer = pBuffer.getBuffer(RenderType.debugQuads());
@@ -56,14 +64,13 @@ public class DefibrillatorBlockEntityRenderer implements BlockEntityRenderer<Def
         if (pBlockEntity.isOnCooldown()) {
             long secondsLeft = pBlockEntity.getCooldownSecondsLeft();
             String text = String.valueOf(secondsLeft);
-            int color = 0xFFFFFFFF; // 白色
 
             // 専用メソッドを呼び出してテキストを描画
             renderTextOnDisplay(pPoseStack, pBuffer, text);
         }
+
+        pPoseStack.popPose(); // ブロック全体の回転を終了
     }
-
-
 
     /**
      * JSONのエレメント定義に合わせて、回転した立方体を描画するヘルパーメソッド
@@ -146,9 +153,9 @@ public class DefibrillatorBlockEntityRenderer implements BlockEntityRenderer<Def
         buffer.vertex(matrix, f_toX,   f_toY,   f_toZ  ).color(r, g, b, a).endVertex();
         buffer.vertex(matrix, f_toX,   f_fromY, f_toZ  ).color(r, g, b, a).endVertex();
 
-
         poseStack.popPose(); // この描画専用の状態を終了
     }
+
     private void renderTextOnDisplay(PoseStack poseStack, MultiBufferSource pBuffer, String text) {
         poseStack.pushPose(); // テキスト描画専用の座標変換を開始
 

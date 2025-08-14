@@ -1,10 +1,28 @@
 {
   "variants": {
-    "half=lower": {
+    "facing=north,half=lower": {
       "model": "medicalsystemcore:block/iv_stand_lower"
     },
-    "half=upper": {
+    "facing=south,half=lower": {
+      "model": "medicalsystemcore:block/iv_stand_lower", "y": 180
+    },
+    "facing=west,half=lower": {
+      "model": "medicalsystemcore:block/iv_stand_lower", "y": 270
+    },
+    "facing=east,half=lower": {
+      "model": "medicalsystemcore:block/iv_stand_lower", "y": 90
+    },
+    "facing=north,half=upper": {
       "model": "medicalsystemcore:block/iv_stand"
+    },
+    "facing=south,half=upper": {
+      "model": "medicalsystemcore:block/iv_stand", "y": 180
+    },
+    "facing=west,half=upper": {
+      "model": "medicalsystemcore:block/iv_stand", "y": 270
+    },
+    "facing=east,half=upper": {
+      "model": "medicalsystemcore:block/iv_stand", "y": 90
     }
   }
 }

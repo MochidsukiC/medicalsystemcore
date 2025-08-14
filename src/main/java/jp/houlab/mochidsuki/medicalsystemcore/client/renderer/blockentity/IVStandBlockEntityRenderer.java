@@ -2,6 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
@@ -10,11 +11,12 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraftforge.items.ItemStackHandler;
 
 public class IVStandBlockEntityRenderer implements BlockEntityRenderer<IVStandBlockEntity> {
@@ -25,7 +27,23 @@ public class IVStandBlockEntityRenderer implements BlockEntityRenderer<IVStandBl
 
     @Override
     public void render(IVStandBlockEntity pBlockEntity, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBufferSource, int pPackedLight, int pPackedOverlay) {
+        // 下半身のブロックでのみ描画する（重複を避けるため）
+        DoubleBlockHalf half = pBlockEntity.getBlockState().getValue(IVStandBlock.HALF);
+        if (half != DoubleBlockHalf.LOWER) {
+            return;
+        }
+
         ItemRenderer itemRenderer = Minecraft.getInstance().getItemRenderer();
+
+        // ブロックの向きに応じた回転を適用
+        Direction facing = pBlockEntity.getBlockState().getValue(IVStandBlock.FACING);
+
+        pPoseStack.pushPose();
+
+        // ブロック全体の回転（向きに応じて）
+        pPoseStack.translate(0.5, 0, 0.5); // 中心に移動
+        pPoseStack.mulPose(Axis.YP.rotationDegrees(-facing.toYRot())); // FACINGに応じて回転
+        pPoseStack.translate(-0.5, 0, -0.5); // 元の位置に戻す
 
         // itemHandlerを直接参照するように変更
         ItemStackHandler itemHandler = pBlockEntity.itemHandler;
@@ -62,6 +80,8 @@ public class IVStandBlockEntityRenderer implements BlockEntityRenderer<IVStandBl
                 pPoseStack.popPose(); // このアイテムの描画が完了したので状態を元に戻す
             }
         }
+
+        pPoseStack.popPose(); // ブロック全体の回転を終了
     }
 
     // ブロックの位置の明るさを取得するヘルパーメソッド

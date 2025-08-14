@@ -1,10 +1,28 @@
 {
   "variants": {
-    "has_pads=true": {
+    "facing=north,has_pads=true": {
       "model": "medicalsystemcore:block/defibrillator_handle"
     },
-    "has_pads=false": {
+    "facing=south,has_pads=true": {
+      "model": "medicalsystemcore:block/defibrillator_handle", "y": 180
+    },
+    "facing=west,has_pads=true": {
+      "model": "medicalsystemcore:block/defibrillator_handle", "y": 270
+    },
+    "facing=east,has_pads=true": {
+      "model": "medicalsystemcore:block/defibrillator_handle", "y": 90
+    },
+    "facing=north,has_pads=false": {
       "model": "medicalsystemcore:block/defibrillator"
+    },
+    "facing=south,has_pads=false": {
+      "model": "medicalsystemcore:block/defibrillator", "y": 180
+    },
+    "facing=west,has_pads=false": {
+      "model": "medicalsystemcore:block/defibrillator", "y": 270
+    },
+    "facing=east,has_pads=false": {
+      "model": "medicalsystemcore:block/defibrillator", "y": 90
     }
   }
 }

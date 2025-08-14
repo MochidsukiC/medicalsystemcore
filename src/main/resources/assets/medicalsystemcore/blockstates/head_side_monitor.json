@@ -1,5 +1,8 @@
 {
   "variants": {
-    "": { "model": "medicalsystemcore:block/head_side_monitor" }
+    "facing=north": { "model": "medicalsystemcore:block/head_side_monitor" },
+    "facing=south": { "model": "medicalsystemcore:block/head_side_monitor", "y": 180 },
+    "facing=west": { "model": "medicalsystemcore:block/head_side_monitor", "y": 270 },
+    "facing=east": { "model": "medicalsystemcore:block/head_side_monitor", "y": 90 }
   }
 }
