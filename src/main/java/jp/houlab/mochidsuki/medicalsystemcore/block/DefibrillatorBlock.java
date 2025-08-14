@@ -2,6 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -32,11 +33,12 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 public class DefibrillatorBlock extends BaseEntityBlock {
-    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
     public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
     public static final BooleanProperty CHARGED = BooleanProperty.create("charged");
     public static final BooleanProperty HAS_PADS = BooleanProperty.create("has_pads");
+    public static final DirectionProperty FACING = DirectionProperty.create("facing");
     protected static final VoxelShape SHAPE = Block.box(1.0D, 0.0D, 1.0D, 15.0D, 12.0D, 15.0D);
+
 
     public DefibrillatorBlock(Properties pProperties) {
         super(pProperties);
@@ -56,98 +58,109 @@ public class DefibrillatorBlock extends BaseEntityBlock {
     public BlockState getStateForPlacement(BlockPlaceContext pContext) {
         boolean isPowered = pContext.getLevel().hasNeighborSignal(pContext.getClickedPos());
         return this.defaultBlockState()
-                .setValue(FACING, pContext.getHorizontalDirection())
+                .setValue(FACING, pContext.getHorizontalDirection().getOpposite())
                 .setValue(POWERED, isPowered);
     }
 
+    // 右クリック処理
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (pLevel.isClientSide) {
-            return InteractionResult.SUCCESS;
+            return InteractionResult.SUCCESS; // クライアント側では常に成功を返し、腕振りモーションを再生
         }
 
-        if (pLevel.getBlockEntity(pPos) instanceof DefibrillatorBlockEntity defibrillatorEntity) {
-            ItemStack heldItem = pPlayer.getItemInHand(pHand);
-
-            // 電源が入っていない場合
-            if (!pState.getValue(POWERED)) {
-                pPlayer.sendSystemMessage(Component.literal("§c除細動器に電源が供給されていません。"));
-                return InteractionResult.FAIL;
-            }
-
-            // 電極パッドが取り出されている場合
-            if (!pState.getValue(HAS_PADS)) {
-                pPlayer.sendSystemMessage(Component.literal("§c電極パッドが取り出されています。"));
-                return InteractionResult.FAIL;
-            }
-
-            // クールダウン中の場合
-            if (defibrillatorEntity.isOnCooldown()) {
-                long secondsLeft = defibrillatorEntity.getCooldownSecondsLeft();
-                pPlayer.sendSystemMessage(Component.literal("§cクールダウン中です。あと " + secondsLeft + " 秒お待ちください。"));
-                return InteractionResult.FAIL;
-            }
-
-            // 充電中または充電完了の場合
-            if (defibrillatorEntity.isCharging() || defibrillatorEntity.isCharged()) {
-                pPlayer.sendSystemMessage(Component.literal("§c既に充電中または充電完了しています。"));
-                return InteractionResult.FAIL;
-            }
-
-            // 手に何も持っていない場合は充電開始
-            if (heldItem.isEmpty()) {
-                defibrillatorEntity.startCharge();
-                pPlayer.sendSystemMessage(Component.literal("§a除細動器の充電を開始しました。"));
-                return InteractionResult.SUCCESS;
-            }
-
-            // 電極を持っている場合は電極パッドを取り出す
-            if (heldItem.getItem() == Medicalsystemcore.ELECTRODE.get()) {
-                ItemStack electrodeStack = new ItemStack(Medicalsystemcore.ELECTRODE.get(), 2);
-                CompoundTag nbt = new CompoundTag();
-                nbt.put("DefibrillatorPos", NbtUtils.writeBlockPos(pPos));
-                electrodeStack.setTag(nbt);
-
-                pPlayer.getInventory().add(electrodeStack);
-                pLevel.setBlock(pPos, pState.setValue(HAS_PADS, false), 3);
-                defibrillatorEntity.arePadsTaken = true;
-                defibrillatorEntity.setChanged();
-
-                pPlayer.sendSystemMessage(Component.literal("§a電極パッドを取り出しました。"));
-                return InteractionResult.SUCCESS;
-            }
+        if (!(pLevel.getBlockEntity(pPos) instanceof DefibrillatorBlockEntity be)) {
+            return InteractionResult.FAIL;
         }
 
-        return InteractionResult.PASS;
+        // --- クリックされたY座標で処理を分岐 ---
+        // pHit.getLocation()はワールド座標なので、ブロックのローカル座標に変換
+        double hitY = pHit.getLocation().y() - pPos.getY();
+
+        // ブロックの上部 (11/16以上) をクリックした場合 -> 電極の処理
+        if (hitY >= 11.0 / 16.0) {
+            handlePadInteraction(pPlayer, pHand, be);
+        }
+        // ブロックの下部をクリックした場合 -> 機械の操作
+        else {
+            handleMachineInteraction(pPlayer, be);
+        }
+
+        return InteractionResult.SUCCESS;
     }
 
-    @Override
-    public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
-        if (!pState.is(pNewState.getBlock()) && !pLevel.isClientSide) {
-            // 電極パッドが取り出されている状態でブロックが破壊された場合の処理
-            if (!pState.getValue(HAS_PADS)) {
-                for (ServerPlayer player : pLevel.getServer().getPlayerList().getPlayers()) {
-                    for (ItemStack stack : player.getInventory().items) {
-                        if (stack.getItem() == Medicalsystemcore.ELECTRODE.get() && stack.hasTag()) {
-                            CompoundTag nbt = stack.getTag();
-                            if (nbt.contains("DefibrillatorPos")) {
-                                BlockPos linkedPos = NbtUtils.readBlockPos(nbt.getCompound("DefibrillatorPos"));
-                                if (linkedPos.equals(pPos)) {
-                                    stack.shrink(stack.getCount());
-                                    player.sendSystemMessage(Component.literal("§c除細動器が破壊されたため、電極が消失しました。"));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    /**
+     * 電極の出し入れを担当するメソッド
+     */
+    private void handlePadInteraction(Player player, InteractionHand hand, DefibrillatorBlockEntity be) {
+        ItemStack heldItem = player.getItemInHand(hand);
+        Level level = player.level();
+        BlockPos pos = be.getBlockPos();
+
+        // 電極を戻す
+        if (heldItem.is(Medicalsystemcore.ELECTRODE.get())) {
+            be.arePadsTaken = false;
+            heldItem.shrink(1);
+            player.sendSystemMessage(Component.literal("§e電極を収納しました。"));
+            // ▼▼▼ ブロックの状態を「パッドあり」に更新 ▼▼▼
+            level.setBlock(pos, be.getBlockState().setValue(HAS_PADS, true), 3);
+            be.setChanged();
         }
-        super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
+        // 電極を取り出す
+        else if (heldItem.isEmpty() && !be.arePadsTaken) {
+            be.arePadsTaken = true;
+
+            ItemStack electrodeStack = new ItemStack(Medicalsystemcore.ELECTRODE.get());
+            CompoundTag nbt = electrodeStack.getOrCreateTag();
+            nbt.put("DefibrillatorPos", NbtUtils.writeBlockPos(be.getBlockPos()));
+
+            player.setItemInHand(hand, electrodeStack);
+            player.sendSystemMessage(Component.literal("§a電極を準備しました。"));
+            // ▼▼▼ ブロックの状態を「パッドなし」に更新 ▼▼▼
+            level.setBlock(pos, be.getBlockState().setValue(HAS_PADS, false), 3);
+            be.setChanged();
+        }
+        // 電極がすでに取り出されている
+        else if (heldItem.isEmpty() && be.arePadsTaken) {
+            player.sendSystemMessage(Component.literal("§c電極は既に使用中です。"));
+        }
     }
+
+    /**
+     * チャージ操作を担当するメソッド
+     */
+    private void handleMachineInteraction(Player player, DefibrillatorBlockEntity be) {
+        Level level = player.level();
+        if (level == null) return;
+
+        if (!be.getBlockState().getValue(POWERED)) {
+            player.sendSystemMessage(Component.literal("§c電源が入っていません。"));
+            return;
+        }
+        if (be.isCharging()) {
+            player.sendSystemMessage(Component.literal("§e現在充電中です..."));
+            return;
+        }
+        if (be.isCharged()) {
+            player.sendSystemMessage(Component.literal("§a既に充電完了しています。"));
+            return;
+        }
+        if (be.isOnCooldown()) {
+            long secondsLeft = be.getCooldownSecondsLeft();
+            player.sendSystemMessage(Component.literal("§cクールダウン中です... 残り" + secondsLeft + "秒"));
+            return;
+        }
+
+        // 全ての条件をクリアした場合、チャージを開始
+        be.startCharge();
+        player.sendSystemMessage(Component.literal("§eチャージを開始します..."));
+    }
+
 
     @Override
     public void onPlace(BlockState pState, Level pLevel, BlockPos pPos, BlockState pOldState, boolean pIsMoving) {
         if (!pLevel.isClientSide) {
+            // 設置された瞬間に、隣接するレッドストーン信号があるかチェック
             boolean isPowered = pLevel.hasNeighborSignal(pPos);
             if (pState.getValue(POWERED) != isPowered) {
                 pLevel.setBlock(pPos, pState.setValue(POWERED, isPowered), 2);
@@ -155,6 +168,7 @@ public class DefibrillatorBlock extends BaseEntityBlock {
         }
     }
 
+    // レッドストーン信号の処理
     @Override
     public void neighborChanged(BlockState pState, Level pLevel, BlockPos pPos, Block pBlock, BlockPos pFromPos, boolean pIsMoving) {
         if (!pLevel.isClientSide) {
@@ -165,6 +179,7 @@ public class DefibrillatorBlock extends BaseEntityBlock {
         }
     }
 
+    // Tick処理を有効にする
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level pLevel, BlockState pState, BlockEntityType<T> pBlockEntityType) {

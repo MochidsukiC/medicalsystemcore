@@ -164,7 +164,8 @@ public class IVStandBlock extends BaseEntityBlock {
         BlockPos pos = pContext.getClickedPos();
         Level level = pContext.getLevel();
         if (pos.getY() < level.getMaxBuildHeight() - 1 && level.getBlockState(pos.above()).canBeReplaced(pContext)) {
-            return this.defaultBlockState().setValue(FACING, pContext.getHorizontalDirection());
+            // プレイヤーの向きの逆方向を設定（プレイヤーと向き合うように）
+            return this.defaultBlockState().setValue(FACING, pContext.getHorizontalDirection().getOpposite());
         }
         return null;
     }

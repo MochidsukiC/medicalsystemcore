@@ -29,7 +29,7 @@ public class DefibrillatorBlockEntityRenderer implements BlockEntityRenderer<Def
         // ブロックの向きに応じた回転を適用
         pPoseStack.pushPose();
         pPoseStack.translate(0.5, 0, 0.5); // 中心に移動
-        pPoseStack.mulPose(Axis.YP.rotationDegrees(facing.toYRot())); // FACINGに応じて回転
+        pPoseStack.mulPose(Axis.YP.rotationDegrees(-facing.getOpposite().toYRot())); // FACINGに応じて回転
         pPoseStack.translate(-0.5, 0, -0.5); // 元の位置に戻す
 
         // 描画が成功したデバッグ用のRenderTypeを使用
