@@ -199,22 +199,27 @@ public class StretcherBlock extends BaseEntityBlock {
         }
     }
 
+    // C:/Users/dora2/IdeaProjects/medicalsystemcore/src/main/java/jp/houlab/mochidsuki/medicalsystemcore/block/StretcherBlock.java
+
     @Override
     public void playerWillDestroy(Level pLevel, BlockPos pPos, BlockState pState, Player pPlayer) {
-        if (!pLevel.isClientSide && (pPlayer.isCreative() || !pPlayer.isCreative())) {
+        // サーバーサイドでのみ実行
+        if (!pLevel.isClientSide) {
             DoubleBlockHalf part = pState.getValue(PART);
             BlockPos otherPos = getOtherBlockPos(pPos, pState);
             BlockState otherState = pLevel.getBlockState(otherPos);
 
+            // もう片方のブロックがストレッチャーであり、かつパーツが異なることを確認
             if (otherState.is(this) && otherState.getValue(PART) != part) {
+                // もう片方のブロックを、アイテムをドロップさせずに空気ブロックに置き換える。
+                // これにより、連鎖的に破壊されたブロックがアイテムをドロップするのを防ぐ。
                 pLevel.setBlock(otherPos, Blocks.AIR.defaultBlockState(), 35);
                 pLevel.levelEvent(pPlayer, 2001, otherPos, Block.getId(otherState));
-                if (!pPlayer.isCreative()) {
-                    dropResources(pState, pLevel, pPos, null, pPlayer, pPlayer.getMainHandItem());
-                    dropResources(otherState, pLevel, otherPos, null, pPlayer, pPlayer.getMainHandItem());
-                }
             }
         }
+        // 最後に親クラスのメソッドを呼び出す。
+        // これにより、プレイヤーが直接破壊したブロックに対してのみ、
+        // Minecraftの標準的なアイテムドロップ処理が一度だけ実行される。
         super.playerWillDestroy(pLevel, pPos, pState, pPlayer);
     }
 
@@ -292,31 +297,34 @@ public class StretcherBlock extends BaseEntityBlock {
         return null;
     }
 
+
     /**
-     * ブロックが破壊された時の処理
+     * ブロックがワールドから削除される際の処理
      */
     @Override
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
-        if (!pState.is(pNewState.getBlock()) && !pLevel.isClientSide()) {
-            // 足パーツのBlockEntityのみを処理
-            BlockPos footPos = getFootPosition(pPos, pState);
-            if (pLevel.getBlockEntity(footPos) instanceof StretcherBlockEntity stretcherBE) {
-                ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
+        // 新しいブロックが同じブロックでない場合（つまり、破壊されたか置き換えられた場合）
+        if (!pState.is(pNewState.getBlock())) {
+            if (!pLevel.isClientSide) {
+                // ★★★ ここからが修正点 ★★★
+                // 足パーツが破壊された場合にのみ、アイテムをドロップさせる
+                if (pState.getValue(PART) == DoubleBlockHalf.LOWER) {
+                    if (pLevel.getBlockEntity(pPos) instanceof StretcherBlockEntity stretcherBE) {
+                        // Shiftクリックで回収中の場合はドロップしない
+                        if (!stretcherBE.isBeingCollected()) {
+                            Block.popResource(pLevel, pPos, new ItemStack(Medicalsystemcore.STRETCHER.get()));
+                        }
 
-                // プレイヤーが乗っている場合は姿勢制御を解除
-                if (occupyingPlayer != null) {
-                    occupyingPlayer.sendSystemMessage(Component.literal("§e担架が破壊されました。"));
-                }
-
-                // 修正: シフトクリックによる回収の場合はアイテムをドロップしない
-                if (!stretcherBE.isBeingCollected()) {
-                    // ストレッチャーアイテムをドロップ（通常の破壊時のみ）
-                    ItemStack stretcherItem = new ItemStack(Medicalsystemcore.STRETCHER.get());
-                    popResource(pLevel, footPos, stretcherItem);
+                        // 乗っているプレイヤーへの通知
+                        ServerPlayer occupyingPlayer = stretcherBE.getOccupyingPlayer();
+                        if (occupyingPlayer != null) {
+                            occupyingPlayer.sendSystemMessage(Component.literal("§e担架が破壊されました。"));
+                        }
+                    }
                 }
             }
+            // 親クラスのonRemoveを呼び出して、BlockEntityの削除などを正しく行う
+            super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
         }
-
-        super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
     }
 }

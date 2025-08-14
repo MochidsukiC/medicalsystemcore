@@ -28,10 +28,11 @@ public class StretcherRenderer extends EntityRenderer<StretcherEntity> {
         poseStack.pushPose(); // 現在の描画状態を保存
 
         // モデルの基準位置を調整
-        poseStack.translate(0, 0.1, 0);
+        poseStack.translate(0, 1.35, 0);
 
         // エンティティの向きに合わせてモデルをY軸回転させる
-        poseStack.mulPose(Axis.YP.rotationDegrees(-entityYaw));
+        poseStack.mulPose(Axis.XP.rotationDegrees(180.0F));
+        poseStack.mulPose(Axis.YP.rotationDegrees(entityYaw));
 
         // モデルを描画
         this.model.renderToBuffer(poseStack, buffer.getBuffer(this.model.renderType(getTextureLocation(entity))), packedLight, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
