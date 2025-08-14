@@ -163,7 +163,7 @@ public class Config {
         BUILDER.comment("点滴システムに関する設定");
 
         IV_PACK_DURATION_SPEC = BUILDER.comment("点滴パック1個の持続時間（秒）")
-                .defineInRange("iv_pack_duration", 60, 1, 3600);
+                .defineInRange("iv_pack_duration", 120, 1, 3600);
         IV_RANGE_SPEC = BUILDER.comment("点滴の有効範囲（ブロック）")
                 .defineInRange("iv_range", 10.0, 1.0, 100.0);
 

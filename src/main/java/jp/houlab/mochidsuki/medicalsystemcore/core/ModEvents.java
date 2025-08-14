@@ -251,6 +251,8 @@ public class ModEvents {
 
                 boolean hasAnyPack = false;
                 boolean hasEmptyPackThisTick = false;
+                boolean itemsChanged = false; // アイテムが変更されたかのフラグ
+
 
                 for (int i = 0; i < standEntity.itemHandler.getSlots(); i++) {
                     ItemStack packStack = standEntity.itemHandler.getStackInSlot(i);
@@ -263,8 +265,10 @@ public class ModEvents {
                         // 残量を1tick減らす
                         FluidPackItem.setRemainingTicks(packStack, ticksLeft - 1);
                         hasAnyPack = true;
+                        itemsChanged = true; // アイテムが変更された
                         Item packItem = packStack.getItem();
                         applyPackEffect(serverPlayer, packItem);
+
 
                         // BlockEntityを更新して表示を同期
                         standEntity.setChanged();
@@ -275,15 +279,22 @@ public class ModEvents {
                             packStack.shrink(1);
                             FluidPackItem.setRemainingTicks(packStack, Config.IV_PACK_DURATION * 20);
                             hasAnyPack = true;
+                            itemsChanged = true; // アイテムが変更された
                             Item packItem = packStack.getItem();
                             applyPackEffect(serverPlayer, packItem);
                         } else {
                             // 最後の1つが空になったので削除
                             standEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
                             hasEmptyPackThisTick = true;
+                            itemsChanged = true; // アイテムが変更された
                         }
                         standEntity.setChanged();
                     }
+                }
+
+                // アイテムが変更された場合、クライアント同期を強制実行
+                if (itemsChanged) {
+                    standEntity.forceClientSync();
                 }
 
                 if (hasEmptyPackThisTick && !hasAnyPack) {

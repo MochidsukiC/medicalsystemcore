@@ -106,6 +106,15 @@ public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
         return saveWithoutMetadata();
     }
 
+    /**
+     * クライアント側でパケットを受信した際の処理
+     */
+    @Override
+    public void handleUpdateTag(CompoundTag tag) {
+        super.handleUpdateTag(tag);
+        load(tag);
+    }
+
     @Override
     public Component getDisplayName() {
         return Component.literal("点滴スタンド");
@@ -117,6 +126,16 @@ public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
         return new IVStandMenu(pContainerId, pPlayerInventory, this);
     }
 
+    /**
+     * 手動でクライアント同期を強制実行するメソッド
+     * 残量変化時に呼び出される
+     */
+    public void forceClientSync() {
+        if (level != null && !level.isClientSide) {
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
 
     // NBTへの保存処理
     @Override

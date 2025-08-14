@@ -5,6 +5,7 @@
     "layer1": "medicalsystemcore:item/pack_overlay"
   },
   "overrides": [
+    {"predicate": {"fluid_level": 0.0}, "model": "medicalsystemcore:item/pack/pack_level_0"},
     {"predicate": {"fluid_level": 0.1}, "model": "medicalsystemcore:item/pack/pack_level_1"},
     {"predicate": {"fluid_level": 0.2}, "model": "medicalsystemcore:item/pack/pack_level_2"},
     {"predicate": {"fluid_level": 0.3}, "model": "medicalsystemcore:item/pack/pack_level_3"},
