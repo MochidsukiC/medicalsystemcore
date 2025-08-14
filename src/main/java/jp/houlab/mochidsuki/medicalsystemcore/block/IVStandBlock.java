@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.block;
 
+import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModTags;
 import net.minecraft.core.BlockPos;
@@ -84,6 +85,8 @@ public class IVStandBlock extends BaseEntityBlock {
             } else if (heldItem.is(ModTags.Items.BLOOD_PACKS) || heldItem.is(ModTags.Items.DRUG_PACKS)) {
                 // パックの場合はアイテム挿入
                 handleItemInsertion(pPlayer, blockEntity, heldItem);
+            } else if (heldItem.is(Medicalsystemcore.TUBE.get())){
+                return InteractionResult.PASS;
             } else {
                 // その他のアイテムの場合はGUIを開く
                 if (pPlayer instanceof ServerPlayer serverPlayer) {
