@@ -24,12 +24,17 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
     // モニターごとの波形履歴を管理
     private static final Map<HeadsideMonitorBlockEntity, WaveformHistory> waveformHistories = new HashMap<>();
 
+
+
     private static class WaveformHistory {
         final float[] lead1History = new float[100];
         final float[] lead2History = new float[100];
         final float[] lead3History = new float[100];
         int historyIndex = 0;
         long lastUpdateTime = 0;
+
+        private long lastBlinkTime = 0;
+        private boolean blinkState = false;
 
         void update(float lead1, float lead2, float lead3, long currentTime) {
             if (currentTime - lastUpdateTime >= 1) {
@@ -38,6 +43,13 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
                 lead2History[historyIndex] = lead2;
                 lead3History[historyIndex] = lead3;
                 lastUpdateTime = currentTime;
+            }
+        }
+
+        void updateBlinkState(long currentTime) {
+            if (currentTime - lastBlinkTime >= 20) { // 20ティック = 1秒
+                blinkState = !blinkState;
+                lastBlinkTime = currentTime;
             }
         }
     }
@@ -79,7 +91,103 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         renderBloodLevel(pPoseStack, pBuffer, maxLight, pBlockEntity.bloodLevel, history.lead1History, history.historyIndex);
         renderSpO2(pPoseStack, pBuffer, maxLight, calculateSpO2(pBlockEntity.heartRate), pBlockEntity.heartRate, history.lead3History, history.historyIndex);
 
+        // 心停止警告サインの表示
+        if (pBlockEntity.heartStatus == HeartStatus.CARDIAC_ARREST) {
+            renderCardiacArrestWarning(pPoseStack, pBuffer, "心拍なし" , 0xFFFFFF00 ,50,-40, maxLight,history,currentTime);
+        }
+        if (pBlockEntity.heartStatus == HeartStatus.VF) {
+            renderCardiacArrestWarning(pPoseStack, pBuffer, "VF" , 0xFFFF0000 ,50,-40, maxLight,history,currentTime);
+        }
+        if (pBlockEntity.bloodLevel < 85) {
+            renderCardiacArrestWarning(pPoseStack, pBuffer, "低血液量" , 0xFFFFFF00 ,50,-30, maxLight,history,currentTime);
+        }
+        if(pBlockEntity.heartRate <= 0){
+            renderCardiacArrestWarning(pPoseStack, pBuffer, "SpO2測定不可" , 0xFF00FFFF ,10,-40, maxLight,history,currentTime);
+        }
+
+        if(!(pBlockEntity.heartStatus == HeartStatus.VF || pBlockEntity.heartStatus == HeartStatus.CARDIAC_ARREST) && pBlockEntity.heartRate <= 0){
+            renderCardiacArrestWarning(pPoseStack, pBuffer, "電極はずれ" , 0xFFFFFF00 ,50,-40, maxLight,history,currentTime);
+        }
         pPoseStack.popPose();
+        pPoseStack.popPose();
+    }
+
+
+
+
+    /**
+     * 心停止警告サインを表示
+     * 黄色文字で点滅表示（文字色と背景色が反転）
+     * 既存の描画方式に合わせて実装
+     */
+    private void renderCardiacArrestWarning(PoseStack pPoseStack, MultiBufferSource pBuffer, String warningText , int color , int x , int y ,int light, WaveformHistory history, long currentTime) {
+        // 各モニター個別の点滅状態を更新
+        history.updateBlinkState(currentTime);
+
+        pPoseStack.pushPose();
+
+        // 警告サインの位置設定（画面上部）
+        // 既存の心拍数表示(-10, -30, 0)より上に配置
+        pPoseStack.translate(x, y, 0); // Y座標-50は仮の値
+
+
+        // 既存のテキスト描画と同じスケールを使用
+        float scale = 0.8f;
+        pPoseStack.scale(scale, scale, scale);
+        float textWidth = this.font.width(warningText);
+
+        // 背景色と文字色の設定
+        int textColor, backgroundColor;
+        if (!history.blinkState) {
+            // 通常状態：黄色文字、黒背景
+            textColor = color; // 黄色
+            backgroundColor = 0xFF000000; // 黒
+        } else {
+            // 反転状態：黒文字、黄色背景
+            textColor = 0xFF000000; // 黒
+            backgroundColor = color; // 黄色
+        }
+
+        // 背景描画（既存のコードと同じ方式）
+        Matrix4f matrix = pPoseStack.last().pose();
+        VertexConsumer buffer = pBuffer.getBuffer(RenderType.gui());
+
+        float bgPadding = 2.0f;
+        float x1 = -textWidth - bgPadding;
+        float x2 = bgPadding;
+        float y1 = -bgPadding;
+        float y2 = this.font.lineHeight + bgPadding;
+        float bgZ = -0.001f;
+
+        // 背景の四角形を描画
+        int bgR = (backgroundColor >> 16) & 0xFF;
+        int bgG = (backgroundColor >> 8) & 0xFF;
+        int bgB = backgroundColor & 0xFF;
+        int bgA = 200; // 透明度を既存コードに合わせる
+
+        buffer.vertex(matrix, x1, y1, bgZ).color(bgR, bgG, bgB, bgA).endVertex();
+        buffer.vertex(matrix, x1, y2, bgZ).color(bgR, bgG, bgB, bgA).endVertex();
+        buffer.vertex(matrix, x2, y2, bgZ).color(bgR, bgG, bgB, bgA).endVertex();
+        buffer.vertex(matrix, x2, y1, bgZ).color(bgR, bgG, bgB, bgA).endVertex();
+
+
+        // 警告テキストを描画（既存のコードと同じ方式）
+        this.font.drawInBatch(
+                warningText,
+                -textWidth,
+                0,
+                textColor,
+                false,
+                pPoseStack.last().pose(),
+                pBuffer,
+                Font.DisplayMode.NORMAL,
+                0,
+                light
+        );
+
+        // スケールを元に戻す（既存コードと同じパターン）
+        pPoseStack.scale(1/scale, 1/scale, 1/scale);
+
         pPoseStack.popPose();
     }
 
@@ -189,7 +297,7 @@ public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<H
         poseStack.translate(-10, 25, 0);
 
         String text;
-        if (heartRate <= 0 || heartRate >= 350) {
+        if (heartRate <= 0) {
             text = "-?-";
         } else {
             text = String.valueOf(spo2);

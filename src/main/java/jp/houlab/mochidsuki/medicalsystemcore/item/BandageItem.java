@@ -41,6 +41,7 @@ public class BandageItem extends Item {
             // Config値を使用して自分にエフェクトを付与
             applyBandageEffect(player, Config.BANDAGE_SELF_LEVEL_INCREASE);
         }
+        pStack.shrink(1);
         return super.finishUsingItem(pStack, pLevel, pLivingEntity);
     }
 

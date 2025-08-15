@@ -79,6 +79,9 @@ public class ServerboundQTETResultPacket {
                 if (this.result == QTEResult.GREAT_SUCCESS) {
                     chance += 20.0f;
                 }
+                if(this.result == QTEResult.SUCCESS){
+                    chance -= 20.0f;
+                }
 
                 // 蘇生判定
                 if (currentStatus == HeartStatus.CARDIAC_ARREST) {
