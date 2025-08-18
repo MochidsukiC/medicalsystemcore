@@ -118,6 +118,8 @@ public class Medicalsystemcore {
             () -> new ElectrodeItem(new Item.Properties().stacksTo(16)));
     public static final RegistryObject<Item> STRETCHER = ITEMS.register("stretcher",
             () -> new StretcherItem(new Item.Properties().stacksTo(1)));
+    public static final RegistryObject<Item> DOCTOR_CARD = ITEMS.register("doctor_card",
+            () -> new DoctorCardItem(new Item.Properties()));
 
     // Medical Packs
     public static final RegistryObject<Item> BLOOD_PACK = ITEMS.register("blood_pack",

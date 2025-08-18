@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -109,6 +110,9 @@ public class StretcherBlock extends BaseEntityBlock {
 
         // 新仕様: Shiftクリックで担架をエンティティ化（アイテムは取得/ドロップしない）
         if (pPlayer.isShiftKeyDown()) {
+            if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "ストレッチャーの使用")) {
+                return InteractionResult.FAIL;
+            }
             return handleStretcherCollection(pLevel, pPos, pState, pPlayer, stretcherBE);
         }
 

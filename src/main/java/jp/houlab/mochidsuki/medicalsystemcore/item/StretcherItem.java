@@ -4,6 +4,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.block.StretcherBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -26,6 +27,10 @@ public class StretcherItem extends Item {
     public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pTarget, InteractionHand pHand) {
         if (pPlayer.level().isClientSide()) {
             return InteractionResult.SUCCESS;
+        }
+
+        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "ストレッチャーの使用")) {
+            return InteractionResult.FAIL;
         }
 
         if (!(pTarget instanceof ServerPlayer targetPlayer)) {

@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.item;
 import jp.houlab.mochidsuki.medicalsystemcore.block.DefibrillatorBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundStartQTEPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -24,6 +25,11 @@ public class ElectrodeItem extends Item {
 
     @Override
     public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pTarget, InteractionHand pHand) {
+        // 医師カード認証チェック
+        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "除細動器による治療")) {
+            return InteractionResult.FAIL;
+        }
+
         // このメソッドはサーバーサイドでのみ重要な処理を行う
         if (!pPlayer.level().isClientSide && pTarget instanceof Player) {
             CompoundTag nbt = pStack.getTag();

@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.item;
 import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -36,6 +37,10 @@ public class TubeItem extends Item {
         BlockPos clickedPos = pContext.getClickedPos();
         Player player = pContext.getPlayer();
         ItemStack heldItem = pContext.getItemInHand();
+
+        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pContext.getPlayer(), "点滴チューブの接続")) {
+            return InteractionResult.FAIL;
+        }
 
 
         if (!level.isClientSide && player != null) {

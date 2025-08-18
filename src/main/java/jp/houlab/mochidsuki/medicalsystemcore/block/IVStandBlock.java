@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModTags;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -72,6 +73,10 @@ public class IVStandBlock extends BaseEntityBlock {
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (pLevel.isClientSide) {
             return InteractionResult.SUCCESS;
+        }
+
+        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "点滴スタンドの操作")) {
+            return InteractionResult.FAIL;
         }
 
         // 下半身のブロックエンティティを取得

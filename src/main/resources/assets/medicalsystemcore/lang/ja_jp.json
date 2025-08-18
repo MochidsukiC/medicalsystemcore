@@ -12,6 +12,8 @@
   "item.medicalsystemcore.electrode": "電極",
   "item.medicalsystemcore.head_side_cable": "ベッドサイドケーブル",
   "item.medicalsystemcore.tube": "医療用チューブ",
+  "item.medicalsystemcore.doctor_card": "医師カード",
+  "item.medicalsystemcore.card_reader": "カード照会器",
 
   "_comment_medical_packs": "=== 医療パック ===",
   "item.medicalsystemcore.blood_pack": "輸血パック",
@@ -51,6 +53,8 @@
   "tooltip.medicalsystemcore.glucose_pack": "エネルギーと血糖値の回復",
   "tooltip.medicalsystemcore.tube": "医療機器を接続します",
   "tooltip.medicalsystemcore.head_side_cable": "ベッドサイドモニターを患者に接続します",
+  "tooltip.medicalsystemcore.doctor_card": "医療活動を行うために必要な資格証明書",
+  "tooltip.medicalsystemcore.card_reader": "医師カードの真偽を判定する装置",
 
   "_comment_gui_elements": "=== GUI要素 ===",
   "gui.medicalsystemcore.iv_stand.blood_slot": "輸血パック",

@@ -128,26 +128,15 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
                 if (this.heartRate > 0) {
                     long ticksPerBeat = (long)(20 * 60.0 / this.heartRate); // 1拍動あたりのティック数
                     if (currentTick - lastHeartbeatTick >= ticksPerBeat) {
-                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_CHIME.get(), SoundSource.BLOCKS, 0.3f, 2.0f);
+                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BELL.get(), SoundSource.BLOCKS, 0.3f, 0.529732f);
                         lastHeartbeatTick = currentTick;
                     }
                 }
             }
             case VF -> {
                 // VF時：素早くピピピピーンピピピピーンという音
-                int pattern = (int)(currentTick % 40); // 2秒周期
-                if (pattern < 8) { // 最初の0.4秒：ピピピピ
-                    if (pattern % 2 == 0) {
-                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_PLING.get(), SoundSource.BLOCKS, 0.5f, 1.8f);
-                    }
-                } else if (pattern == 10) { // ーン
-                    level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.BLOCKS, 0.7f, 0.5f);
-                } else if (pattern >= 20 && pattern < 28) { // 次のピピピピ
-                    if (pattern % 2 == 0) {
-                        level.playSound(null, pos, SoundEvents.NOTE_BLOCK_PLING.get(), SoundSource.BLOCKS, 0.5f, 1.8f);
-                    }
-                } else if (pattern == 30) { // ーン
-                    level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.BLOCKS, 0.7f, 0.5f);
+                if(currentTick % 20 < 10 && currentTick % 2 == 0){
+                    level.playSound(null, pos, SoundEvents.NOTE_BLOCK_HARP.get(), SoundSource.BLOCKS, 1.0f, 2.0f);
                 }
             }
             case CARDIAC_ARREST -> {
@@ -155,6 +144,16 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
                 if (currentTick % 40 == 0 || currentTick % 40 == 20) { // 1秒間隔でトゥーン
                     level.playSound(null, pos, SoundEvents.ARROW_HIT_PLAYER, SoundSource.BLOCKS, 1.0f, 0f);
                 }
+            }
+        }
+
+        if(this.bloodLevel<85){
+            if(currentTick % 40 == 10){
+                level.playSound(null,pos,SoundEvents.NOTE_BLOCK_PLING.get(), SoundSource.BLOCKS, 0.5f,  1.781797f);
+            }
+
+            if(currentTick % 40 == 15){
+                level.playSound(null,pos,SoundEvents.NOTE_BLOCK_PLING.get(), SoundSource.BLOCKS, 0.5f,  1.414214f);
             }
         }
     }

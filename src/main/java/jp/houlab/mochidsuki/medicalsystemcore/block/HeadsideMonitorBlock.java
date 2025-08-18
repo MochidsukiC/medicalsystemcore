@@ -2,6 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.HeadsideMonitorBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.NbtUtils;
@@ -47,16 +48,16 @@ public class HeadsideMonitorBlock extends BaseEntityBlock {
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (!pLevel.isClientSide) {
+            if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "ベッドサイドモニターの操作")) {
+                return InteractionResult.FAIL;
+            }
             if (pLevel.getBlockEntity(pPos) instanceof HeadsideMonitorBlockEntity monitor) {
                 // ケーブルがまだ取り出されていない場合のみ、ケーブルを与える
-                if (!monitor.isCableTaken()) {
-                    ItemStack cableStack = new ItemStack(Medicalsystemcore.HEAD_SIDE_CABLE.get());
-                    // ケーブルに、このモニターの座標を記録
-                    cableStack.getOrCreateTag().put("MonitorPos", NbtUtils.writeBlockPos(pPos));
+                ItemStack cableStack = new ItemStack(Medicalsystemcore.HEAD_SIDE_CABLE.get());
+                // ケーブルに、このモニターの座標を記録
+                cableStack.getOrCreateTag().put("MonitorPos", NbtUtils.writeBlockPos(pPos));
 
-                    pPlayer.getInventory().add(cableStack);
-                    monitor.setCableTaken(true);
-                }
+                pPlayer.getInventory().add(cableStack);
             }
         }
         return InteractionResult.SUCCESS;

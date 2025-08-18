@@ -66,15 +66,28 @@ public class DefibrillatorBlockEntity extends BlockEntity {
             return;
         }
 
+        long currentTick = level.getGameTime();
+        int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20;
         if (be.chargeProgress > 0) {
+
             be.chargeProgress++;
-            int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20;
+
+            level.playSound(null, pos, SoundEvents.NOTE_BLOCK_IRON_XYLOPHONE.get(), SoundSource.BLOCKS, 0.4f, ((float) be.chargeProgress/chargeTimeTicks + 0.5f)*1.5f);
+
 
             if (be.chargeProgress >= chargeTimeTicks) {
                 be.chargeProgress = -1;
                 level.setBlock(pos, state.setValue(DefibrillatorBlock.CHARGED, true), 3);
                 level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BELL.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
                 level.sendBlockUpdated(pos, state, state.setValue(DefibrillatorBlock.CHARGED, true), 3);
+            }
+        }else if(be.chargeProgress == -1) {
+            if(currentTick % 10 == 1){
+                level.playSound(null, pos, SoundEvents.NOTE_BLOCK_IRON_XYLOPHONE.get(), SoundSource.BLOCKS, 0.4f, 0.594604f);
+            }
+            if(currentTick % 10 == 6){
+                level.playSound(null, pos, SoundEvents.NOTE_BLOCK_IRON_XYLOPHONE.get(), SoundSource.BLOCKS, 0.4f, 1.189207f);
+
             }
         }
     }

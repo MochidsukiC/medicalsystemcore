@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -65,6 +66,10 @@ public class DefibrillatorBlock extends BaseEntityBlock {
     // 右クリック処理
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
+        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "除細動器の操作")) {
+            return InteractionResult.FAIL;
+        }
+
         if (pLevel.isClientSide) {
             return InteractionResult.SUCCESS; // クライアント側では常に成功を返し、腕振りモーションを再生
         }
