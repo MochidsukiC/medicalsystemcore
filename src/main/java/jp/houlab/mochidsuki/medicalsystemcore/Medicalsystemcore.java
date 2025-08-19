@@ -15,6 +15,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.client.model.StretcherModel;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
+import jp.houlab.mochidsuki.medicalsystemcore.menu.RescuePortalMenu;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.*;
@@ -23,6 +24,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.client.screen.IVStandScreen;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.HeadsideMonitorBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.IVStandBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.StretcherRenderer;
+import jp.houlab.mochidsuki.medicalsystemcore.client.screen.RescuePortalScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
@@ -120,6 +122,8 @@ public class Medicalsystemcore {
             () -> new StretcherItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> DOCTOR_CARD = ITEMS.register("doctor_card",
             () -> new DoctorCardItem(new Item.Properties()));
+    public static final RegistryObject<Item> RESCUE_TABLET = ITEMS.register("rescue_tablet",
+            () -> new RescueTabletItem(new Item.Properties().stacksTo(1)));
 
     // Medical Packs
     public static final RegistryObject<Item> BLOOD_PACK = ITEMS.register("blood_pack",
@@ -140,6 +144,11 @@ public class Medicalsystemcore {
     // Menu
     public static final RegistryObject<MenuType<IVStandMenu>> IV_STAND_MENU =
             MENU_TYPES.register("iv_stand_menu", () -> IForgeMenuType.create(IVStandMenu::new));
+    public static final RegistryObject<MenuType<RescuePortalMenu>> RESCUE_PORTAL_MENU =
+            MENU_TYPES.register("rescue_portal_menu", () -> IForgeMenuType.create((windowId, inv, data) -> new RescuePortalMenu(windowId, inv)));
+
+
+
 
     // Effects
     public static final RegistryObject<MobEffect> TRANSFUSION = MOB_EFFECTS.register("transfusion", TransfusionEffect::new);
@@ -176,6 +185,7 @@ public class Medicalsystemcore {
                 output.accept(TUBE.get());
                 output.accept(HEAD_SIDE_MONITOR_BLOCK_ITEM.get());
                 output.accept(STRETCHER.get());
+                output.accept(RESCUE_TABLET.get());
             }).build());
 
     public Medicalsystemcore() {
@@ -240,6 +250,8 @@ public class Medicalsystemcore {
 
             // Menu Screens
             MenuScreens.register(IV_STAND_MENU.get(), IVStandScreen::new);
+            MenuScreens.register(RESCUE_PORTAL_MENU.get(), RescuePortalScreen::new);
+
 
             // Render Layers
             event.enqueueWork(() -> {

@@ -60,6 +60,10 @@
   "gui.medicalsystemcore.iv_stand.blood_slot": "輸血パック",
   "gui.medicalsystemcore.iv_stand.drug_slot_1": "薬剤パック1",
   "gui.medicalsystemcore.iv_stand.drug_slot_2": "薬剤パック2",
+  "gui.medicalsystemcore.rescue_portal.title": "救急ポータル",
+  "gui.medicalsystemcore.rescue_portal.memo": "メモ...",
+  "gui.medicalsystemcore.rescue_portal.dispatched": "出動",
+  "gui.medicalsystemcore.rescue_portal.treated": "処置",
 
   "_comment_messages": "=== システムメッセージ ===",
   "message.medicalsystemcore.treatment_started": "治療を開始しました",
