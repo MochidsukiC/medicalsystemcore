@@ -19,21 +19,34 @@ public class RescueDataListWidget {
     private final int y;
     private final int width;
     private final int height;
-    private final List<RescueData> dataList;
+    private List<RescueData> dataList;
     private final Consumer<RescueData> onClick;
 
     private double scrollAmount = 0.0;
     private int selectedIndex = -1;
     private static final int ROW_HEIGHT = 15;
 
-    public RescueDataListWidget(int x, int y, int width, int height, Consumer<RescueData> onClick) {
+    public RescueDataListWidget(int x, int y, int width, int height, List<RescueData> initialDataList, Consumer<RescueData> onClick) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
-        this.dataList = RescueData.RESCUE_DATA_LIST; // 静的リストを参照
+        this.dataList = initialDataList; // 静的リストを参照
         this.onClick = onClick;
     }
+
+    /**
+     * 表示するデータリストを更新する
+     * @param newDataList 新しいデータのリスト
+     */
+    public void setDataList(List<RescueData> newDataList) {
+        this.dataList = newDataList;
+        // スクロール位置や選択状態をリセット
+        this.scrollAmount = 0;
+        this.selectedIndex = -1;
+    }
+
+
 
     public void render(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY) {
         // Scissorテストで描画領域を矩形内に制限

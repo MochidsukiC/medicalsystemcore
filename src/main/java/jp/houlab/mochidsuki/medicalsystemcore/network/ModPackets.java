@@ -53,6 +53,31 @@ public class ModPackets {
                 .consumerMainThread(ServerboundQTETResultPacket::handle)
                 .add();
 
+        // --- 救急ポータル用パケットの登録 ---
+        net.messageBuilder(ServerboundUpdateRescueDataPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
+                .decoder(ServerboundUpdateRescueDataPacket::new)
+                .encoder(ServerboundUpdateRescueDataPacket::toBytes)
+                .consumerMainThread(ServerboundUpdateRescueDataPacket::handle)
+                .add();
+
+        net.messageBuilder(ClientboundSyncAllRescueDataPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundSyncAllRescueDataPacket::new)
+                .encoder(ClientboundSyncAllRescueDataPacket::toBytes)
+                .consumerMainThread(ClientboundSyncAllRescueDataPacket::handle)
+                .add();
+
+        net.messageBuilder(ServerboundRequestRescueListPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
+                .decoder(ServerboundRequestRescueListPacket::new)
+                .encoder(ServerboundRequestRescueListPacket::toBytes)
+                .consumerMainThread(ServerboundRequestRescueListPacket::handle)
+                .add();
+
+        net.messageBuilder(ClientboundUpdateRescueDataPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundUpdateRescueDataPacket::new)
+                .encoder(ClientboundUpdateRescueDataPacket::toBytes)
+                .consumerMainThread(ClientboundUpdateRescueDataPacket::handle)
+                .add();
+
     }
 
     // 特定のプレイヤーにパケットを送信するヘルパーメソッド
@@ -69,5 +94,13 @@ public class ModPackets {
      */
     public static <MSG> void sendToAllTracking(MSG message, Entity entity) {
         INSTANCE.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> entity), message);
+    }
+
+
+    /**
+     * サーバーに接続している全プレイヤーにパケットを送信する
+     */
+    public static <MSG> void sendToAllClients(MSG message) {
+        INSTANCE.send(PacketDistributor.ALL.noArg(), message);
     }
 }

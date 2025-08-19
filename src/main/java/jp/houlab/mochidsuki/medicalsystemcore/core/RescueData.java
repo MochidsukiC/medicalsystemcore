@@ -1,6 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.core;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +9,11 @@ import java.util.List;
 public class RescueData {
     public static final List<RescueData> RESCUE_DATA_LIST = new ArrayList<>();
 
+    private static int nextId = 1;
 
+
+
+    private final int id; // 各インスタンス固有のID
     private String name;
     private RescueCategory category;
     private long reportTime;
@@ -19,6 +24,7 @@ public class RescueData {
     private String memo;
 
     public RescueData(String name, RescueCategory category, String description, BlockPos location) {
+        this.id = nextId++; // IDを自動で割り振り、カウンターをインクリメント
         this.name = name;
         this.category = category;
         this.description = description;
@@ -30,6 +36,9 @@ public class RescueData {
         RESCUE_DATA_LIST.add(0,this);
     }
 
+    public int getId() {
+        return id;
+    }
 
     public String getName() {
         return name;
@@ -91,5 +100,37 @@ public class RescueData {
         this.memo = memo;
     }
 
+
+    /**
+     * ネットワークバッファからデータを読み込んでインスタンスを生成するコンストラクタ
+     * @param buf ネットワークバッファ
+     */
+    public RescueData(FriendlyByteBuf buf) {
+        this.id = buf.readInt();
+        this.name = buf.readUtf();
+        this.category = buf.readEnum(RescueCategory.class);
+        this.reportTime = buf.readLong();
+        this.description = buf.readUtf();
+        this.isDispatch = buf.readBoolean();
+        this.isTreatment = buf.readBoolean();
+        this.location = buf.readBlockPos();
+        this.memo = buf.readUtf();
+    }
+
+    /**
+     * インスタンスのデータをネットワークバッファに書き込むメソッド
+     * @param buf ネットワークバッファ
+     */
+    public void toBytes(FriendlyByteBuf buf) {
+        buf.writeInt(id);
+        buf.writeUtf(name);
+        buf.writeEnum(category);
+        buf.writeLong(reportTime);
+        buf.writeUtf(description);
+        buf.writeBoolean(isDispatch);
+        buf.writeBoolean(isTreatment);
+        buf.writeBlockPos(location);
+        buf.writeUtf(memo != null ? memo : "");
+    }
 
 }

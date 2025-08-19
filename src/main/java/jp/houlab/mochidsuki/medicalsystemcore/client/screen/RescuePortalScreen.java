@@ -5,6 +5,9 @@ import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.widget.RescueDataListWidget;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.RescuePortalMenu;
+import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
+import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundRequestRescueListPacket;
+import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundUpdateRescueDataPacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
@@ -44,9 +47,10 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
     private RescueDataListWidget rescueListWidget;
     private RescueData selectedData = null;
 
-    // スクロール関連の変数
-    private double scrollAmount = 0.0;
-    private static final int ROW_HEIGHT = 12;
+    // サーバーからの更新中にパケットを再送信しないようにするためのフラグ
+    private boolean isUpdatingFromServer = false;
+
+
 
     public RescuePortalScreen(RescuePortalMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
         super(pMenu, pPlayerInventory, pTitle);
@@ -59,6 +63,9 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
     protected void init() {
         super.init();
         // 全画面になるため、leftPosやtopPosは使わず、this.widthとthis.heightを基準に配置します
+        ModPackets.sendToServer(new ServerboundRequestRescueListPacket());
+
+
 
         LEFT_X = 5;
         LEFT_Y = 5+(this.width/4-40)/2;
@@ -75,7 +82,7 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
         int listWidth = this.width / 4-listX;
         int listHeight = (this.height - 5)-listY;
 
-        this.rescueListWidget = new RescueDataListWidget(listX, listY, listWidth, listHeight, (clickedData) -> {
+        this.rescueListWidget = new RescueDataListWidget(listX, listY, listWidth, listHeight, RescueData.RESCUE_DATA_LIST , (clickedData) -> {
             // リストの項目がクリックされたときの処理
             this.selectedData = clickedData;
             this.currentView = View.DETAILS;
@@ -91,11 +98,27 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
         // メモ帳
         this.memoBox = new EditBox(this.font, RIGHT_X+5, this.height - 60, detailsWidth-5, 55, Component.translatable("gui.medicalsystemcore.rescue_portal.memo"));
 
-        // 出動チェックボックス
-        this.dispatchedCheckbox = new Checkbox(RIGHT_X+5, RIGHT_Y+110, 20, 20, Component.translatable("gui.medicalsystemcore.rescue_portal.dispatched"), false);
+        this.dispatchedCheckbox = new Checkbox(detailsLeft, 100, 20, 20, Component.empty(), false) {
+            @Override
+            public void onPress() {
+                super.onPress();
+                if (selectedData != null && !isUpdatingFromServer) { // サーバー更新中でなければパケット送信
+                    selectedData.setDispatch(this.selected());
+                    ModPackets.sendToServer(new ServerboundUpdateRescueDataPacket(selectedData.getId(), this.selected(), selectedData.isTreatment()));
+                }
+            }
+        };
 
-        // 処置チェックボックス
-        this.treatedCheckbox = new Checkbox(RIGHT_X+5 + 100, RIGHT_Y+110, 20, 20, Component.translatable("gui.medicalsystemcore.rescue_portal.treated"), false);
+        this.treatedCheckbox = new Checkbox(detailsLeft + 100, 100, 20, 20, Component.empty(), false) {
+            @Override
+            public void onPress() {
+                super.onPress();
+                if (selectedData != null && !isUpdatingFromServer) { // サーバー更新中でなければパケット送信
+                    selectedData.setTreatment(this.selected());
+                    ModPackets.sendToServer(new ServerboundUpdateRescueDataPacket(selectedData.getId(), selectedData.isDispatch(), this.selected()));
+                }
+            }
+        };
 
         this.addRenderableWidget(this.memoBox);
         this.addRenderableWidget(this.dispatchedCheckbox);
@@ -130,8 +153,48 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
         return super.mouseScrolled(pMouseX, pMouseY, pScrollY);
     }
 
+    /**
+     * サーバーからの同期パケットを受信したときに呼び出されるメソッド
+     * @param updatedData 更新された通報データ
+     */
+    public void onRescueDataUpdated(RescueData updatedData) {
+        if (selectedData != null && selectedData.getId() == updatedData.getId()) {
+            isUpdatingFromServer = true; // フラグを立てて、onPress内でのパケット送信を抑制
+
+            // ### エラー修正箇所 ###
+            // 現在の状態とサーバーからの状態が違う場合のみ、onPress()を呼んで状態をトグルさせる
+            if (this.dispatchedCheckbox.selected() != updatedData.isDispatch()) {
+                this.dispatchedCheckbox.onPress();
+            }
+            if (this.treatedCheckbox.selected() != updatedData.isTreatment()) {
+                this.treatedCheckbox.onPress();
+            }
+
+            isUpdatingFromServer = false; // フラグを戻す
+
+            if (!this.memoBox.isFocused()) {
+                this.memoBox.setValue(updatedData.getMemo());
+            }
+        }
+    }
 
     private void updateDetailsView() {
+        if (selectedData != null) {
+            isUpdatingFromServer = true;
+
+            // ### エラー修正箇所 ###
+            // こちらも同様に、状態が違う場合のみonPress()を呼ぶ
+            if (this.dispatchedCheckbox.selected() != selectedData.isDispatch()) {
+                this.dispatchedCheckbox.onPress();
+            }
+            if (this.treatedCheckbox.selected() != selectedData.isTreatment()) {
+                this.treatedCheckbox.onPress();
+            }
+
+            isUpdatingFromServer = false;
+
+            this.memoBox.setValue(selectedData.getMemo() != null ? selectedData.getMemo() : "");
+        }
     }
 
     private void updateWidgetVisibility() {
