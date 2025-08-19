@@ -23,7 +23,7 @@ public class RescueDataListWidget {
     private final Consumer<RescueData> onClick;
 
     private double scrollAmount = 0.0;
-    private int selectedIndex = -1;
+    private int selectedId = -1;
     private static final int ROW_HEIGHT = 15;
 
     public RescueDataListWidget(int x, int y, int width, int height, List<RescueData> initialDataList, Consumer<RescueData> onClick) {
@@ -43,7 +43,7 @@ public class RescueDataListWidget {
         this.dataList = newDataList;
         // スクロール位置や選択状態をリセット
         this.scrollAmount = 0;
-        this.selectedIndex = -1;
+        this.selectedId = -1;
     }
 
 
@@ -52,7 +52,7 @@ public class RescueDataListWidget {
         // Scissorテストで描画領域を矩形内に制限
         pGuiGraphics.enableScissor(x, y, x + width, y + height);
 
-        for (int i = 0; i < dataList.size(); i++) {
+        for (int i = dataList.size()-1; i >= 0 ; i--) {
             RescueData data = dataList.get(i);
             int rowTopY = y - (int)scrollAmount + (i * ROW_HEIGHT);
 
@@ -61,7 +61,7 @@ public class RescueDataListWidget {
                 // 背景色の決定
                 boolean isHovered = pMouseX >= x && pMouseX < x + width && pMouseY >= rowTopY && pMouseY < rowTopY + ROW_HEIGHT;
                 int bgColor = 0;
-                if (i == selectedIndex) {
+                if (data.getId() == selectedId) {
                     bgColor = 0xFFBE0000; // 選択色 (濃い青)
                 } else if (isHovered) {
                     bgColor = 0x55AAAAAA; // ホバー色 (半透明の白)
@@ -88,7 +88,7 @@ public class RescueDataListWidget {
             int clickedIndex = (int)(relativeY / ROW_HEIGHT);
 
             if (clickedIndex >= 0 && clickedIndex < dataList.size()) {
-                this.selectedIndex = clickedIndex;
+                this.selectedId = dataList.get(clickedIndex).getId();
                 // コールバック関数を実行して、選択されたデータをScreenに渡す
                 this.onClick.accept(dataList.get(clickedIndex));
                 return true;
@@ -108,7 +108,7 @@ public class RescueDataListWidget {
         return false;
     }
 
-    public void setSelectedIndex(int index) {
-        this.selectedIndex = index;
+    public void setSelectedId(int id){
+        this.selectedId = id;
     }
 }

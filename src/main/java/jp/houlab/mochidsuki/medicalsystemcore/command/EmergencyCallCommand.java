@@ -8,6 +8,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueCategory;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
+import jp.houlab.mochidsuki.medicalsystemcore.core.RescueDataManager;
 import jp.houlab.mochidsuki.medicalsystemcore.item.DoctorCardItem;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.ChatFormatting;
@@ -90,7 +91,7 @@ public class EmergencyCallCommand {
 
         // --- 通報処理 ---
         // TODO: この通報データをEmergencyCallManagerのような管理クラスに渡してリストに追加する
-        new RescueData(reporter,callType,content,player.blockPosition());
+        RescueDataManager.createNewRescueData(reporter, callType, content, player.blockPosition());
 
         System.out.println("通報を受信しました:");
         System.out.println("  通報者: " + reporter);

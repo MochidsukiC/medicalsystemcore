@@ -34,41 +34,40 @@ public class RescueDataManager {
         RescueData newData = new RescueData(reporterName, category, description, location);
 
         // サーバーのマスターリストに追加
-        RESCUE_DATA_LIST.add(0, newData); // 常にリストの先頭に追加
+        RESCUE_DATA_LIST.add(newData); // 常にリストの先頭に追加
 
         // この新しいデータを全クライアントに送信
         ModPackets.sendToAllClients(new ClientboundUpdateRescueDataPacket(newData, true));
     }
 
+
     /**
-     * クライアントからの更新要求を処理する
-     * @param player 更新を要求したプレイヤー
-     * @param rescueId 更新対象の通報ID
-     * @param type 更新の種類 (CHECKBOX or MEMO)
-     * @param value チェックボックスの値 (isDispatch)
-     * @param memo メモの内容 or isTreatmentの値
+     * チェックボックスの状態を更新し、全クライアントに同期する
      */
-    public static void updateRescueData(ServerPlayer player, int rescueId, ServerboundUpdateRescueDataPacket.UpdateType type, boolean value, String memo) {
+    public static void updateRescueDataCheckbox(ServerPlayer player, int rescueId, boolean isDispatch, boolean isTreatment) {
         // TODO: ここに更新を実行できる権限があるかどうかのチェックを入れる
-
         findRescueDataById(rescueId).ifPresent(data -> {
-            boolean updated = false;
-            if (type == ServerboundUpdateRescueDataPacket.UpdateType.CHECKBOX) {
-                boolean isTreatment = Boolean.parseBoolean(memo);
-                if (data.isDispatch() != value || data.isTreatment() != isTreatment) {
-                    data.setDispatch(value);
-                    data.setTreatment(isTreatment);
-                    updated = true;
-                }
-            } else if (type == ServerboundUpdateRescueDataPacket.UpdateType.MEMO) {
-                if (!data.getMemo().equals(memo)) {
-                    data.setMemo(memo);
-                    updated = true;
-                }
+            // データが実際に変更されたかチェック
+            if (data.isDispatch() != isDispatch || data.isTreatment() != isTreatment) {
+                data.setDispatch(isDispatch);
+                data.setTreatment(isTreatment);
+                // 全クライアントに更新をブロードキャスト
+                ModPackets.sendToAllClients(new ClientboundUpdateRescueDataPacket(data, false));
             }
+        });
+    }
 
-            // データが実際に変更された場合のみ、全クライアントに同期パケットを送信
-            if (updated) {
+
+    /**
+     * メモの内容を更新し、全クライアントに同期する
+     */
+    public static void updateRescueDataMemo(ServerPlayer player, int rescueId, String memo) {
+        // TODO: ここに更新を実行できる権限があるかどうかのチェックを入れる
+        findRescueDataById(rescueId).ifPresent(data -> {
+            // データが実際に変更されたかチェック
+            if (!memo.equals(data.getMemo())) {
+                data.setMemo(memo);
+                // 全クライアントに更新をブロードキャスト
                 ModPackets.sendToAllClients(new ClientboundUpdateRescueDataPacket(data, false));
             }
         });

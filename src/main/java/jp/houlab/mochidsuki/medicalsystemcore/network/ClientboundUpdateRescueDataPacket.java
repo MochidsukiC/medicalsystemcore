@@ -34,17 +34,19 @@ public class ClientboundUpdateRescueDataPacket {
         context.enqueueWork(() -> {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
                 // クライアント側のデータを更新または追加
-                if (isNew) {
-                    RescueData.RESCUE_DATA_LIST.add(0, data);
-                } else {
-                    RescueData.RESCUE_DATA_LIST.stream()
-                            .filter(d -> d.getId() == data.getId())
-                            .findFirst()
-                            .ifPresent(d -> {
-                                d.setDispatch(data.isDispatch());
-                                d.setTreatment(data.isTreatment());
-                                d.setMemo(data.getMemo());
-                            });
+                if (Minecraft.getInstance().screen instanceof RescuePortalScreen screen) {
+                    if (isNew) {
+                        screen.getRescueDataList().add(0, data);
+                    } else {
+                        screen.getRescueDataList().stream()
+                                .filter(d -> d.getId() == data.getId())
+                                .findFirst()
+                                .ifPresent(d -> {
+                                    d.setDispatch(data.isDispatch());
+                                    d.setTreatment(data.isTreatment());
+                                    d.setMemo(data.getMemo());
+                                });
+                    }
                 }
 
                 // GUIが開いていれば更新

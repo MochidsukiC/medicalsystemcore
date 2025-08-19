@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class RescueData {
-    public static final List<RescueData> RESCUE_DATA_LIST = new ArrayList<>();
+    //public static final List<RescueData> RESCUE_DATA_LIST = new ArrayList<>();
 
     private static int nextId = 1;
 
@@ -33,7 +33,6 @@ public class RescueData {
         this.location = location;
         this.reportTime = System.currentTimeMillis(); // ★ 2. オブジェクト生成時の現在時刻を記録
 
-        RESCUE_DATA_LIST.add(0,this);
     }
 
     public int getId() {

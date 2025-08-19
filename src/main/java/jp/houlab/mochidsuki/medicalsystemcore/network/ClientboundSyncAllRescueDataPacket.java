@@ -1,6 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
+import jp.houlab.mochidsuki.medicalsystemcore.client.screen.RescuePortalScreen;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
@@ -32,8 +34,9 @@ public class ClientboundSyncAllRescueDataPacket {
         NetworkEvent.Context context = supplier.get();
         context.enqueueWork(() -> {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-                RescueData.RESCUE_DATA_LIST.clear();
-                RescueData.RESCUE_DATA_LIST.addAll(this.rescueDataList);
+                if (Minecraft.getInstance().screen instanceof RescuePortalScreen screen) {
+                    screen.updateRescueDataList(this.rescueDataList);
+                }
             });
         });
         context.setPacketHandled(true);
