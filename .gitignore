@@ -1,5 +1,7 @@
 # プロジェクトの除外パス
 /.gradle/
 /build/
-/build/classes/java/main/
-/run/
+/forge/.gradle/
+/forge/build/
+/forge/run/
+/forge/run-data/
