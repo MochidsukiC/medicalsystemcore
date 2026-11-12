@@ -7,6 +7,10 @@ import jp.houlab.mochidsuki.medicalsystemcore.core.ConfigSyncHandler;
 import jp.houlab.mochidsuki.medicalsystemcore.core.GiveUpGuard;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModCreativeTabs;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModDataComponents;
+import jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents;
+import jp.houlab.mochidsuki.medicalsystemcore.event.CommandEventHandler;
+import jp.houlab.mochidsuki.medicalsystemcore.event.StretcherPlacementHandler;
+import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundPacketHandlers;
 import jp.houlab.mochidsuki.medicalsystemcore.core.PendingHealManager;
 import jp.houlab.mochidsuki.medicalsystemcore.core.PendingQteManager;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RevokedLicenseSavedData;
@@ -56,6 +60,12 @@ public class Medicalsystemcore implements ModInitializer {
 		GiveUpGuard.register();
 		PendingHealManager.register();
 		PendingQteManager.register();
+
+		// 段 3: サーバーロジック。意識不明ガード(ModEvents)の UseBlockCallback は、ストレッチャー設置より先に登録すること
+		ServerboundPacketHandlers.register();
+		ModEvents.register();
+		StretcherPlacementHandler.register();
+		CommandEventHandler.register();
 
 		LOGGER.info("MedicalSystemCore initialized");
 	}
