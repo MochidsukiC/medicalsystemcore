@@ -197,13 +197,14 @@ public class PoseController {
         // ディメンション更新（姿勢変更による当たり判定変更を反映）
         player.refreshDimensions();
 
-        // エンティティデータの同期
-        serverLevel.getChunkSource().broadcast(player,
-                new ClientboundSetEntityDataPacket(
-                        player.getId(),
-                        player.getEntityData().packDirty()
-                )
-        );
+        // エンティティデータの同期。
+        // packDirty() は未送信の変更が無いと null を返す(例: 既に水泳姿勢の者が意識不明になり、setPose で値が変わらなかった)。
+        // その場合クライアントは既に最新の値を持っているので、送るものは無い。null のままパケットにすると送信時に NPE になる。
+        java.util.List<net.minecraft.network.syncher.SynchedEntityData.DataValue<?>> dirtyValues = player.getEntityData().packDirty();
+        if (dirtyValues != null) {
+            serverLevel.getChunkSource().broadcast(player,
+                    new ClientboundSetEntityDataPacket(player.getId(), dirtyValues));
+        }
 
         // 位置・回転の同期（ストレッチャーの場合など）
         serverLevel.getChunkSource().broadcast(player,
