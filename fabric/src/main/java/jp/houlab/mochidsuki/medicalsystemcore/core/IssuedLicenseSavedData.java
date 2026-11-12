@@ -5,7 +5,6 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 import org.jspecify.annotations.Nullable;
 
@@ -27,7 +26,7 @@ import java.util.UUID;
  *
  * <p>スレッド: サーバースレッドからのみ呼ぶ(コマンドから使う)。</p>
  */
-public class IssuedLicenseSavedData extends SavedData {
+public class IssuedLicenseSavedData extends CorruptionGuardedSavedData {
 
     /** 発行記録 1 件。 */
     public record Issue(String licenseNumber, UUID ownerUuid, String ownerName, long issueDate) {
@@ -60,7 +59,7 @@ public class IssuedLicenseSavedData extends SavedData {
     }
 
     public static IssuedLicenseSavedData get(MinecraftServer server) {
-        return server.getDataStorage().computeIfAbsent(TYPE);
+        return getOrCreate(server, TYPE);
     }
 
     /** 発行を記録する。同じ免許番号が既にあれば上書きせず例外にする(発行側が一意な番号を作る責任を持つ)。 */

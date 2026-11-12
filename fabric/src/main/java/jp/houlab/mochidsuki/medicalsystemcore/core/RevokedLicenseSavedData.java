@@ -6,7 +6,6 @@ import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundRevokedLicenses
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 import java.util.ArrayList;
@@ -22,7 +21,7 @@ import java.util.Set;
  *
  * <p>スレッド: サーバースレッドからのみ呼ぶ(コマンド・ログインイベント・権限判定はいずれもサーバースレッド)。</p>
  */
-public class RevokedLicenseSavedData extends SavedData {
+public class RevokedLicenseSavedData extends CorruptionGuardedSavedData {
 
     private static final String TAG_LIST = "licenses";
 
@@ -45,7 +44,7 @@ public class RevokedLicenseSavedData extends SavedData {
     }
 
     public static RevokedLicenseSavedData get(MinecraftServer server) {
-        return server.getDataStorage().computeIfAbsent(TYPE);
+        return getOrCreate(server, TYPE);
     }
 
     public boolean isRevoked(String licenseNumber) {

@@ -8,7 +8,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 import java.util.ArrayList;
@@ -31,7 +30,7 @@ import java.util.UUID;
  *
  * <p>保存順は追加順(先頭が最古、末尾が最新)。クライアントへの全件同期だけ新しい順へ並べ替える。</p>
  */
-public class RescueSavedData extends SavedData {
+public class RescueSavedData extends CorruptionGuardedSavedData {
 
     public static final Codec<RescueSavedData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.fieldOf("nextId").forGetter(RescueSavedData::getNextId),
@@ -55,7 +54,7 @@ public class RescueSavedData extends SavedData {
     }
 
     public static RescueSavedData get(MinecraftServer server) {
-        return server.getDataStorage().computeIfAbsent(TYPE);
+        return getOrCreate(server, TYPE);
     }
 
     private synchronized int getNextId() {
