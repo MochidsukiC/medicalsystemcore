@@ -72,11 +72,6 @@ public final class DefibrillationRules {
         };
     }
 
-    /** QTE を経ない経路の判定(補正なし)。 */
-    public static Result attemptWithoutQte(HeartStatus status, float chance, Params params, RandomGenerator rng) {
-        return judge(status, chance, chance, params, rng);
-    }
-
     private static Result judge(HeartStatus status, double effectiveChance, float originalChance,
                                 Params params, RandomGenerator rng) {
         double successProbability;

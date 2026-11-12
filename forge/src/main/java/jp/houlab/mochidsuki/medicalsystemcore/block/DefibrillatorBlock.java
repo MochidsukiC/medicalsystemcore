@@ -4,6 +4,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.ElectrodeItem;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -37,7 +38,7 @@ public class DefibrillatorBlock extends BaseEntityBlock {
     public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
     public static final BooleanProperty CHARGED = BooleanProperty.create("charged");
     public static final BooleanProperty HAS_PADS = BooleanProperty.create("has_pads");
-    public static final DirectionProperty FACING = DirectionProperty.create("facing");
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
     protected static final VoxelShape SHAPE = Block.box(1.0D, 0.0D, 1.0D, 15.0D, 12.0D, 15.0D);
 
 
@@ -66,12 +67,13 @@ public class DefibrillatorBlock extends BaseEntityBlock {
     // 右クリック処理
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
-        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "除細動器の操作")) {
-            return InteractionResult.FAIL;
-        }
-
         if (pLevel.isClientSide) {
             return InteractionResult.SUCCESS; // クライアント側では常に成功を返し、腕振りモーションを再生
+        }
+
+        // 権限の判定とエラーメッセージの送信はサーバーだけが行う(クライアントでも行うと二重に表示される)
+        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "除細動器の操作")) {
+            return InteractionResult.FAIL;
         }
 
         if (!(pLevel.getBlockEntity(pPos) instanceof DefibrillatorBlockEntity be)) {
@@ -105,7 +107,7 @@ public class DefibrillatorBlock extends BaseEntityBlock {
         // 電極を戻す(この除細動器から取り出した電極だけ受け付ける)
         if (heldItem.is(Medicalsystemcore.ELECTRODE.get())) {
             if (!ElectrodeItem.isLinkedTo(heldItem, be)) {
-                player.sendSystemMessage(Component.literal("§cこの除細動器の電極ではありません。"));
+                player.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.not_this_defibrillator").withStyle(ChatFormatting.RED));
                 return;
             }
             be.returnPads();
@@ -126,12 +128,12 @@ public class DefibrillatorBlock extends BaseEntityBlock {
         // 電極を紛失した場合の再発行(しゃがんで素手)。以前の電極は無効になる
         else if (heldItem.isEmpty() && player.isShiftKeyDown()) {
             player.setItemInHand(hand, createLinkedElectrode(be));
-            player.sendSystemMessage(Component.literal("§a電極を再発行しました。以前の電極は使えなくなります。"));
+            player.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.reissued").withStyle(ChatFormatting.GREEN));
             be.setChanged();
         }
         // 電極がすでに取り出されている
         else if (heldItem.isEmpty()) {
-            player.sendSystemMessage(Component.literal("§c電極は既に使用中です。紛失した場合は、しゃがんで素手で右クリックすると再発行できます。"));
+            player.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.in_use").withStyle(ChatFormatting.RED));
         }
     }
 

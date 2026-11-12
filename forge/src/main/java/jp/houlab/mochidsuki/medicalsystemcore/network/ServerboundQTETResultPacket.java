@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
 import jp.houlab.mochidsuki.medicalsystemcore.common.model.QTEResult;
@@ -88,6 +89,10 @@ public class ServerboundQTETResultPacket {
             if (healer.level().dimension() != pending.dimension()) return;
             ServerLevel level = healer.serverLevel();
             if (!PendingQteManager.isChargedDefibrillator(level, pending.defibrillatorPos())) return;
+
+            // 手の電極の PadsId が、除細動器が現在発行中のものと一致する(QTE 中に再発行されて無効になった電極は受け付けない)
+            if (!(level.getBlockEntity(pending.defibrillatorPos()) instanceof DefibrillatorBlockEntity defibrillator)
+                    || !ElectrodeItem.isLinkedTo(electrodeStack, defibrillator)) return;
 
             // 患者が心停止か VF
             boolean targetNeedsShock = targetPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)

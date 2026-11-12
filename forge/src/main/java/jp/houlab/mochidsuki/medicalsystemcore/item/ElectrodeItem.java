@@ -6,6 +6,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.core.PendingQteManager;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundStartQTEPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -52,16 +53,16 @@ public class ElectrodeItem extends Item {
 
     @Override
     public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pTarget, InteractionHand pHand) {
-        // 医師カード認証チェック
-        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "除細動器による治療")) {
-            return InteractionResult.FAIL;
-        }
-
         // このメソッドはサーバーサイドでのみ重要な処理を行う
         if (!pPlayer.level().isClientSide && pTarget instanceof ServerPlayer targetPlayer) {
+            // 医師カード認証チェック(エラーメッセージが二重に出ないようサーバー側だけで行う)
+            if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "除細動器による治療")) {
+                return InteractionResult.FAIL;
+            }
+
             BlockPos defibrillatorPos = getLinkedPos(pStack);
             if (defibrillatorPos == null) {
-                pPlayer.sendSystemMessage(Component.literal("§cこの電極はどの除細動器にも接続されていません。"));
+                pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.not_linked").withStyle(ChatFormatting.RED));
                 return InteractionResult.FAIL;
             }
 
@@ -69,7 +70,7 @@ public class ElectrodeItem extends Item {
             // (除細動器が撤去・置換された、電極が再発行で無効になった、別ディメンションの同座標、などは無効)
             if (!(pPlayer.level().getBlockEntity(defibrillatorPos) instanceof DefibrillatorBlockEntity defibrillator)
                     || !isLinkedTo(pStack, defibrillator)) {
-                pPlayer.sendSystemMessage(Component.literal("§cこの電極は無効です。接続先の除細動器が見つからないか、再発行された古い電極です。"));
+                pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.invalid").withStyle(ChatFormatting.RED));
                 return InteractionResult.FAIL;
             }
 

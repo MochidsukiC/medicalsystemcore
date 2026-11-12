@@ -4,6 +4,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.HeadsideMonitorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.HeadsideCableItem;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -23,6 +24,7 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.items.ItemHandlerHelper;
@@ -30,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class HeadsideMonitorBlock extends BaseEntityBlock {
 
-    public static final DirectionProperty FACING = DirectionProperty.create("facing");
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
 
 
     public HeadsideMonitorBlock(Properties pProperties) {
@@ -61,12 +63,12 @@ public class HeadsideMonitorBlock extends BaseEntityBlock {
                 // このモニターのケーブルを持っていれば返却する
                 if (heldItem.is(Medicalsystemcore.HEAD_SIDE_CABLE.get())) {
                     if (!HeadsideCableItem.isLinkedTo(heldItem, monitor)) {
-                        pPlayer.sendSystemMessage(Component.literal("§cこのモニターのケーブルではありません。"));
+                        pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.cable.not_this_monitor").withStyle(ChatFormatting.RED));
                         return InteractionResult.SUCCESS;
                     }
                     monitor.returnCable();
                     heldItem.shrink(1);
-                    pPlayer.sendSystemMessage(Component.literal("§eケーブルを収納しました。"));
+                    pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.cable.stored").withStyle(ChatFormatting.YELLOW));
                     return InteractionResult.SUCCESS;
                 }
 
@@ -74,7 +76,7 @@ public class HeadsideMonitorBlock extends BaseEntityBlock {
                 // 紛失した場合は、しゃがんで素手で右クリックすると再発行する(以前のケーブルは無効になる)
                 boolean reissue = monitor.isCableTaken() && heldItem.isEmpty() && pPlayer.isShiftKeyDown();
                 if (monitor.isCableTaken() && !reissue) {
-                    pPlayer.sendSystemMessage(Component.literal("§cケーブルは既に取り出されています。紛失した場合は、しゃがんで素手で右クリックすると再発行できます。"));
+                    pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.cable.in_use").withStyle(ChatFormatting.RED));
                     return InteractionResult.SUCCESS;
                 }
 
@@ -87,7 +89,7 @@ public class HeadsideMonitorBlock extends BaseEntityBlock {
                 // インベントリが満杯の場合は足元にドロップされ、ケーブルが消えない
                 ItemHandlerHelper.giveItemToPlayer(pPlayer, cableStack);
                 if (reissue) {
-                    pPlayer.sendSystemMessage(Component.literal("§aケーブルを再発行しました。以前のケーブルは使えなくなります。"));
+                    pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.cable.reissued").withStyle(ChatFormatting.GREEN));
                 }
             }
         }

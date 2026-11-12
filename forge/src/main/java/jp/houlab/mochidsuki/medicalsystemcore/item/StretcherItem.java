@@ -5,6 +5,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.blockentity.StretcherBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -105,7 +106,7 @@ public class StretcherItem extends Item {
 
             // 設置可能かチェック（足と頭の両方）
             if (!level.getBlockState(placePos).canBeReplaced() || !level.getBlockState(headPos).canBeReplaced()) {
-                player.sendSystemMessage(Component.literal("§cここには担架を設置できません。設置には2ブロック分のスペースが必要です。"));
+                player.sendSystemMessage(Component.translatable("message.medicalsystemcore.stretcher.cannot_place").withStyle(ChatFormatting.RED));
                 return InteractionResult.FAIL;
             }
 

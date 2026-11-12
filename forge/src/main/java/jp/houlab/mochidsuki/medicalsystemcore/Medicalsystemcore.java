@@ -292,6 +292,7 @@ public class Medicalsystemcore {
             Minecraft.getInstance().getItemColors().register(new PackColor(0xFFEA00), ADRENALINE_PACK.get());
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00F7FF), TRANEXAMIC_ACID_PACK.get());
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00FFAA), FIBRINOGEN_PACK.get());
+            Minecraft.getInstance().getItemColors().register(new PackColor(0xAA00FF), NORADRENALINE_PACK.get());
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00FF00), GLUCOSE_PACK.get());
         }
 

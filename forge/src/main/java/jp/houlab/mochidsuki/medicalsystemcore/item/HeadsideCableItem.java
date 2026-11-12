@@ -1,6 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.HeadsideMonitorBlockEntity;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -54,7 +55,7 @@ public class HeadsideCableItem extends Item {
 
         BlockPos monitorPos = getLinkedPos(pStack);
         if (monitorPos == null) {
-            pPlayer.sendSystemMessage(Component.literal("§cこのケーブルはどのモニターにも接続されていません。"));
+            pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.cable.not_linked").withStyle(ChatFormatting.RED));
             return InteractionResult.FAIL;
         }
 
@@ -72,7 +73,7 @@ public class HeadsideCableItem extends Item {
             return InteractionResult.SUCCESS;
         }
 
-        pPlayer.sendSystemMessage(Component.literal("§cこのケーブルは無効です。接続先のモニターが見つからないか、再発行された古いケーブルです。"));
+        pPlayer.sendSystemMessage(Component.translatable("message.medicalsystemcore.cable.invalid").withStyle(ChatFormatting.RED));
         return InteractionResult.FAIL;
     }
 }
