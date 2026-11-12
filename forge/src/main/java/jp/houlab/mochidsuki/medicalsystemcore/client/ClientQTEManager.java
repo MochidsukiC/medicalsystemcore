@@ -62,6 +62,8 @@ public class ClientQTEManager {
         if (QteRules.isOvershoot(barPosition)) {
             LOGGER.info("QTE Result: FAILED (Overshot)");
             Minecraft.getInstance().player.sendSystemMessage(Component.literal("§c失敗..."));
+            // サーバーは QTE の開始を記録しているので、失敗も報告して除細動器のチャージを解除させる
+            ModPackets.sendToServer(new ServerboundQTETResultPacket(targetId, QTEResult.FAIL));
             isActive = false; // バーが行き過ぎたら無条件で失敗
             targetId = -1;
         }

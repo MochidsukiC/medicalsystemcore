@@ -2,7 +2,9 @@
 
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.RescueRules;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueDataManager;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -63,7 +65,8 @@ public class ServerboundUpdateRescueDataPacket {
         } else { // MEMO
             this.isDispatch = false;
             this.isTreatment = false;
-            this.memo = buf.readUtf();
+            // 巨大な文字列をそもそも読まないよう、デコード時に上限をかける
+            this.memo = buf.readUtf(RescueRules.MEMO_MAX_LENGTH);
         }
     }
 
@@ -77,7 +80,7 @@ public class ServerboundUpdateRescueDataPacket {
             buf.writeBoolean(this.isDispatch);
             buf.writeBoolean(this.isTreatment);
         } else { // MEMO
-            buf.writeUtf(this.memo);
+            buf.writeUtf(this.memo, RescueRules.MEMO_MAX_LENGTH);
         }
     }
 
@@ -89,6 +92,12 @@ public class ServerboundUpdateRescueDataPacket {
         context.enqueueWork(() -> {
             ServerPlayer player = context.getSender();
             if (player == null) return;
+
+            // 通報の更新は医師として認可されている送信者だけが行える
+            if (!MedicalAuthorizationUtil.checkMedicalAuthorizationSilent(player)) return;
+
+            // メモの長さ上限(デコード側の上限とは別に、サーバーでも検証する)
+            if (this.type == UpdateType.MEMO && this.memo.length() > RescueRules.MEMO_MAX_LENGTH) return;
 
             // 新しいRescueDataManagerのメソッドを呼び出す
             if (this.type == UpdateType.CHECKBOX) {

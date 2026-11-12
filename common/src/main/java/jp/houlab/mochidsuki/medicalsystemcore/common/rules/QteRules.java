@@ -12,6 +12,25 @@ public final class QteRules {
     /** バーが 1 tick に進む量。 */
     public static final float BAR_SPEED_PER_TICK = 0.02f;
 
+    /**
+     * バーが 0.0 から出発して SUCCESS_END を超える(行き過ぎる)までにかかる最大 tick 数。
+     * クライアントは 1 tick に 1 回(PlayerTickEvent END)だけバーを進める。+1 は浮動小数の累積誤差の余裕。
+     */
+    public static final int MAX_DURATION_TICKS = (int) Math.ceil(SUCCESS_END / BAR_SPEED_PER_TICK) + 1;
+    /**
+     * 通信の遅れの余裕(tick)。サーバーが QTE を開始してから結果が届くまでには、開始パケットの往路、
+     * 結果パケットの復路、サーバーとクライアントの tick のずれが加わる。2 秒あれば通常の回線の揺らぎを吸収できる。
+     */
+    public static final int LATENCY_MARGIN_TICKS = 40;
+    /** サーバーが QTE の結果を待つ最大 tick 数。これを過ぎた開始記録は破棄され、除細動器のチャージは解除される。 */
+    public static final int RESULT_TIMEOUT_TICKS = MAX_DURATION_TICKS + LATENCY_MARGIN_TICKS;
+    /**
+     * 結果を受け付けるときの、施術者と患者の最大距離(ブロック)。
+     * ElectrodeItem 自体には距離条件がなく、開始は Minecraft のエンティティ操作の判定(バニラ上限 6 ブロック)に依存する。
+     * それに合わせて同じ値を結果の受付条件にする。
+     */
+    public static final double MAX_DISTANCE = 6.0;
+
     private QteRules() {
     }
 

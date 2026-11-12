@@ -4,7 +4,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
 import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
-import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
+import jp.houlab.mochidsuki.medicalsystemcore.core.GiveUpGuard;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueDataManager;
 import jp.houlab.mochidsuki.medicalsystemcore.item.DoctorCardItem;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
@@ -28,7 +28,6 @@ import net.minecraftforge.network.NetworkEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -56,8 +55,14 @@ public class ServerboundGiveUpPacket {
             if (player == null) return;
 
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                // 意識不明でなければ不正パケットとして無視
+                // ギブアップが無効な設定では受け付けない
+                if (!MedicalConfig.get(MedicalConfigKeys.GIVE_UP_ENABLED)) return;
+                // 長押し時間(give_up_duration)の検証はクライアント側の判定のまま。サーバーでは検証しない。
+                // 時間を偽って早く送れても、得をするのは本人のギブアップが早まるだけで、他者への影響はない。
+                // 意識不明でなければ不正パケットとして無視（クライアントがギブアップを出す条件と同じ）
                 if (medicalData.isConscious()) return;
+                // 同じ意識不明の状態の間は 1 回しか受け付けない（意識が戻るまで 2 回目以降は無視）
+                if (GiveUpGuard.hasUsed(player)) return;
 
                 if (MedicalConfig.get(MedicalConfigKeys.TRANSPORT_MODE)) {
                     // === 搬送モード ===
@@ -86,7 +91,8 @@ public class ServerboundGiveUpPacket {
                     player.teleportTo(targetLevel, transportX + 0.5, transportY, transportZ + 0.5, player.getYRot(), player.getXRot());
 
                     // 通報データのメモに「搬送」を追記
-                    appendTransportToRescueMemo(player);
+                    RescueDataManager.appendSystemMemo(player, "搬送");
+                    GiveUpGuard.markUsed(player);
 
                     // 全プレイヤーに搬送通知
                     notifyStatusChange(player, "搬送");
@@ -107,12 +113,13 @@ public class ServerboundGiveUpPacket {
                     medicalData.setDamageImmune(false);
 
                     // 通報データのメモに「死亡」を追記
-                    appendDeathToRescueMemo(player);
+                    RescueDataManager.appendSystemMemo(player, "死亡");
 
                     // ドクターカード所持者に死亡通知
                     notifyStatusChange(player, "死亡");
 
                     // player.kill() → GENERIC_KILL → onLivingDeath で heartStatus != NORMAL → 死亡成立
+                    GiveUpGuard.markUsed(player);
                     player.kill();
                 }
             });
@@ -159,44 +166,6 @@ public class ServerboundGiveUpPacket {
             p.sendSystemMessage(patientLine);
             p.sendSystemMessage(statusLine);
             p.sendSystemMessage(dividerEnd);
-        }
-    }
-
-    /**
-     * プレイヤー名に一致する最新の通報データのメモに「死亡」を追記する
-     */
-    private static void appendDeathToRescueMemo(ServerPlayer player) {
-        String playerName = player.getGameProfile().getName();
-        List<RescueData> dataList = RescueDataManager.getRescueDataList();
-
-        // 最新のものから検索（リストの末尾が最新）
-        for (int i = dataList.size() - 1; i >= 0; i--) {
-            RescueData data = dataList.get(i);
-            if (playerName.equals(data.getName())) {
-                String currentMemo = data.getMemo();
-                String newMemo = (currentMemo == null || currentMemo.isEmpty()) ? "死亡" : currentMemo + " / 死亡";
-                RescueDataManager.updateRescueDataMemo(player, data.getId(), newMemo);
-                break;
-            }
-        }
-    }
-
-    /**
-     * プレイヤー名に一致する最新の通報データのメモに「搬送」を追記する
-     */
-    private static void appendTransportToRescueMemo(ServerPlayer player) {
-        String playerName = player.getGameProfile().getName();
-        List<RescueData> dataList = RescueDataManager.getRescueDataList();
-
-        // 最新のものから検索（リストの末尾が最新）
-        for (int i = dataList.size() - 1; i >= 0; i--) {
-            RescueData data = dataList.get(i);
-            if (playerName.equals(data.getName())) {
-                String currentMemo = data.getMemo();
-                String newMemo = (currentMemo == null || currentMemo.isEmpty()) ? "搬送" : currentMemo + " / 搬送";
-                RescueDataManager.updateRescueDataMemo(player, data.getId(), newMemo);
-                break;
-            }
         }
     }
 }

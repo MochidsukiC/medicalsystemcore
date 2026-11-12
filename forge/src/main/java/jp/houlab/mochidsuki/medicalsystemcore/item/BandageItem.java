@@ -5,8 +5,10 @@ import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
 import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.common.rules.BandageRules;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientHealingManager;
+import jp.houlab.mochidsuki.medicalsystemcore.core.PendingHealManager;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -27,10 +29,12 @@ public class BandageItem extends Item {
 
     @Override
     public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pTarget, InteractionHand pHand) {
-        // サーバーサイドでは何もしない
         if (pPlayer.level().isClientSide()) {
             // クライアント側で治療の開始を試みる
             ClientHealingManager.startHealing(pTarget.getId());
+        } else if (pHand == InteractionHand.MAIN_HAND && pPlayer instanceof ServerPlayer healer && pTarget instanceof ServerPlayer target) {
+            // サーバーが治療の開始を記録する。完了パケットは経過時間をこの記録と照合して受け付ける
+            PendingHealManager.begin(healer, target);
         }
         return InteractionResult.SUCCESS;
     }

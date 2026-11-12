@@ -1,5 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client.screen;
 
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.RescueRules;
 import com.mojang.blaze3d.systems.RenderSystem;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientTrackingManager;
@@ -108,6 +109,8 @@ public class RescuePortalScreen extends Screen {
         this.memoBox = new MultiLineEditBox(this.font, RIGHT_X + 5, this.height - 60, detailsWidth - 5, 35,
                 Component.translatable("gui.medicalsystemcore.rescue_portal.memo"), Component.literal(""));
         // 値が変更されたときに呼び出されるリスナーを設定
+        // サーバーと同じ上限を入力欄にも設定する
+        this.memoBox.setCharacterLimit(RescueRules.MEMO_MAX_LENGTH);
         this.memoBox.setValueListener(text -> this.checkForChanges());
 
         // 出動チェックボックス (クリックされたら markAsChanged() を呼ぶ)

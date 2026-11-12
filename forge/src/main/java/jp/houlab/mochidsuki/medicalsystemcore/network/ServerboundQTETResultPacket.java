@@ -1,21 +1,23 @@
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
-import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
 import jp.houlab.mochidsuki.medicalsystemcore.common.model.QTEResult;
 import jp.houlab.mochidsuki.medicalsystemcore.common.rules.DefibrillationRules;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.QteRules;
 import jp.houlab.mochidsuki.medicalsystemcore.core.DefibrillationHandler;
+import jp.houlab.mochidsuki.medicalsystemcore.core.PendingQteManager;
+import jp.houlab.mochidsuki.medicalsystemcore.item.ElectrodeItem;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -46,24 +48,58 @@ public class ServerboundQTETResultPacket {
             ServerPlayer healer = context.getSender();
             if (healer == null) return;
 
+            // 1) サーバーが記録した QTE の開始に対する結果であること
+            PendingQteManager.Pending pending = PendingQteManager.peek(healer);
+            if (pending == null) return;
+
             Entity target = healer.level().getEntity(this.targetEntityId);
-            if (!(target instanceof ServerPlayer targetPlayer)) return;
+            if (!(target instanceof ServerPlayer targetPlayer) || !targetPlayer.getUUID().equals(pending.targetUuid())) return;
 
-            // ヒーラーが手に持っている電極アイテムを取得し、消費する
-            ItemStack electrodeStack = healer.getItemInHand(InteractionHand.MAIN_HAND);
-            CompoundTag nbt = electrodeStack.getTag();
-            if (nbt != null && nbt.contains("DefibrillatorPos")) {
-                BlockPos defibrillatorPos = NbtUtils.readBlockPos(nbt.getCompound("DefibrillatorPos"));
-                BlockEntity be = healer.level().getBlockEntity(defibrillatorPos);
-
-                // --- 仕様2: 除細動器の状態をリセット ---
-                if (be instanceof DefibrillatorBlockEntity defibrillator) {
-                    defibrillator.resetCharge(); // 状態をリセットする新しいメソッド（後で作成）
-                    defibrillator.startCooldown(); // <<<--- この行を追加！
-                }
+            // 期限切れの記録は破棄し、チャージを解除する(通常は tick の掃除が先に処理する)
+            if (pending.isExpired(healer.server.overworld().getGameTime())) {
+                PendingQteManager.remove(healer);
+                PendingQteManager.expire(healer.server, pending);
+                return;
             }
 
+            // 2) 全条件を再検証する。満たさなければ記録には触らない
+            //    (残った記録は期限切れで破棄され、そのときチャージが解除されるので、開始した QTE は必ず放電で終わる)
+            // 送信者が医師として認可されている(エラーメッセージを送らない Silent 版)
+            if (!MedicalAuthorizationUtil.checkMedicalAuthorizationSilent(healer)) return;
 
+            // 送信者に意識があり、心臓が NORMAL
+            boolean healerAble = healer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)
+                    .map(data -> data.isConscious() && data.getHeartStatus() == HeartStatus.NORMAL)
+                    .orElse(false);
+            if (!healerAble) return;
+
+            // 距離
+            if (healer.distanceToSqr(targetPlayer) > QteRules.MAX_DISTANCE * QteRules.MAX_DISTANCE) return;
+
+            // 記録した手に電極があり、その DefibrillatorPos が記録と一致する(メインハンド/オフハンドの両方に対応)
+            ItemStack electrodeStack = healer.getItemInHand(pending.hand());
+            if (!(electrodeStack.getItem() instanceof ElectrodeItem)) return;
+            CompoundTag nbt = electrodeStack.getTag();
+            if (nbt == null || !nbt.contains("DefibrillatorPos")) return;
+            BlockPos electrodePos = NbtUtils.readBlockPos(nbt.getCompound("DefibrillatorPos"));
+            if (!electrodePos.equals(pending.defibrillatorPos())) return;
+
+            // その位置の除細動器が CHARGED(ブロックが別物になっていたら受け付けない)
+            if (healer.level().dimension() != pending.dimension()) return;
+            ServerLevel level = healer.serverLevel();
+            if (!PendingQteManager.isChargedDefibrillator(level, pending.defibrillatorPos())) return;
+
+            // 患者が心停止か VF
+            boolean targetNeedsShock = targetPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)
+                    .map(data -> data.getHeartStatus() == HeartStatus.CARDIAC_ARREST || data.getHeartStatus() == HeartStatus.VF)
+                    .orElse(false);
+            if (!targetNeedsShock) return;
+
+            // 3) 受け付ける。記録を消し、結果が FAIL でもチャージを解除してクールダウンを始める
+            PendingQteManager.remove(healer);
+            PendingQteManager.releaseCharge(level, pending.defibrillatorPos());
+
+            // 成功判定(大成功/成功/失敗)はクライアントの申告を使う。サーバー側での再計算はしない
             targetPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
                 // 判定と状態の適用は DefibrillationRules / DefibrillationHandler に集約されている
                 // (QTE が失敗範囲のときは判定せず終了する)

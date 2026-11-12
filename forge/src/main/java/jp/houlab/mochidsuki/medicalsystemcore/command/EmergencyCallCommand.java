@@ -102,9 +102,8 @@ public class EmergencyCallCommand {
     private static boolean checkPermission(CommandSourceStack source, ServerPlayer player, RescueCategory callType) {
         switch (callType) {
             case SUPPORT:
-                if (!DoctorCardItem.hasValidDoctorCard(player)) {
-                    // 権限OK
-                } else {
+                // 応援通報は医師だけが送れる
+                if (!MedicalAuthorizationUtil.checkMedicalAuthorizationSilent(player)) {
                     source.sendFailure(Component.literal("§c応援通報は医師のみ可能です。"));
                     return false;
                 }
@@ -140,7 +139,7 @@ public class EmergencyCallCommand {
         // --- 通報処理 ---
         ResourceKey<Level> dimension = player.level().dimension();
         BlockPos reporterPos = player.blockPosition();
-        RescueDataManager.createNewRescueData(reporter, callType, content, reporterPos, dimension);
+        RescueDataManager.createNewRescueData(player.getUUID(), reporter, callType, content, reporterPos, dimension);
 
         source.sendSuccess(() -> Component.literal("通報を送信しました。救急隊の到着をお待ちください。").withStyle(ChatFormatting.GREEN), true);
 

@@ -9,6 +9,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 
+import java.util.UUID;
+
 public class RescueData {
     //public static final List<RescueData> RESCUE_DATA_LIST = new ArrayList<>();
 
@@ -18,6 +20,8 @@ public class RescueData {
 
     private final int id; // 各インスタンス固有のID
     private String name;
+    /** 通報者の UUID。照合に使う(表示名やプロファイル名は変わりうるため name では照合しない)。 */
+    private final UUID reporterUuid;
     private RescueCategory category;
     private long reportTime;
     private String description;
@@ -27,8 +31,9 @@ public class RescueData {
     private ResourceKey<Level> dimension;
     private String memo;
 
-    public RescueData(String name, RescueCategory category, String description, BlockPos location, ResourceKey<Level> dimension) {
+    public RescueData(UUID reporterUuid, String name, RescueCategory category, String description, BlockPos location, ResourceKey<Level> dimension) {
         this.id = nextId++; // IDを自動で割り振り、カウンターをインクリメント
+        this.reporterUuid = reporterUuid;
         this.name = name;
         this.category = category;
         this.description = description;
@@ -42,6 +47,10 @@ public class RescueData {
 
     public int getId() {
         return id;
+    }
+
+    public UUID getReporterUuid() {
+        return reporterUuid;
     }
 
     public String getName() {
@@ -130,6 +139,7 @@ public class RescueData {
      */
     public RescueData(FriendlyByteBuf buf) {
         this.id = buf.readInt();
+        this.reporterUuid = buf.readUUID();
         this.name = buf.readUtf();
         this.category = buf.readEnum(RescueCategory.class);
         this.reportTime = buf.readLong();
@@ -148,6 +158,7 @@ public class RescueData {
      */
     public void toBytes(FriendlyByteBuf buf) {
         buf.writeInt(id);
+        buf.writeUUID(reporterUuid);
         buf.writeUtf(name);
         buf.writeEnum(category);
         buf.writeLong(reportTime);

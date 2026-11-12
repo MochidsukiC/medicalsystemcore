@@ -57,7 +57,7 @@ public class ClientHealingManager {
             // 治療完了
             if (healingTicks >= healDurationTicks) {
                 ModPackets.sendToServer(new ServerboundFinishHealPacket(targetId));
-                mc.player.getMainHandItem().shrink(1); // クライアント側でもアイテムを減らす
+                // 包帯の消費はサーバーが行う(サーバーが受理したときだけ消費する)
                 mc.player.level().playSound(mc.player, mc.player.blockPosition(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.5f, 1.0f);
                 stopHealing();
             }
