@@ -139,7 +139,7 @@ public class EmergencyCallCommand {
         // --- 通報処理 ---
         ResourceKey<Level> dimension = player.level().dimension();
         BlockPos reporterPos = player.blockPosition();
-        RescueDataManager.createNewRescueData(player.getUUID(), reporter, callType, content, reporterPos, dimension);
+        RescueDataManager.createNewRescueData(source.getServer(), player.getUUID(), reporter, callType, content, reporterPos, dimension);
 
         source.sendSuccess(() -> Component.literal("通報を送信しました。救急隊の到着をお待ちください。").withStyle(ChatFormatting.GREEN), true);
 

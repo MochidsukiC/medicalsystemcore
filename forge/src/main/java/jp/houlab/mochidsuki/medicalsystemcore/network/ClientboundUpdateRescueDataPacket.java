@@ -36,6 +36,7 @@ public class ClientboundUpdateRescueDataPacket {
                 // クライアント側のデータを更新または追加
                 if (Minecraft.getInstance().screen instanceof RescuePortalScreen screen) {
                     if (isNew) {
+                        // 一覧の並びは新しい順(先頭が最新)。全件同期もサーバー側で新しい順にして送る
                         screen.getRescueDataList().add(0, data);
                     } else {
                         screen.getRescueDataList().stream()

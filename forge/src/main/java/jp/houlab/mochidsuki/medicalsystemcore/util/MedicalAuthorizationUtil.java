@@ -1,6 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.util;
 
+import jp.houlab.mochidsuki.medicalsystemcore.core.IssuedLicenseSavedData;
 import jp.houlab.mochidsuki.medicalsystemcore.item.DoctorCardItem;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
@@ -47,20 +49,21 @@ public class MedicalAuthorizationUtil {
      */
     public static MedicalCredentials getMedicalCredentials(Player player) {
         // メインハンド、オフハンド、インベントリの順でチェック
+        // 有効の定義(正規・本人・失効していない)は hasValidDoctorCard と同じ isValidCardFor を使う
         ItemStack validCard = null;
 
         ItemStack mainHand = player.getMainHandItem();
-        if (DoctorCardItem.isDoctorCard(mainHand) && DoctorCardItem.isGenuine(mainHand) && DoctorCardItem.isOwnedBy(mainHand, player)) {
+        if (DoctorCardItem.isValidCardFor(mainHand, player)) {
             validCard = mainHand;
         } else {
             ItemStack offHand = player.getOffhandItem();
-            if (DoctorCardItem.isDoctorCard(offHand) && DoctorCardItem.isGenuine(offHand) && DoctorCardItem.isOwnedBy(offHand, player)) {
+            if (DoctorCardItem.isValidCardFor(offHand, player)) {
                 validCard = offHand;
             } else {
                 // インベントリ内をチェック
                 for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                     ItemStack stack = player.getInventory().getItem(i);
-                    if (DoctorCardItem.isDoctorCard(stack) && DoctorCardItem.isGenuine(stack) && DoctorCardItem.isOwnedBy(stack, player)) {
+                    if (DoctorCardItem.isValidCardFor(stack, player)) {
                         validCard = stack;
                         break;
                     }
@@ -107,22 +110,18 @@ public class MedicalAuthorizationUtil {
     /**
      * 管理者用：プレイヤーに正規の医師カードを付与（ライセンス番号自動発行）
      */
-    public static void grantDoctorCard(Player player) {
-        ItemStack doctorCard = DoctorCardItem.createGenuineCard(player);
-        if (!player.getInventory().add(doctorCard)) {
-            // インベントリがフルの場合はドロップ
-            player.drop(doctorCard, false);
-        }
-
-        player.sendSystemMessage(Component.literal("医師カードが付与されました。")
-                .withStyle(ChatFormatting.GREEN));
+    public static void grantDoctorCard(ServerPlayer player) {
+        grantDoctorCard(player, DoctorCardItem.generateUniqueLicenseNumber(player));
     }
 
     /**
      * 管理者用：プレイヤーに正規の医師カードを付与（ライセンス番号指定）
+     * 発行を発行台帳に記録する。台帳か失効リストにある番号は呼び出し側で弾くこと(台帳は重複を例外にする)。
      */
-    public static void grantDoctorCard(Player player, String licenseNumber) {
+    public static void grantDoctorCard(ServerPlayer player, String licenseNumber) {
         ItemStack doctorCard = DoctorCardItem.createGenuineCard(player, licenseNumber);
+        IssuedLicenseSavedData.get(player.server).record(licenseNumber, player.getUUID(),
+                player.getName().getString(), doctorCard.getTag().getLong(DoctorCardItem.TAG_ISSUE_DATE));
         if (!player.getInventory().add(doctorCard)) {
             // インベントリがフルの場合はドロップ
             player.drop(doctorCard, false);

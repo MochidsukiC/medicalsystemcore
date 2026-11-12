@@ -7,6 +7,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.client.ClientTrackingManager;
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.widget.RescueDataListWidget;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
+import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundDeleteRescueDataPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundRequestRescueListPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundUpdateRescueDataPacket;
 import net.minecraft.client.gui.GuiGraphics;
@@ -51,6 +52,9 @@ public class RescuePortalScreen extends Screen {
     private Checkbox treatedCheckbox;
     private Button saveButton; // ★ 保存ボタンを追加
     private Button trackButton;
+    private Button deleteButton;
+    // 削除の 2 段階確認: true の間は 1 回目が押された状態(次の押下で確定)
+    private boolean deleteConfirmPending = false;
 
     private RescueDataListWidget rescueListWidget;
     private RescueData selectedData = null;
@@ -142,7 +146,14 @@ public class RescuePortalScreen extends Screen {
                 .build();
 
 
+        // 削除ボタンの初期化(1 回目で「本当に削除」に変わり、2 回目で確定)
+        this.deleteConfirmPending = false;
+        this.deleteButton = Button.builder(Component.translatable("gui.medicalsystemcore.rescue_portal.delete"), button -> onDeletePressed())
+                .bounds(this.width - 175, this.height - 25, 70, 20)
+                .build();
+
         this.addRenderableWidget(this.memoBox);
+        this.addRenderableWidget(this.deleteButton);
         this.addRenderableWidget(this.dispatchedCheckbox);
         this.addRenderableWidget(this.treatedCheckbox);
         this.addRenderableWidget(this.saveButton);
@@ -159,6 +170,7 @@ public class RescuePortalScreen extends Screen {
             this.currentView = View.HOME;
             this.rescueListWidget.setSelectedId(-1);
             this.selectedData = null;
+            resetDeleteConfirm();
             updateWidgetVisibility();
             return true;
         }
@@ -226,6 +238,46 @@ public class RescuePortalScreen extends Screen {
             ClientTrackingManager.setTrackedData(selectedData);
         }
         updateTrackButtonLabel();
+    }
+
+    /**
+     * 削除ボタンの押下。1 回目は確認状態に入り(表示が「本当に削除」に変わる)、2 回目でサーバーへ削除を要求する。
+     * 画面の更新は、サーバーからの削除通知(onRescueDataRemoved)で行う。
+     */
+    private void onDeletePressed() {
+        if (selectedData == null) return;
+        if (!deleteConfirmPending) {
+            deleteConfirmPending = true;
+            deleteButton.setMessage(Component.translatable("gui.medicalsystemcore.rescue_portal.delete_confirm"));
+            return;
+        }
+        ModPackets.sendToServer(new ServerboundDeleteRescueDataPacket(selectedData.getId()));
+        resetDeleteConfirm();
+    }
+
+    /** 削除ボタンを 1 段階目(通常表示)に戻す。選択が変わったときなどに呼ぶ。 */
+    private void resetDeleteConfirm() {
+        deleteConfirmPending = false;
+        if (deleteButton != null) {
+            deleteButton.setMessage(Component.translatable("gui.medicalsystemcore.rescue_portal.delete"));
+        }
+    }
+
+    /**
+     * サーバーから通報の削除が通知されたときに呼ばれる。
+     * 選択中の通報が消えた場合は、詳細表示が存在しない通報を参照しないよう、選択を外してホームへ戻す。
+     */
+    public void onRescueDataRemoved(int rescueId) {
+        // ウィジェットも同じリストを参照している
+        rescueDataList.removeIf(d -> d.getId() == rescueId);
+        rescueListWidget.onListChanged();
+        if (selectedData != null && selectedData.getId() == rescueId) {
+            selectedData = null;
+            currentView = View.HOME;
+            rescueListWidget.setSelectedId(-1);
+            resetDeleteConfirm();
+            updateWidgetVisibility();
+        }
     }
 
     private void updateTrackButtonLabel() {
@@ -299,6 +351,8 @@ public class RescuePortalScreen extends Screen {
 
     private void updateDetailsView() {
         if (selectedData != null) {
+            // 選択が変わったので、削除の確認は 1 段階目に戻す
+            resetDeleteConfirm();
             isUpdatingFromServer = true;
 
             // ### エラー修正箇所 ###
@@ -328,6 +382,7 @@ public class RescuePortalScreen extends Screen {
         this.treatedCheckbox.visible = detailsVisible;
         this.saveButton.visible = detailsVisible;
         this.trackButton.visible = detailsVisible;
+        this.deleteButton.visible = detailsVisible;
     }
 
     @Override

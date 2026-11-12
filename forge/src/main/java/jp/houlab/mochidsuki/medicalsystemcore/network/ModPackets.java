@@ -96,6 +96,24 @@ public class ModPackets {
                 .consumerMainThread(ClientboundConfigSyncPacket::handle)
                 .add();
 
+        net.messageBuilder(ServerboundDeleteRescueDataPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
+                .decoder(ServerboundDeleteRescueDataPacket::new)
+                .encoder(ServerboundDeleteRescueDataPacket::toBytes)
+                .consumerMainThread(ServerboundDeleteRescueDataPacket::handle)
+                .add();
+
+        net.messageBuilder(ClientboundRemoveRescueDataPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundRemoveRescueDataPacket::new)
+                .encoder(ClientboundRemoveRescueDataPacket::toBytes)
+                .consumerMainThread(ClientboundRemoveRescueDataPacket::handle)
+                .add();
+
+        net.messageBuilder(ClientboundRevokedLicensesSyncPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundRevokedLicensesSyncPacket::new)
+                .encoder(ClientboundRevokedLicensesSyncPacket::toBytes)
+                .consumerMainThread(ClientboundRevokedLicensesSyncPacket::handle)
+                .add();
+
     }
 
     // 特定のプレイヤーにパケットを送信するヘルパーメソッド

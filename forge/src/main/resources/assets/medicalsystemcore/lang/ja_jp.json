@@ -59,6 +59,7 @@
   "tooltip.medicalsystemcore.head_side_cable": "ベッドサイドモニターを患者に接続します",
   "tooltip.medicalsystemcore.rescue_tablet": "救急ポータルを開いて緊急通報を管理します",
   "tooltip.medicalsystemcore.doctor_card": "医療活動を行うために必要な資格証明書",
+  "tooltip.medicalsystemcore.doctor_card.revoked": "失効",
   "tooltip.medicalsystemcore.card_reader": "医師カードの真偽を判定する装置",
 
   "_comment_gui_elements": "=== GUI要素 ===",
@@ -71,6 +72,8 @@
   "gui.medicalsystemcore.rescue_portal.treated": "処置",
   "gui.medicalsystemcore.rescue_portal.track": "追跡",
   "gui.medicalsystemcore.rescue_portal.tracking": "追跡中",
+  "gui.medicalsystemcore.rescue_portal.delete": "削除",
+  "gui.medicalsystemcore.rescue_portal.delete_confirm": "本当に削除",
 
   "_comment_messages": "=== システムメッセージ ===",
   "message.medicalsystemcore.treatment_started": "治療を開始しました",

@@ -17,6 +17,13 @@ public class ClientTrackingManager {
         trackedData = null;
     }
 
+    /** 追跡中の通報が指定 ID なら追跡を止める(通報が削除されたとき用)。 */
+    public static void clearTrackingIfId(int rescueId) {
+        if (trackedData != null && trackedData.getId() == rescueId) {
+            trackedData = null;
+        }
+    }
+
     public static boolean isTracking() {
         return trackedData != null;
     }

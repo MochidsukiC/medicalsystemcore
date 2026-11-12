@@ -116,6 +116,12 @@ public class RescueDataListWidget {
         return false;
     }
 
+    /** 外部で一覧の要素が増減したあとに呼ぶ。行数が減ったときにスクロール位置が範囲外にならないようにする。 */
+    public void onListChanged() {
+        int maxScroll = Math.max(0, dataList.size() * ROW_HEIGHT - height);
+        if (this.scrollAmount > maxScroll) this.scrollAmount = maxScroll;
+    }
+
     public void setSelectedId(int id){
         this.selectedId = id;
     }

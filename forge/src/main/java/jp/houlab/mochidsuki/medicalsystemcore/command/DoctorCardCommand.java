@@ -5,6 +5,8 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import jp.houlab.mochidsuki.medicalsystemcore.core.IssuedLicenseSavedData;
+import jp.houlab.mochidsuki.medicalsystemcore.core.RevokedLicenseSavedData;
 import jp.houlab.mochidsuki.medicalsystemcore.item.DoctorCardItem;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.ChatFormatting;
@@ -16,13 +18,17 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * 医師カード管理用のコマンドクラス
  * /doctorcard grant <player> - 正規カード付与（ライセンス番号自動発行）
  * /doctorcard grant <player> <license_number> - 正規カード付与（ライセンス番号指定）
- * /doctorcard revoke <player> - カード無効化
+ * /doctorcard revoke <player> - カード失効（発行台帳とインベントリの免許番号を失効リストへ追加。カードの現物は残る）
+ * /doctorcard revoke_license <license_number> - 免許番号を直接指定して失効
  * /doctorcard check <player> - 認証状態確認
  * /doctorcard fake <fake_name> <license_number> - テスト用偽造カード作成
  */
@@ -43,6 +49,11 @@ public class DoctorCardCommand {
         command.then(Commands.literal("revoke")
                 .then(Commands.argument("player", EntityArgument.player())
                         .executes(DoctorCardCommand::revokeCard)));
+
+        // /doctorcard revoke_license <license_number> - 免許番号を直接指定して失効
+        command.then(Commands.literal("revoke_license")
+                .then(Commands.argument("license_number", StringArgumentType.string())
+                        .executes(DoctorCardCommand::revokeLicense)));
 
         // /doctorcard check <player>
         command.then(Commands.literal("check")
@@ -103,6 +114,10 @@ public class DoctorCardCommand {
             return 0;
         }
 
+        if (refuseIfNumberInUse(source, licenseNumber)) {
+            return 0;
+        }
+
         MedicalAuthorizationUtil.grantDoctorCard(targetPlayer, licenseNumber);
 
         source.sendSuccess(() -> Component.literal("プレイヤー " + targetPlayer.getName().getString() +
@@ -113,35 +128,88 @@ public class DoctorCardCommand {
     }
 
     /**
-     * プレイヤーの医師カードを無効化（削除）
+     * プレイヤーの医師カードを失効させる。どこにあるカードも、失効した瞬間から使えなくなる。
+     * 失効させる免許番号は次の和集合:
+     * (1) 発行台帳にある、そのプレイヤーに発行した全番号(カードの置き場所によらない)
+     * (2) 対象がオンラインでインベントリに持つ正規カード(本人名義)の番号(台帳導入前に発行された旧カードを拾う)
+     * カードの現物は消さない(ツールチップに「失効」と出て、権限判定が無効にする)。
+     * 台帳導入前のカードがチェスト等にある場合は番号が分からないので、/doctorcard revoke_license で番号を指定する。
      */
     private static int revokeCard(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer targetPlayer = EntityArgument.getPlayer(context, "player");
         CommandSourceStack source = context.getSource();
 
-        boolean removed = false;
-
-        // インベントリ内の正規医師カードを削除
+        Set<String> numbers = new LinkedHashSet<>(
+                IssuedLicenseSavedData.get(source.getServer()).licensesOwnedBy(targetPlayer.getUUID()));
         for (int i = 0; i < targetPlayer.getInventory().getContainerSize(); i++) {
             ItemStack stack = targetPlayer.getInventory().getItem(i);
             if (DoctorCardItem.isDoctorCard(stack) &&
                     DoctorCardItem.isGenuine(stack) &&
                     DoctorCardItem.isOwnedBy(stack, targetPlayer)) {
-                targetPlayer.getInventory().removeItem(i, stack.getCount());
-                removed = true;
+                numbers.add(DoctorCardItem.getLicenseNumber(stack));
             }
         }
 
-        if (removed) {
-            source.sendSuccess(() -> Component.literal("プレイヤー " + targetPlayer.getName().getString() +
-                    " の医師カードを無効化しました。").withStyle(ChatFormatting.YELLOW), true);
-            targetPlayer.sendSystemMessage(Component.literal("あなたの医師カードが無効化されました。")
-                    .withStyle(ChatFormatting.RED));
-        } else {
-            source.sendFailure(Component.literal("対象プレイヤーは有効な医師カードを所持していません。"));
+        if (numbers.isEmpty()) {
+            source.sendFailure(Component.literal("対象プレイヤーに発行した医師カードの記録も、インベントリ内の正規カードも見つかりません。"
+                    + "台帳導入前のカードは /doctorcard revoke_license <免許番号> で失効させてください。"));
+            return 0;
         }
 
-        return removed ? 1 : 0;
+        int added = RevokedLicenseSavedData.get(source.getServer()).revokeAll(numbers);
+        if (added == 0) {
+            source.sendFailure(Component.literal("対象プレイヤーの医師カードは既に失効しています。"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal("プレイヤー " + targetPlayer.getName().getString() +
+                " の医師カード " + added + " 件(免許番号: " + String.join(", ", numbers) + ")を失効させました。")
+                .withStyle(ChatFormatting.YELLOW), true);
+        targetPlayer.sendSystemMessage(Component.literal("あなたの医師カードが失効しました。")
+                .withStyle(ChatFormatting.RED));
+        return 1;
+    }
+
+    /**
+     * 免許番号を直接指定して失効させる(台帳導入前に発行され、持ち主を特定できないカード用)。
+     * 発行台帳に持ち主が記録されていて、その人がオンラインなら通知する。
+     */
+    private static int revokeLicense(CommandContext<CommandSourceStack> context) {
+        String licenseNumber = StringArgumentType.getString(context, "license_number");
+        CommandSourceStack source = context.getSource();
+
+        if (RevokedLicenseSavedData.get(source.getServer()).revokeAll(List.of(licenseNumber)) == 0) {
+            source.sendFailure(Component.literal("免許番号 " + licenseNumber + " は既に失効しています。"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal("免許番号 " + licenseNumber + " を失効させました。")
+                .withStyle(ChatFormatting.YELLOW), true);
+
+        IssuedLicenseSavedData.Issue issue = IssuedLicenseSavedData.get(source.getServer()).find(licenseNumber);
+        if (issue != null) {
+            ServerPlayer owner = source.getServer().getPlayerList().getPlayer(issue.ownerUuid());
+            if (owner != null) {
+                owner.sendSystemMessage(Component.literal("あなたの医師カードが失効しました。")
+                        .withStyle(ChatFormatting.RED));
+            }
+        }
+        return 1;
+    }
+
+    /**
+     * 指定の免許番号が、発行台帳か失効リストにすでにあれば拒否する(手動指定の番号用)。
+     * 台帳にある番号と重複すると、片方を失効させたときにもう片方も巻き込まれる。
+     * 失効済みの番号で発行すると、発行した瞬間に失効カードになる。
+     */
+    private static boolean refuseIfNumberInUse(CommandSourceStack source, String licenseNumber) {
+        if (IssuedLicenseSavedData.get(source.getServer()).isIssued(licenseNumber)
+                || RevokedLicenseSavedData.get(source.getServer()).isRevoked(licenseNumber)) {
+            source.sendFailure(Component.literal("免許番号 " + licenseNumber + " は発行済みまたは失効済みのため使えません。"
+                    + "別の免許番号を指定するか、番号を省略して自動発行してください。"));
+            return true;
+        }
+        return false;
     }
 
     /**

@@ -3,31 +3,26 @@ package jp.houlab.mochidsuki.medicalsystemcore.core;
 import jp.houlab.mochidsuki.medicalsystemcore.common.model.RescueCategory;
 import jp.houlab.mochidsuki.medicalsystemcore.common.rules.RescueRules;
 
+import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundRemoveRescueDataPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundUpdateRescueDataPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.server.ServerLifecycleHooks;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * サーバーサイドで通報データを一元管理するクラス
+ * サーバーサイドで通報データを操作するクラス。
+ * 通報の実体はワールドのセーブデータ({@link RescueSavedData})にあり、ここは更新と医師への配信を担う。
+ * すべてサーバースレッドから呼ぶこと。
  */
 public class RescueDataManager {
-
-    // サーバーが保持する唯一の通報リスト。スレッドセーフなリストを使用。
-    private static final List<RescueData> RESCUE_DATA_LIST = Collections.synchronizedList(new ArrayList<>());
-    // IDをスレッドセーフに採番するためのカウンター
-    private static final AtomicInteger nextId = new AtomicInteger(1);
 
     /**
      * 新しい通報データを作成し、医師として認可されているオンラインのプレイヤーに通知する
@@ -38,23 +33,20 @@ public class RescueDataManager {
      * @param location 通報地点
      * @param dimension ディメンション
      */
-    public static void createNewRescueData(UUID reporterUuid, String reporterName, RescueCategory category, String description, BlockPos location, ResourceKey<Level> dimension) {
-        // 新しいIDを採番してデータを作成
-        RescueData newData = new RescueData(reporterUuid, reporterName, category, description, location, dimension);
-
-        // サーバーのマスターリストに追加
-        RESCUE_DATA_LIST.add(newData); // 常にリストの先頭に追加
+    public static void createNewRescueData(MinecraftServer server, UUID reporterUuid, String reporterName, RescueCategory category, String description, BlockPos location, ResourceKey<Level> dimension) {
+        // ID の採番と保存は RescueSavedData が行う
+        RescueData newData = RescueSavedData.get(server).create(reporterUuid, reporterName, category, description, location, dimension);
 
         // この新しいデータを医師にだけ送信(通報者の座標が一般プレイヤーに漏れないようにする)
-        sendToMedicalStaff(new ClientboundUpdateRescueDataPacket(newData, true));
+        sendToMedicalStaff(server, new ClientboundUpdateRescueDataPacket(newData, true));
     }
 
     /**
      * 医師として認可されているオンラインのプレイヤーだけにパケットを送る。
      * 認可の判定は MedicalAuthorizationUtil に従う(エラーメッセージを送らない Silent 版)。
      */
-    private static <MSG> void sendToMedicalStaff(MSG message) {
-        for (ServerPlayer player : ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers()) {
+    public static <MSG> void sendToMedicalStaff(MinecraftServer server, MSG message) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (MedicalAuthorizationUtil.checkMedicalAuthorizationSilent(player)) {
                 ModPackets.sendToPlayer(message, player);
             }
@@ -67,13 +59,15 @@ public class RescueDataManager {
      * 権限の確認は呼び出し元(ServerboundUpdateRescueDataPacket)が入口で行う。
      */
     public static void updateRescueDataCheckbox(ServerPlayer player, int rescueId, boolean isDispatch, boolean isTreatment) {
-        findRescueDataById(rescueId).ifPresent(data -> {
+        RescueSavedData saved = RescueSavedData.get(player.server);
+        saved.findById(rescueId).ifPresent(data -> {
             // データが実際に変更されたかチェック
             if (data.isDispatch() != isDispatch || data.isTreatment() != isTreatment) {
                 data.setDispatch(isDispatch);
                 data.setTreatment(isTreatment);
+                saved.markChanged();
                 // 医師に更新をブロードキャスト
-                sendToMedicalStaff(new ClientboundUpdateRescueDataPacket(data, false));
+                sendToMedicalStaff(player.server, new ClientboundUpdateRescueDataPacket(data, false));
             }
         });
     }
@@ -85,14 +79,29 @@ public class RescueDataManager {
      * ギブアップの自動追記(患者本人は医師とは限らない)もここを通るため、この中では権限を確認しない。
      */
     public static void updateRescueDataMemo(ServerPlayer player, int rescueId, String memo) {
-        findRescueDataById(rescueId).ifPresent(data -> {
+        RescueSavedData saved = RescueSavedData.get(player.server);
+        saved.findById(rescueId).ifPresent(data -> {
             // データが実際に変更されたかチェック
             if (!memo.equals(data.getMemo())) {
                 data.setMemo(memo);
+                saved.markChanged();
                 // 医師に更新をブロードキャスト
-                sendToMedicalStaff(new ClientboundUpdateRescueDataPacket(data, false));
+                sendToMedicalStaff(player.server, new ClientboundUpdateRescueDataPacket(data, false));
             }
         });
+    }
+
+    /**
+     * 通報を削除し、医師に削除を通知する。
+     * 権限の確認は呼び出し元(ServerboundDeleteRescueDataPacket)が入口で行う。
+     * @return 実際に削除したら true(存在しない ID なら false。通知は送らない)
+     */
+    public static boolean deleteRescueData(MinecraftServer server, int rescueId) {
+        if (!RescueSavedData.get(server).remove(rescueId)) {
+            return false;
+        }
+        sendToMedicalStaff(server, new ClientboundRemoveRescueDataPacket(rescueId));
+        return true;
     }
 
     /**
@@ -100,9 +109,9 @@ public class RescueDataManager {
      * メモが上限(RescueRules.MEMO_MAX_LENGTH)を超える場合は、追記を残すために既存メモの末尾側を切り詰める。
      */
     public static void appendSystemMemo(ServerPlayer reporter, String tag) {
-        List<RescueData> dataList = getRescueDataList();
+        // 保存順は古い順(末尾が最新)なので、最新のものから検索する
+        List<RescueData> dataList = RescueSavedData.get(reporter.server).getOldestFirst();
 
-        // 最新のものから検索（リストの末尾が最新）
         for (int i = dataList.size() - 1; i >= 0; i--) {
             RescueData data = dataList.get(i);
             if (reporter.getUUID().equals(data.getReporterUuid())) {
@@ -123,20 +132,15 @@ public class RescueDataManager {
      * @param id 検索するID
      * @return 見つかった場合はOptional<RescueData>、なければOptional.empty()
      */
-    public static Optional<RescueData> findRescueDataById(int id) {
-        // synchronizedブロックでリストへのアクセスを保護
-        synchronized (RESCUE_DATA_LIST) {
-            return RESCUE_DATA_LIST.stream().filter(data -> data.getId() == id).findFirst();
-        }
+    public static Optional<RescueData> findRescueDataById(MinecraftServer server, int id) {
+        return RescueSavedData.get(server).findById(id);
     }
 
     /**
-     * 現在の通報リストのコピーを返す
-     * @return 通報リストの安全なコピー
+     * クライアントへ全件同期するための通報リスト(新しい順)。
+     * クライアントの一覧は先頭が最新(新着は先頭へ挿入、ウィジェットは index 0 が最上段)なので、それに揃える。
      */
-    public static List<RescueData> getRescueDataList() {
-        synchronized (RESCUE_DATA_LIST) {
-            return new ArrayList<>(RESCUE_DATA_LIST);
-        }
+    public static List<RescueData> getRescueDataListNewestFirst(MinecraftServer server) {
+        return RescueSavedData.get(server).getNewestFirst();
     }
 }

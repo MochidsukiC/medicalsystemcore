@@ -20,8 +20,8 @@ public class ServerboundRequestRescueListPacket {
             // 通報者の座標などが含まれるため、医師として認可されている送信者にだけ返す
             if (!MedicalAuthorizationUtil.checkMedicalAuthorizationSilent(sender)) return;
 
-            // サーバー側で全リストを要求元のクライアントに送り返す
-            ModPackets.sendToPlayer(new ClientboundSyncAllRescueDataPacket(RescueDataManager.getRescueDataList()), sender);
+            // サーバー側で全リストを要求元のクライアントに送り返す(新しい順。クライアントの一覧は先頭が最新)
+            ModPackets.sendToPlayer(new ClientboundSyncAllRescueDataPacket(RescueDataManager.getRescueDataListNewestFirst(sender.server)), sender);
         });
         context.setPacketHandled(true);
     }

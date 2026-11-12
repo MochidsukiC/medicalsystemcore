@@ -1,8 +1,12 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
+import jp.houlab.mochidsuki.medicalsystemcore.client.ClientRevokedLicenses;
+import jp.houlab.mochidsuki.medicalsystemcore.core.IssuedLicenseSavedData;
+import jp.houlab.mochidsuki.medicalsystemcore.core.RevokedLicenseSavedData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -33,14 +37,8 @@ public class DoctorCardItem extends Item {
     }
 
     /**
-     * 正規の医師カードを作成（ライセンス番号自動発行）
-     */
-    public static ItemStack createGenuineCard(Player player) {
-        return createGenuineCard(player, generateLicenseNumber(player));
-    }
-
-    /**
-     * 正規の医師カードを作成（ライセンス番号指定）
+     * 正規の医師カードを作成（ライセンス番号指定）。
+     * 自動採番は generateUniqueLicenseNumber を使う。発行の記録は MedicalAuthorizationUtil.grantDoctorCard が行う。
      */
     public static ItemStack createGenuineCard(Player player, String licenseNumber) {
         ItemStack stack = new ItemStack(jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore.DOCTOR_CARD.get());
@@ -58,12 +56,22 @@ public class DoctorCardItem extends Item {
     /**
      * ライセンス番号を自動生成
      * 形式: MC-YYYYMMDD-XXXX (MCは接頭辞、日付、プレイヤーUUIDの末尾4桁)
+     * 基本形は「日付 + UUID 末尾」で決まるため、同じ人に同日に再発行すると衝突する。
+     * 発行台帳か失効リストに既にある番号なら、末尾に -2, -3, ... を付けて一意にする(基本形の規則は変えていない)。
      */
-    private static String generateLicenseNumber(Player player) {
+    public static String generateUniqueLicenseNumber(ServerPlayer player) {
         java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("yyyyMMdd");
         String dateStr = dateFormat.format(new java.util.Date());
         String uuidSuffix = player.getUUID().toString().replaceAll("-", "").substring(28).toUpperCase();
-        return "MC-" + dateStr + "-" + uuidSuffix;
+        String base = "MC-" + dateStr + "-" + uuidSuffix;
+
+        IssuedLicenseSavedData issued = IssuedLicenseSavedData.get(player.server);
+        RevokedLicenseSavedData revoked = RevokedLicenseSavedData.get(player.server);
+        String candidate = base;
+        for (int sequence = 2; issued.isIssued(candidate) || revoked.isRevoked(candidate); sequence++) {
+            candidate = base + "-" + sequence;
+        }
+        return candidate;
     }
 
     /**
@@ -125,25 +133,49 @@ public class DoctorCardItem extends Item {
      */
     public static boolean hasValidDoctorCard(Player player) {
         // メインハンド、オフハンド、インベントリの順でチェック
-        ItemStack mainHand = player.getMainHandItem();
-        if (isDoctorCard(mainHand) && isGenuine(mainHand) && isOwnedBy(mainHand, player)) {
+        if (isValidCardFor(player.getMainHandItem(), player)) {
             return true;
         }
 
-        ItemStack offHand = player.getOffhandItem();
-        if (isDoctorCard(offHand) && isGenuine(offHand) && isOwnedBy(offHand, player)) {
+        if (isValidCardFor(player.getOffhandItem(), player)) {
             return true;
         }
 
         // インベントリ内をチェック
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack stack = player.getInventory().getItem(i);
-            if (isDoctorCard(stack) && isGenuine(stack) && isOwnedBy(stack, player)) {
+            if (isValidCardFor(player.getInventory().getItem(i), player)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * このスタックが、そのプレイヤーの権限として使える医師カードかどうか。
+     * 正規で、所有者が本人で、免許番号が失効していないこと。権限判定はすべてここを通る
+     * (hasValidDoctorCard と MedicalAuthorizationUtil.getMedicalCredentials)。
+     */
+    public static boolean isValidCardFor(ItemStack stack, Player player) {
+        return isDoctorCard(stack) && isGenuine(stack) && isOwnedBy(stack, player) && !isRevoked(stack, player);
+    }
+
+    /** カードの免許番号。タグが無ければ空文字。 */
+    public static String getLicenseNumber(ItemStack stack) {
+        CompoundTag nbt = stack.getTag();
+        return nbt == null ? "" : nbt.getString(TAG_LICENSE_NUMBER);
+    }
+
+    /**
+     * カードの免許番号が失効リストにあるか。
+     * サーバーではワールドのセーブデータを、クライアントではサーバーから同期された写しを参照する。
+     */
+    private static boolean isRevoked(ItemStack stack, Player player) {
+        String license = getLicenseNumber(stack);
+        if (player instanceof ServerPlayer serverPlayer) {
+            return RevokedLicenseSavedData.get(serverPlayer.server).isRevoked(license);
+        }
+        return ClientRevokedLicenses.isRevoked(license);
     }
 
     @Override
@@ -159,6 +191,12 @@ public class DoctorCardItem extends Item {
         if (nbt.contains(TAG_LICENSE_NUMBER)) {
             tooltip.add(Component.literal("免許番号: " + nbt.getString(TAG_LICENSE_NUMBER))
                     .withStyle(ChatFormatting.GRAY));
+
+            // 失効済みの正規カードには赤字で「失効」を出す(失効リストはサーバーから同期された写し)
+            if (isGenuine(stack) && ClientRevokedLicenses.isRevoked(nbt.getString(TAG_LICENSE_NUMBER))) {
+                tooltip.add(Component.translatable("tooltip.medicalsystemcore.doctor_card.revoked")
+                        .withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
+            }
         }
 
         if (nbt.contains(TAG_ISSUE_DATE)) {

@@ -56,6 +56,7 @@
   "tooltip.medicalsystemcore.tube": "Connects medical equipment",
   "tooltip.medicalsystemcore.head_side_cable": "Connects bedside monitor to patient",
   "tooltip.medicalsystemcore.rescue_tablet": "Opens the rescue portal to manage emergency calls",
+  "tooltip.medicalsystemcore.doctor_card.revoked": "Revoked",
 
   "_comment_gui_elements": "=== GUI ELEMENTS ===",
   "gui.medicalsystemcore.iv_stand.blood_slot": "Blood Pack",
@@ -63,6 +64,8 @@
   "gui.medicalsystemcore.iv_stand.drug_slot_2": "Medicine Pack 2",
   "gui.medicalsystemcore.rescue_portal.track": "Track",
   "gui.medicalsystemcore.rescue_portal.tracking": "Tracking",
+  "gui.medicalsystemcore.rescue_portal.delete": "Delete",
+  "gui.medicalsystemcore.rescue_portal.delete_confirm": "Really delete",
 
   "_comment_messages": "=== SYSTEM MESSAGES ===",
   "message.medicalsystemcore.treatment_started": "Treatment started",
