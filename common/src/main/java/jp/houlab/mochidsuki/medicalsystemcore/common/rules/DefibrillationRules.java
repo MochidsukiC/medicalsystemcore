@@ -8,7 +8,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.common.model.QTEResult;
 import java.util.random.RandomGenerator;
 
 /**
- * 除細動の成功判定と状態遷移。QTE を経る経路と経ない経路で同じ判定を共有する。
+ * 除細動の成功判定と状態遷移。QTE の結果を受けて行う判定の唯一の実装で、設定値は {@link Params} で受け取る。
  */
 public final class DefibrillationRules {
     /** 蘇生成功後の蘇生確率。 */
@@ -59,7 +59,7 @@ public final class DefibrillationRules {
     }
 
     /**
-     * QTE を経る経路の判定。QTE が FAIL なら判定せず終了。
+     * QTE の結果に基づく判定。QTE が FAIL なら判定せず終了。
      * GREAT_SUCCESS / SUCCESS は、設定の補正値(%)を蘇生確率に加えて判定する。
      *
      * @param rng 乱数。成功判定に 1 回、失敗時の移行判定にもう 1 回、必要なときだけ消費する

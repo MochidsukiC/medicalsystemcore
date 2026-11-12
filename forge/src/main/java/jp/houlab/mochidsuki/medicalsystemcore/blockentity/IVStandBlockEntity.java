@@ -117,7 +117,7 @@ public class IVStandBlockEntity extends BlockEntity implements MenuProvider {
 
     @Override
     public Component getDisplayName() {
-        return Component.literal("点滴スタンド");
+        return Component.translatable("container.medicalsystemcore.iv_stand_menu");
     }
 
     @Nullable

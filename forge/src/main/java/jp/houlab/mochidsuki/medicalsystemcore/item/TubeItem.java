@@ -38,13 +38,17 @@ public class TubeItem extends Item {
         Player player = pContext.getPlayer();
         ItemStack heldItem = pContext.getItemInHand();
 
-        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pContext.getPlayer(), "点滴チューブの接続")) {
-            return InteractionResult.FAIL;
+        if (player == null) {
+            return InteractionResult.PASS;
         }
 
-
-        if (!level.isClientSide && player != null) {
+        if (!level.isClientSide) {
             if (level.getBlockState(clickedPos).getBlock() instanceof IVStandBlock) {
+                // 権限の判定とエラーメッセージの送信はサーバーだけが、点滴台が対象のときだけ行う(クライアントでも行うと二重に表示される)
+                if (!MedicalAuthorizationUtil.checkMedicalAuthorization(player, "点滴チューブの接続")) {
+                    return InteractionResult.FAIL;
+                }
+
                 CompoundTag nbt = heldItem.getOrCreateTag();
                 BlockPos startPos = level.getBlockState(clickedPos).getValue(IVStandBlock.HALF) == DoubleBlockHalf.LOWER
                         ? clickedPos
@@ -65,6 +69,11 @@ public class TubeItem extends Item {
             CompoundTag nbt = pStack.getTag();
 
             if (nbt != null && nbt.contains(TAG_START_POS)) {
+                // 医師カード認証チェック(エラーメッセージが二重に出ないようサーバー側だけで行う)
+                if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "点滴チューブの接続")) {
+                    return InteractionResult.FAIL;
+                }
+
                 BlockPos startPos = NbtUtils.readBlockPos(nbt.getCompound(TAG_START_POS));
                 BlockEntity be = level.getBlockEntity(startPos);
 
