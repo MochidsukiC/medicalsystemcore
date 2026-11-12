@@ -1,7 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
-import jp.houlab.mochidsuki.medicalsystemcore.util.AngleUtils;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.AngleUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;

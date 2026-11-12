@@ -1,6 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.effect;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.HemostaticRules;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
@@ -18,10 +20,9 @@ public class AdrenalineEffect extends MobEffect {
         if (!pLivingEntity.level().isClientSide() && pLivingEntity instanceof Player player) {
             // Config値を使用した蘇生確率回復
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                double recoveryAmount = Config.ADRENALINE_RESUSCITATION_RECOVERY_RATE / 20.0; // 毎tick回復量
-                float currentChance = data.getResuscitationChance();
-                float newChance = Math.min(100.0f, currentChance + (float) recoveryAmount);
-                data.setResuscitationChance(newChance);
+                data.setResuscitationChance(HemostaticRules.recoverResuscitationChance(
+                        data.getResuscitationChance(),
+                        MedicalConfig.get(MedicalConfigKeys.ADRENALINE_RESUSCITATION_RECOVERY_RATE)));
             });
         }
     }

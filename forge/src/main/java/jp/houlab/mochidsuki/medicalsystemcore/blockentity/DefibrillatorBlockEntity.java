@@ -1,6 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.blockentity;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.block.DefibrillatorBlock;
 import net.minecraft.core.BlockPos;
@@ -67,7 +68,7 @@ public class DefibrillatorBlockEntity extends BlockEntity {
         }
 
         long currentTick = level.getGameTime();
-        int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20;
+        int chargeTimeTicks = MedicalConfig.get(MedicalConfigKeys.DEFIBRILLATOR_CHARGE_TIME) * 20;
         if (be.chargeProgress > 0) {
 
             be.chargeProgress++;
@@ -103,7 +104,7 @@ public class DefibrillatorBlockEntity extends BlockEntity {
 
     public void startCooldown() {
         if (level != null) {
-            this.cooldownEndTick = level.getGameTime() + (Config.DEFIBRILLATOR_COOLDOWN * 20L);
+            this.cooldownEndTick = level.getGameTime() + (MedicalConfig.get(MedicalConfigKeys.DEFIBRILLATOR_COOLDOWN) * 20L);
         }
         setChanged();
         if (level != null) {
@@ -113,7 +114,7 @@ public class DefibrillatorBlockEntity extends BlockEntity {
 
     public float getChargeProgress() {
         if (!isCharging()) return 0.0f;
-        int chargeTimeTicks = Config.DEFIBRILLATOR_CHARGE_TIME * 20;
+        int chargeTimeTicks = MedicalConfig.get(MedicalConfigKeys.DEFIBRILLATOR_CHARGE_TIME) * 20;
         return (float) this.chargeProgress / chargeTimeTicks;
     }
 

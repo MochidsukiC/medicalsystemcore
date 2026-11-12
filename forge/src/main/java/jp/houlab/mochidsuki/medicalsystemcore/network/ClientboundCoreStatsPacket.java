@@ -4,7 +4,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientMedicalDataManager;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientPoseController;
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;

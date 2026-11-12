@@ -1,6 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.IvRules;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -24,7 +26,7 @@ public class FluidPackItem extends Item {
         super.appendHoverText(pStack, pLevel, pTooltipComponents, pIsAdvanced);
 
         CompoundTag nbt = pStack.getTag();
-        int maxTicks = Config.IV_PACK_DURATION * 20;
+        int maxTicks = getMaxTicks();
 
         if (nbt != null && nbt.contains("FluidVolumeTicks")) {
             int ticksLeft = nbt.getInt("FluidVolumeTicks");
@@ -50,7 +52,7 @@ public class FluidPackItem extends Item {
     public void inventoryTick(ItemStack pStack, Level pLevel, Entity pEntity, int pSlotId, boolean pIsSelected) {
         if (!pStack.hasTag()) {
             CompoundTag nbt = pStack.getOrCreateTag();
-            nbt.putInt("FluidVolumeTicks", Config.IV_PACK_DURATION * 20);
+            nbt.putInt("FluidVolumeTicks", getMaxTicks());
             // 残量レベルも同時に設定
             updateFluidLevel(pStack);
         }
@@ -60,7 +62,7 @@ public class FluidPackItem extends Item {
     public boolean isBarVisible(ItemStack pStack) {
         CompoundTag nbt = pStack.getTag();
         if (nbt != null && nbt.contains("FluidVolumeTicks")) {
-            int maxTicks = Config.IV_PACK_DURATION * 20;
+            int maxTicks = getMaxTicks();
             int currentTicks = nbt.getInt("FluidVolumeTicks");
             return currentTicks < maxTicks;
         }
@@ -83,12 +85,17 @@ public class FluidPackItem extends Item {
 
     // ========== ヘルパーメソッド ==========
 
+    /** パック 1 個ぶんの満タン容量(tick)。 */
+    public static int getMaxTicks() {
+        return IvRules.packCapacityTicks(MedicalConfig.get(MedicalConfigKeys.IV_PACK_DURATION));
+    }
+
     public static int getRemainingTicks(ItemStack stack) {
         CompoundTag nbt = stack.getTag();
         if (nbt != null && nbt.contains("FluidVolumeTicks")) {
             return nbt.getInt("FluidVolumeTicks");
         }
-        return Config.IV_PACK_DURATION * 20;
+        return getMaxTicks();
     }
 
     public static void setRemainingTicks(ItemStack stack, int ticks) {
@@ -99,7 +106,7 @@ public class FluidPackItem extends Item {
 
     public static float getRemainingPercentage(ItemStack stack) {
         int currentTicks = getRemainingTicks(stack);
-        int maxTicks = Config.IV_PACK_DURATION * 20;
+        int maxTicks = getMaxTicks();
         return (float) currentTicks / maxTicks;
     }
 
@@ -109,7 +116,7 @@ public class FluidPackItem extends Item {
 
     public static ItemStack createFullPack(Item packItem) {
         ItemStack stack = new ItemStack(packItem);
-        setRemainingTicks(stack, Config.IV_PACK_DURATION * 20);
+        setRemainingTicks(stack, getMaxTicks());
         return stack;
     }
 

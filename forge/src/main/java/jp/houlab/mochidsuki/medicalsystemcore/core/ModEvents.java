@@ -1,10 +1,17 @@
 package jp.houlab.mochidsuki.medicalsystemcore.core;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.BandageRules;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.BleedingRules;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.BloodRules;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.CardiacRules;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.IvRules;
 import jp.houlab.mochidsuki.medicalsystemcore.item.FluidPackItem;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
@@ -105,19 +112,8 @@ public class ModEvents {
         float damageAmount = event.getAmount();
 
         player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-            double speedIncrease = 0;
-
-            if (damageAmount > 0.1f && damageAmount <= 2f) {
-                if (Math.random() < Config.BLEEDING_CHANCE_LOW_DAMAGE) {
-                    speedIncrease = Config.BLEEDING_SPEED_INCREASE_LOW;
-                }
-            } else if (damageAmount > 2f && damageAmount <= 5f) {
-                speedIncrease = Config.BLEEDING_SPEED_INCREASE_MID;
-            } else if (damageAmount > 5f && damageAmount <= 10f) {
-                speedIncrease = Config.BLEEDING_SPEED_INCREASE_HIGH;
-            } else if (damageAmount > 10f) {
-                speedIncrease = Config.BLEEDING_SPEED_INCREASE_EXTREME;
-            }
+            double speedIncrease = BleedingRules.speedIncrease(
+                    damageAmount, Math.random(), BleedingRules.IncreaseTable.fromConfig());
 
             if (speedIncrease > 0) {
                 float newSpeed = medicalData.getBleedingSpeed() + (float) speedIncrease;
@@ -227,14 +223,7 @@ public class ModEvents {
     private static void handleConsciousnessState(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         HeartStatus newStatus = medicalData.getHeartStatus();
         boolean oldConscious = medicalData.isConscious();
-        boolean newConscious;
-
-        // 意識状態の判定
-        if (serverPlayer.getHealth() < 5 || newStatus != HeartStatus.NORMAL) {
-            newConscious = false;
-        } else {
-            newConscious = true;
-        }
+        boolean newConscious = CardiacRules.isConscious(serverPlayer.getHealth(), newStatus);
 
         // 意識状態が変化した場合
         if (oldConscious != newConscious) {
@@ -257,10 +246,10 @@ public class ModEvents {
     private static void handleIVTransfusion(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         medicalData.getTransfusingFromStandPos().ifPresent(standPos -> {
             BlockEntity be = serverPlayer.level().getBlockEntity(standPos);
-            double maxRangeSquared = Config.IV_RANGE * Config.IV_RANGE;
 
             if (be instanceof IVStandBlockEntity standEntity &&
-                    serverPlayer.distanceToSqr(standPos.getX() + 0.5, standPos.getY() + 0.5, standPos.getZ() + 0.5) < maxRangeSquared) {
+                    IvRules.isInRange(serverPlayer.distanceToSqr(standPos.getX() + 0.5, standPos.getY() + 0.5, standPos.getZ() + 0.5),
+                            MedicalConfig.get(MedicalConfigKeys.IV_RANGE))) {
 
                 boolean hasAnyPack = false;
                 boolean hasEmptyPackThisTick = false;
@@ -272,37 +261,32 @@ public class ModEvents {
                     if (packStack.isEmpty() || !(packStack.getItem() instanceof FluidPackItem)) continue;
 
                     // FluidPackItemのヘルパーメソッドを使用
-                    int ticksLeft = FluidPackItem.getRemainingTicks(packStack);
+                    IvRules.PackStep step = IvRules.stepPack(
+                            FluidPackItem.getRemainingTicks(packStack), packStack.getCount(), FluidPackItem.getMaxTicks());
 
-                    if (ticksLeft > 0) {
-                        // 残量を1tick減らす
-                        FluidPackItem.setRemainingTicks(packStack, ticksLeft - 1);
-                        hasAnyPack = true;
-                        itemsChanged = true; // アイテムが変更された
-                        Item packItem = packStack.getItem();
-                        applyPackEffect(serverPlayer, packItem);
-
-
-                        // BlockEntityを更新して表示を同期
-                        standEntity.setChanged();
-                    } else {
-                        // パックが空になった場合の処理
-                        if (packStack.getCount() > 1) {
+                    switch (step.action()) {
+                        case DRAIN -> {
+                            // 残量を1tick減らす
+                            FluidPackItem.setRemainingTicks(packStack, step.newRemainingTicks());
+                            hasAnyPack = true;
+                            applyPackEffect(serverPlayer, packStack.getItem());
+                        }
+                        case REFILL_FROM_STACK -> {
                             // スタックに複数ある場合、1つ減らして新しいものをフル容量で作成
                             packStack.shrink(1);
-                            FluidPackItem.setRemainingTicks(packStack, Config.IV_PACK_DURATION * 20);
+                            FluidPackItem.setRemainingTicks(packStack, step.newRemainingTicks());
                             hasAnyPack = true;
-                            itemsChanged = true; // アイテムが変更された
-                            Item packItem = packStack.getItem();
-                            applyPackEffect(serverPlayer, packItem);
-                        } else {
+                            applyPackEffect(serverPlayer, packStack.getItem());
+                        }
+                        case REMOVE_EMPTY -> {
                             // 最後の1つが空になったので削除
                             standEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
                             hasEmptyPackThisTick = true;
-                            itemsChanged = true; // アイテムが変更された
                         }
-                        standEntity.setChanged();
                     }
+                    itemsChanged = true; // アイテムが変更された
+                    // BlockEntityを更新して表示を同期
+                    standEntity.setChanged();
                 }
 
                 // アイテムが変更された場合、クライアント同期を強制実行
@@ -323,15 +307,15 @@ public class ModEvents {
 
     private static void applyPackEffect(ServerPlayer player, Item packItem) {
         if (packItem == Medicalsystemcore.BLOOD_PACK.get()) {
-            player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), 40, 0, true, false));
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANSFUSION.get(), IvRules.EFFECT_DURATION_TICKS, 0, true, false));
         } else if (packItem == Medicalsystemcore.ADRENALINE_PACK.get()) {
-            player.addEffect(new MobEffectInstance(Medicalsystemcore.ADRENALINE_EFFECT.get(), 40, 0, true, false));
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.ADRENALINE_EFFECT.get(), IvRules.EFFECT_DURATION_TICKS, 0, true, false));
         } else if (packItem == Medicalsystemcore.FIBRINOGEN_PACK.get()) {
-            player.addEffect(new MobEffectInstance(Medicalsystemcore.FIBRINOGEN_EFFECT.get(), 40, 0, true, false));
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.FIBRINOGEN_EFFECT.get(), IvRules.EFFECT_DURATION_TICKS, 0, true, false));
         } else if (packItem == Medicalsystemcore.TRANEXAMIC_ACID_PACK.get()) {
-            player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), 40, 0, true, false));
+            player.addEffect(new MobEffectInstance(Medicalsystemcore.TRANEXAMIC_ACID_EFFECT.get(), IvRules.EFFECT_DURATION_TICKS, 0, true, false));
         } else if (packItem == Medicalsystemcore.GLUCOSE_PACK.get()) {
-            player.addEffect(new MobEffectInstance(MobEffects.SATURATION, 100, 0, true, false));
+            player.addEffect(new MobEffectInstance(MobEffects.SATURATION, IvRules.GLUCOSE_EFFECT_DURATION_TICKS, 0, true, false));
         } else if (packItem == Medicalsystemcore.NORADRENALINE_PACK.get()) {
             // ノルアドレナリン：現在は未実装
         }
@@ -341,22 +325,17 @@ public class ModEvents {
         HeartStatus currentStatus = medicalData.getHeartStatus();
 
         if (currentStatus != HeartStatus.NORMAL) {
-            int arrestTimer = medicalData.getCardiacArrestTimer();
-            medicalData.setCardiacArrestTimer(arrestTimer + 1);
-
-            int deathTimeTicks = Config.CARDIAC_ARREST_DEATH_TIME * 60 * 20;
-            if (arrestTimer > deathTimeTicks || medicalData.getBloodLevel() <= 0) {
+            CardiacRules.Progress progress = CardiacRules.advance(
+                    currentStatus,
+                    medicalData.getCardiacArrestTimer(),
+                    medicalData.getBloodLevel(),
+                    medicalData.getResuscitationChance(),
+                    MedicalConfig.get(MedicalConfigKeys.CARDIAC_ARREST_DEATH_TIME),
+                    MedicalConfig.get(MedicalConfigKeys.RESUSCITATION_CHANCE_DECAY_RATE));
+            medicalData.setCardiacArrestTimer(progress.timer());
+            medicalData.setResuscitationChance(progress.chance());
+            if (progress.dead()) {
                 serverPlayer.kill();
-                return;
-            }
-
-            if (currentStatus == HeartStatus.CARDIAC_ARREST && arrestTimer % (20 * 60) == 0) {
-                double decayAmount = Config.RESUSCITATION_CHANCE_DECAY_RATE;
-                medicalData.setResuscitationChance(medicalData.getResuscitationChance() - (float) decayAmount);
-
-                if (medicalData.getResuscitationChance() <= 0) {
-                    serverPlayer.kill();
-                }
             }
         }
     }
@@ -364,85 +343,56 @@ public class ModEvents {
     private static void handleBleedingRecovery(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         float currentSpeed = medicalData.getBleedingSpeed();
         if (currentSpeed > 0) {
-            double recoveryRatePerSecond = 0.0;
             int bandageLevel = 0;
 
-            if (serverPlayer.hasEffect(Medicalsystemcore.BANDAGE_EFFECT.get())) {
-                MobEffectInstance bandageEffect = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get());
-                bandageLevel = bandageEffect.getAmplifier() + 1;
+            MobEffectInstance bandageEffect = serverPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get());
+            if (bandageEffect != null) {
+                bandageLevel = BandageRules.levelFromAmplifier(bandageEffect.getAmplifier());
             }
 
-            recoveryRatePerSecond = Config.BLEEDING_RECOVERY_BASE_RATE *
-                    (bandageLevel * Config.BLEEDING_RECOVERY_BANDAGE_MULTIPLIER);
-
-            if (recoveryRatePerSecond > 0) {
-                double recoveryPerTick = recoveryRatePerSecond / 20.0;
-                float newSpeed = Math.max(0, currentSpeed - (float) recoveryPerTick);
-                medicalData.setBleedingSpeed(newSpeed);
-            }
+            medicalData.setBleedingSpeed(BleedingRules.recover(
+                    currentSpeed,
+                    bandageLevel,
+                    MedicalConfig.get(MedicalConfigKeys.BLEEDING_RECOVERY_BASE_RATE),
+                    MedicalConfig.get(MedicalConfigKeys.BLEEDING_RECOVERY_BANDAGE_MULTIPLIER)));
         }
     }
 
     private static void handleBloodLoss(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
-        float currentSpeed = medicalData.getBleedingSpeed();
-
-        if (currentSpeed > 0) {
-            float bloodLossPerTick;
-
-            if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
-                bloodLossPerTick = currentSpeed / 60.0f / 20.0f;
-            } else {
-                if (medicalData.getBloodLevel() < 30.0f) {
-                    bloodLossPerTick = currentSpeed / 200.0f / 60.0f / 20.0f;
-                } else {
-                    bloodLossPerTick = currentSpeed / 20.0f / 60.0f / 20.0f;
-                }
-            }
-
-            float newBloodLevel = Math.max(0, medicalData.getBloodLevel() - bloodLossPerTick);
-            medicalData.setBloodLevel(newBloodLevel);
-
-        } else {
-            float recoveryPerTick = (float) (Config.BLOOD_NATURAL_RECOVERY_RATE / 20.0);
-            float newBloodLevel = Math.min(100.0f, medicalData.getBloodLevel() + recoveryPerTick);
-            medicalData.setBloodLevel(newBloodLevel);
-        }
+        medicalData.setBloodLevel(BloodRules.nextBlood(
+                medicalData.getHeartStatus(),
+                medicalData.getBloodLevel(),
+                medicalData.getBleedingSpeed(),
+                MedicalConfig.get(MedicalConfigKeys.BLOOD_NATURAL_RECOVERY_RATE)));
     }
 
     private static void handleBleedingEffect(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         float bleedingSpeed = medicalData.getBleedingSpeed();
         if (bleedingSpeed > 0) {
-            int level = (int) Math.ceil(bleedingSpeed);
+            int amplifier = BleedingRules.effectAmplifier(bleedingSpeed);
+            // MobEffectInstance#update は amplifier が下がる更新を hiddenEffect に回すため、
+            // 既存より低い amplifier を addEffect しても表示が古いまま残る。違うときは付け直す。
+            MobEffectInstance current = serverPlayer.getEffect(Medicalsystemcore.BLEEDING_EFFECT.get());
+            if (current != null && current.getAmplifier() != amplifier) {
+                serverPlayer.removeEffect(Medicalsystemcore.BLEEDING_EFFECT.get());
+            }
             serverPlayer.addEffect(new MobEffectInstance(
                     Medicalsystemcore.BLEEDING_EFFECT.get(),
-                    40, level - 1, true, true, true));
+                    BleedingRules.EFFECT_DURATION_TICKS, amplifier, true, true, true));
         } else {
             serverPlayer.removeEffect(Medicalsystemcore.BLEEDING_EFFECT.get());
         }
     }
 
     private static void handleBloodDamage(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
-        if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
-            int ticks = medicalData.getTickCounter();
+        double damageAmount = BloodRules.damage(
+                medicalData.getHeartStatus(),
+                medicalData.getTickCounter(),
+                medicalData.getBloodLevel(),
+                BloodRules.DamageTable.fromConfig());
 
-            if (ticks % Config.BLOOD_DAMAGE_INTERVAL == 0) {
-                float blood = medicalData.getBloodLevel();
-                double damageAmount = 0;
-
-                if (blood < Config.BLOOD_DAMAGE_THRESHOLD_85 && blood >= Config.BLOOD_DAMAGE_THRESHOLD_70) {
-                    damageAmount = Config.BLOOD_DAMAGE_85_70;
-                } else if (blood < Config.BLOOD_DAMAGE_THRESHOLD_70 && blood >= Config.BLOOD_DAMAGE_THRESHOLD_65) {
-                    damageAmount = Config.BLOOD_DAMAGE_70_65;
-                } else if (blood < Config.BLOOD_DAMAGE_THRESHOLD_65 && blood >= Config.BLOOD_DAMAGE_THRESHOLD_60) {
-                    damageAmount = Config.BLOOD_DAMAGE_65_60;
-                } else if (blood < Config.BLOOD_DAMAGE_THRESHOLD_60) {
-                    damageAmount = Config.BLOOD_DAMAGE_BELOW_60;
-                }
-
-                if (damageAmount > 0) {
-                    serverPlayer.hurt(ModDamageTypes.bleeding(serverPlayer.level()), (float) damageAmount);
-                }
-            }
+        if (damageAmount > 0) {
+            serverPlayer.hurt(ModDamageTypes.bleeding(serverPlayer.level()), (float) damageAmount);
         }
     }
 
@@ -545,12 +495,12 @@ public class ModEvents {
     }
 
     private static void handleUnconsciousFloating(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
-        if (!Config.UNCONSCIOUS_FLOAT_IN_LIQUID) return;
+        if (!MedicalConfig.get(MedicalConfigKeys.UNCONSCIOUS_FLOAT_IN_LIQUID)) return;
         if (medicalData.isConscious()) return;
         if (!serverPlayer.isInWater() && !serverPlayer.isInLava()) return;
 
         Vec3 motion = serverPlayer.getDeltaMovement();
-        serverPlayer.setDeltaMovement(motion.x, Config.UNCONSCIOUS_FLOAT_SPEED, motion.z);
+        serverPlayer.setDeltaMovement(motion.x, MedicalConfig.get(MedicalConfigKeys.UNCONSCIOUS_FLOAT_SPEED), motion.z);
         serverPlayer.hurtMarked = true;
     }
 

@@ -1,6 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.item.BandageItem;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundFinishHealPacket;
@@ -22,7 +23,7 @@ public class ClientHealingManager {
             targetId = entityId;
             healingTicks = 0;
             // Config値から他人への治療時間を取得
-            healDurationTicks = Config.BANDAGE_OTHER_USE_DURATION * 20; // 秒からtickに変換
+            healDurationTicks = MedicalConfig.get(MedicalConfigKeys.BANDAGE_OTHER_USE_DURATION) * 20; // 秒からtickに変換
         }
     }
 

@@ -1,6 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.HashMap;

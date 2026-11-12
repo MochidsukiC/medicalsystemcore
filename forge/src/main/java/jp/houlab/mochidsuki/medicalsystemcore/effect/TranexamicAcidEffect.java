@@ -1,6 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.effect;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.HemostaticRules;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
@@ -18,15 +20,10 @@ public class TranexamicAcidEffect extends MobEffect {
         if (!pLivingEntity.level().isClientSide() && pLivingEntity instanceof Player player) {
             // Config値を使用した出血速度減少
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(data -> {
-                double reductionPerSecond = Config.TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE;
-                double reductionPerTick = reductionPerSecond / 20.0; // 毎tick減少量
-                float currentSpeed = data.getBleedingSpeed();
-
-                // エフェクトレベルによって効果を調整（レベル1 = amplifier 0）
-                double adjustedReduction = reductionPerTick * (pAmplifier + 1);
-
-                float newSpeed = Math.max(0.0f, currentSpeed - (float) adjustedReduction);
-                data.setBleedingSpeed(newSpeed);
+                data.setBleedingSpeed(HemostaticRules.reduceBleeding(
+                        data.getBleedingSpeed(),
+                        MedicalConfig.get(MedicalConfigKeys.TRANEXAMIC_ACID_BLEEDING_REDUCTION_RATE),
+                        pAmplifier));
             });
         }
     }

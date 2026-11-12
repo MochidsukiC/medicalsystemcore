@@ -6,7 +6,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import jp.houlab.mochidsuki.medicalsystemcore.core.RescueCategory;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.RescueCategory;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueDataManager;
 import jp.houlab.mochidsuki.medicalsystemcore.item.DoctorCardItem;

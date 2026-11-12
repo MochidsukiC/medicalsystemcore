@@ -1,8 +1,9 @@
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueDataManager;
 import jp.houlab.mochidsuki.medicalsystemcore.item.DoctorCardItem;
@@ -58,19 +59,23 @@ public class ServerboundGiveUpPacket {
                 // 意識不明でなければ不正パケットとして無視
                 if (medicalData.isConscious()) return;
 
-                if (Config.TRANSPORT_MODE) {
+                if (MedicalConfig.get(MedicalConfigKeys.TRANSPORT_MODE)) {
                     // === 搬送モード ===
+                    int transportX = MedicalConfig.get(MedicalConfigKeys.TRANSPORT_X);
+                    int transportY = MedicalConfig.get(MedicalConfigKeys.TRANSPORT_Y);
+                    int transportZ = MedicalConfig.get(MedicalConfigKeys.TRANSPORT_Z);
+                    String transportDimension = MedicalConfig.get(MedicalConfigKeys.TRANSPORT_DIMENSION);
                     LOGGER.info("Transport mode: destination=({}, {}, {}) dimension={}",
-                            Config.TRANSPORT_X, Config.TRANSPORT_Y, Config.TRANSPORT_Z, Config.TRANSPORT_DIMENSION);
-                    ResourceLocation dimRL = ResourceLocation.tryParse(Config.TRANSPORT_DIMENSION);
+                            transportX, transportY, transportZ, transportDimension);
+                    ResourceLocation dimRL = ResourceLocation.tryParse(transportDimension);
                     if (dimRL == null) {
-                        LOGGER.warn("Invalid transport dimension: {}", Config.TRANSPORT_DIMENSION);
+                        LOGGER.warn("Invalid transport dimension: {}", transportDimension);
                         return;
                     }
                     ResourceKey<Level> targetDimension = ResourceKey.create(Registries.DIMENSION, dimRL);
                     ServerLevel targetLevel = player.server.getLevel(targetDimension);
                     if (targetLevel == null) {
-                        LOGGER.warn("Transport dimension not found: {}", Config.TRANSPORT_DIMENSION);
+                        LOGGER.warn("Transport dimension not found: {}", transportDimension);
                         return;
                     }
 
@@ -78,7 +83,7 @@ public class ServerboundGiveUpPacket {
                     player.stopRiding();
 
                     // 搬送先にテレポート（意識不明状態は維持）
-                    player.teleportTo(targetLevel, Config.TRANSPORT_X + 0.5, Config.TRANSPORT_Y, Config.TRANSPORT_Z + 0.5, player.getYRot(), player.getXRot());
+                    player.teleportTo(targetLevel, transportX + 0.5, transportY, transportZ + 0.5, player.getYRot(), player.getXRot());
 
                     // 通報データのメモに「搬送」を追記
                     appendTransportToRescueMemo(player);

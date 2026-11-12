@@ -1,7 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -42,16 +43,16 @@ public class ClientHudHandler {
                 int screenWidth = event.getWindow().getGuiScaledWidth();
                 int screenHeight = event.getWindow().getGuiScaledHeight();
                 int barY = (screenHeight - 5) / 2 + 20;
-                Component text = Component.translatable(Config.TRANSPORT_MODE ? "hud.medicalsystemcore.transport_hint" : "hud.medicalsystemcore.give_up_hint");
+                Component text = Component.translatable(MedicalConfig.get(MedicalConfigKeys.TRANSPORT_MODE) ? "hud.medicalsystemcore.transport_hint" : "hud.medicalsystemcore.give_up_hint");
                 int textWidth = Minecraft.getInstance().font.width(text);
                 guiGraphics.drawString(Minecraft.getInstance().font, text, (screenWidth - textWidth) / 2, barY - 12, 0xFFFFFFFF);
-            } else if (Config.GIVE_UP_ENABLED && Minecraft.getInstance().player != null
+            } else if (MedicalConfig.get(MedicalConfigKeys.GIVE_UP_ENABLED) && Minecraft.getInstance().player != null
                     && ClientMedicalDataManager.isPlayerUnconscious(Minecraft.getInstance().player)) {
                 // ダウン中は常に「スニークで搬送/リスポーン」ヒントを表示
                 GuiGraphics guiGraphics = event.getGuiGraphics();
                 int screenWidth = event.getWindow().getGuiScaledWidth();
                 int screenHeight = event.getWindow().getGuiScaledHeight();
-                Component hint = Component.translatable(Config.TRANSPORT_MODE ? "hud.medicalsystemcore.sneak_transport" : "hud.medicalsystemcore.sneak_give_up");
+                Component hint = Component.translatable(MedicalConfig.get(MedicalConfigKeys.TRANSPORT_MODE) ? "hud.medicalsystemcore.sneak_transport" : "hud.medicalsystemcore.sneak_give_up");
                 int textWidth = Minecraft.getInstance().font.width(hint);
                 int textY = screenHeight / 2 + 20;
                 guiGraphics.drawString(Minecraft.getInstance().font, hint, (screenWidth - textWidth) / 2, textY, 0xFFFFFFFF);

@@ -1,6 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.capability;
 
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 

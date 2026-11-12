@@ -1,7 +1,12 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.DefibrillationRules;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.Ticks;
+import jp.houlab.mochidsuki.medicalsystemcore.core.DefibrillationHandler;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import net.minecraft.network.chat.Component;
@@ -45,57 +50,29 @@ public class DefibrillatorItem extends Item {
                 return;
             }
 
-            // アイテムにクールダウンを設定 (30秒)
-            player.getCooldowns().addCooldown(this, 30 * 20);
+            // アイテムにクールダウンを設定
+            player.getCooldowns().addCooldown(this, Ticks.fromSeconds(MedicalConfig.get(MedicalConfigKeys.DEFIBRILLATOR_COOLDOWN)));
             Level level = player.level();
             level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 1.0F, 1.0F);
 
-            // 蘇生確率を取得
-            float chance = medicalData.getResuscitationChance();
-            boolean success = false;
+            // 判定と状態の適用は QTE 経路と共通(DefibrillationRules / DefibrillationHandler)。QTE 補正なし
+            DefibrillationRules.Result shock = DefibrillationHandler.shockWithoutQte(medicalData);
 
-            if (currentStatus == HeartStatus.CARDIAC_ARREST) {
-                // 心停止(Asystole)の場合：蘇生確率 = chance
-                if (Math.random() < chance / 100.0) {
-                    success = true;
-                } else {
-                    // 失敗時、40%の確率で心室細動(VF)に移行
-                    if (Math.random() < 0.4) {
-                        medicalData.setHeartStatus(HeartStatus.VF);
+            switch (shock.outcome()) {
+                case SUCCESS -> player.sendSystemMessage(Component.literal("§a蘇生成功！"));
+                case FAILED_TRANSITIONED -> {
+                    if (shock.newStatus() == HeartStatus.VF) {
                         player.sendSystemMessage(Component.literal("§c蘇生失敗。対象は心室細動に移行した。"));
                     } else {
-                        player.sendSystemMessage(Component.literal("§c蘇生失敗。"));
-                    }
-                }
-            } else if (currentStatus == HeartStatus.VF) {
-                // 心室細動(VF)の場合：蘇生確率 = chance * 2
-                if (Math.random() < (chance * 2) / 100.0) {
-                    success = true;
-                } else {
-                    // 失敗時、40%の確率で心停止(Asystole)に移行
-                    if (Math.random() < 0.4) {
-                        medicalData.setHeartStatus(HeartStatus.CARDIAC_ARREST);
                         player.sendSystemMessage(Component.literal("§c蘇生失敗。対象は心停止に移行した。"));
-                    } else {
-                        player.sendSystemMessage(Component.literal("§c蘇生失敗。"));
                     }
                 }
+                // NORMAL は冒頭で除外済み。QTE_FAILED は QTE を経ないこの経路では返らない
+                default -> player.sendSystemMessage(Component.literal("§c蘇生失敗。"));
             }
 
-            // 蘇生に成功した場合の処理
-            if (success) {
-                medicalData.setHeartStatus(HeartStatus.NORMAL);
-                medicalData.setResuscitationChance(100.0f);
-                medicalData.setCardiacArrestTimer(0);
-
-                player.sendSystemMessage(Component.literal("§a蘇生成功！"));
-
-                // 全てのクライアントに状態の更新とポーズ解除を通知
-                ModPackets.sendToPlayer(new ClientboundCoreStatsPacket(targetPlayer.getUUID(), HeartStatus.NORMAL,medicalData), targetPlayer);
-            } else {
-                // 失敗した場合も、状態が変化した可能性があるのでデータを同期
-                ModPackets.sendToPlayer(new ClientboundCoreStatsPacket(targetPlayer.getUUID(), medicalData.getHeartStatus(),medicalData), targetPlayer);
-            }
+            // 成功・失敗(状態移行を含む)のいずれでも状態が変化した可能性があるので対象へ同期
+            ModPackets.sendToPlayer(new ClientboundCoreStatsPacket(targetPlayer.getUUID(), medicalData.getHeartStatus(), medicalData), targetPlayer);
         });
 
         return InteractionResult.SUCCESS;

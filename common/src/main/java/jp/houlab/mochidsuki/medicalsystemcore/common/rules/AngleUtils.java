@@ -1,6 +1,6 @@
 // AngleUtils.java の修正版
 
-package jp.houlab.mochidsuki.medicalsystemcore.util;
+package jp.houlab.mochidsuki.medicalsystemcore.common.rules;
 
 /**
  * 角度処理に関するユーティリティクラス（修正版）

@@ -90,6 +90,12 @@ public class ModPackets {
                 .consumerMainThread(ClientboundOpenRescuePortalPacket::handle)
                 .add();
 
+        net.messageBuilder(ClientboundConfigSyncPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundConfigSyncPacket::new)
+                .encoder(ClientboundConfigSyncPacket::toBytes)
+                .consumerMainThread(ClientboundConfigSyncPacket::handle)
+                .add();
+
     }
 
     // 特定のプレイヤーにパケットを送信するヘルパーメソッド

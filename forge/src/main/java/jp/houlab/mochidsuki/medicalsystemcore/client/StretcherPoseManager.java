@@ -2,7 +2,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
-import jp.houlab.mochidsuki.medicalsystemcore.util.AngleUtils;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.AngleUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.Pose;

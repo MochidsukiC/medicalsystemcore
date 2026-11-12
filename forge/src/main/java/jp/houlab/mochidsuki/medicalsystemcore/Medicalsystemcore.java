@@ -12,6 +12,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.capability.IPlayerMedicalData;
 import jp.houlab.mochidsuki.medicalsystemcore.client.PackColor;
 import jp.houlab.mochidsuki.medicalsystemcore.client.SimpleFluidLevelProperty;
 import jp.houlab.mochidsuki.medicalsystemcore.client.model.StretcherModel;
+import jp.houlab.mochidsuki.medicalsystemcore.core.ConfigSyncHandler;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
@@ -61,9 +62,7 @@ import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -222,9 +221,9 @@ public class Medicalsystemcore {
         // Initialize packet system
         ModPackets.register();
 
-        // Load configuration
-        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, Config.SPEC, "medicalsystemcore-server.toml");
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        // 設定は common の MedicalConfig(config/medicalsystemcore.json)に一本化されている。
+        // 読み込みはサーバー起動前(ConfigSyncHandler)。ここでは変更時のクライアント同期リスナーだけを登録する。
+        ConfigSyncHandler.registerListener();
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

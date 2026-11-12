@@ -2,7 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.blockentity;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;

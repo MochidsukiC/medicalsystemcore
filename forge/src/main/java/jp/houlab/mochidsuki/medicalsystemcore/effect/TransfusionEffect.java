@@ -1,6 +1,8 @@
 package jp.houlab.mochidsuki.medicalsystemcore.effect;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.BloodRules;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundCoreStatsPacket;
@@ -25,12 +27,9 @@ public class TransfusionEffect extends MobEffect {
     public void applyEffectTick(LivingEntity pLivingEntity, int pAmplifier) {
         if (!pLivingEntity.level().isClientSide() && pLivingEntity instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                // Config値を使用した血液回復
-                double recoveryAmount = Config.TRANSFUSION_RECOVERY_RATE / 20.0; // 毎tick回復量
-                float currentBlood = medicalData.getBloodLevel();
-                float newBloodLevel = Math.min(100.0f, currentBlood + (float) recoveryAmount);
-
-                medicalData.setBloodLevel(newBloodLevel);
+                medicalData.setBloodLevel(BloodRules.transfuse(
+                        medicalData.getBloodLevel(),
+                        MedicalConfig.get(MedicalConfigKeys.TRANSFUSION_RECOVERY_RATE)));
 
                 // クライアントに状態を同期（毎秒1回程度に制限）
                 if (player.level().getGameTime() % 20 == 0 && player instanceof ServerPlayer serverPlayer) {

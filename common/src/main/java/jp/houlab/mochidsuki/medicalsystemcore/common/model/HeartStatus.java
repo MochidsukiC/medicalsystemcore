@@ -1,4 +1,4 @@
-package jp.houlab.mochidsuki.medicalsystemcore.core;
+package jp.houlab.mochidsuki.medicalsystemcore.common.model;
 
 
 /**

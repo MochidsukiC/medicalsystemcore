@@ -2,8 +2,10 @@ package jp.houlab.mochidsuki.medicalsystemcore.network;
 
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
-import jp.houlab.mochidsuki.medicalsystemcore.core.HeartStatus;
-import jp.houlab.mochidsuki.medicalsystemcore.core.QTEResult;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.QTEResult;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.DefibrillationRules;
+import jp.houlab.mochidsuki.medicalsystemcore.core.DefibrillationHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -62,58 +64,31 @@ public class ServerboundQTETResultPacket {
             }
 
 
-            // --- QTEが「失敗」範囲だった場合 ---
-            if (this.result == QTEResult.FAIL) {
-                healer.sendSystemMessage(Component.literal("§c電気ショック失敗..."), true);
-                // ここで除細動器のクールダウンを開始させるなどの処理を追加可能
-                return;
-            }
-
-            // --- QTEが「成功」または「大成功」だった場合 ---
             targetPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                float chance = medicalData.getResuscitationChance();
-                HeartStatus currentStatus = medicalData.getHeartStatus();
-                boolean success = false;
+                // 判定と状態の適用は DefibrillationRules / DefibrillationHandler に集約されている
+                // (QTE が失敗範囲のときは判定せず終了する)
+                DefibrillationRules.Result shock = DefibrillationHandler.shockWithQte(medicalData, this.result);
 
-                // 「大成功」の場合、蘇生確率にボーナス
-                if (this.result == QTEResult.GREAT_SUCCESS) {
-                    chance += 20.0f;
-                }
-                if(this.result == QTEResult.SUCCESS){
-                    chance -= 20.0f;
-                }
-
-                // 蘇生判定
-                if (currentStatus == HeartStatus.CARDIAC_ARREST) {
-                    if (Math.random() < chance / 100.0) success = true;
-                } else if (currentStatus == HeartStatus.VF) {
-                    if (Math.random() < (chance * 2) / 100.0) success = true;
-                }
-
-                // --- 蘇生成功時の処理 ---
-                if (success) {
-                    medicalData.setHeartStatus(HeartStatus.NORMAL);
-                    medicalData.setResuscitationChance(100.0f);
-                    medicalData.setCardiacArrestTimer(0);
-                    medicalData.setDamageImmune(false); // ダメージ無効を解除
-
-                    healer.sendSystemMessage(Component.literal("§a蘇生成功！"), true);
-                    targetPlayer.sendSystemMessage(Component.literal("§a蘇生された！"));
-
-                    // TODO: 仕様にある「1分間低血液量ダメージ無効」エフェクトをここで付与
-
-                }
-                // --- 蘇生失敗時の処理 ---
-                else {
-                    if (currentStatus == HeartStatus.CARDIAC_ARREST && Math.random() < 0.4) {
-                        medicalData.setHeartStatus(HeartStatus.VF);
-                        healer.sendSystemMessage(Component.literal("§c蘇生失敗。対象は心室細動に移行した。"), true);
-                    } else if (currentStatus == HeartStatus.VF && Math.random() < 0.4) {
-                        medicalData.setHeartStatus(HeartStatus.CARDIAC_ARREST);
-                        healer.sendSystemMessage(Component.literal("§c蘇生失敗。対象は心停止に移行した。"), true);
-                    } else {
-                        healer.sendSystemMessage(Component.literal("§c蘇生失敗。"), true);
+                switch (shock.outcome()) {
+                    case QTE_FAILED -> {
+                        healer.sendSystemMessage(Component.literal("§c電気ショック失敗..."), true);
+                        // 状態は変わらないので同期もしない
+                        return;
                     }
+                    case SUCCESS -> {
+                        healer.sendSystemMessage(Component.literal("§a蘇生成功！"), true);
+                        targetPlayer.sendSystemMessage(Component.literal("§a蘇生された！"));
+
+                        // TODO: 仕様にある「1分間低血液量ダメージ無効」エフェクトをここで付与
+                    }
+                    case FAILED_TRANSITIONED -> {
+                        if (shock.newStatus() == HeartStatus.VF) {
+                            healer.sendSystemMessage(Component.literal("§c蘇生失敗。対象は心室細動に移行した。"), true);
+                        } else {
+                            healer.sendSystemMessage(Component.literal("§c蘇生失敗。対象は心停止に移行した。"), true);
+                        }
+                    }
+                    case FAILED, NOT_APPLICABLE -> healer.sendSystemMessage(Component.literal("§c蘇生失敗。"), true);
                 }
 
                 // 状態が変化したので、全クライアントに同期

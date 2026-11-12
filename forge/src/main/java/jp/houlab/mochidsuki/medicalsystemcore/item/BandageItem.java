@@ -1,7 +1,9 @@
 package jp.houlab.mochidsuki.medicalsystemcore.item;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.BandageRules;
 import jp.houlab.mochidsuki.medicalsystemcore.client.ClientHealingManager;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.sounds.SoundEvents;
@@ -40,7 +42,7 @@ public class BandageItem extends Item {
     public ItemStack finishUsingItem(ItemStack pStack, Level pLevel, LivingEntity pLivingEntity) {
         if (pLivingEntity instanceof Player player) {
             // Config値を使用して自分にエフェクトを付与
-            applyBandageEffect(player, Config.BANDAGE_SELF_LEVEL_INCREASE);
+            applyBandageEffect(player, MedicalConfig.get(MedicalConfigKeys.BANDAGE_SELF_LEVEL_INCREASE));
         }
         pStack.shrink(1);
         return super.finishUsingItem(pStack, pLevel, pLivingEntity);
@@ -55,19 +57,16 @@ public class BandageItem extends Item {
         MobEffectInstance existingEffect = target.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get());
         int currentLevel = 0;
         if (existingEffect != null) {
-            currentLevel = existingEffect.getAmplifier() + 1;
+            currentLevel = BandageRules.levelFromAmplifier(existingEffect.getAmplifier());
         }
 
-        // Config値を使用した最大レベル制限
-        int newLevel = Math.min(Config.BANDAGE_MAX_LEVEL, currentLevel + levelToAdd);
-
-        // Config値を使用した持続時間
-        int duration = Config.BANDAGE_EFFECT_DURATION * 20; // 秒からtickに変換
+        int newLevel = BandageRules.nextLevel(currentLevel, levelToAdd, MedicalConfig.get(MedicalConfigKeys.BANDAGE_MAX_LEVEL));
+        int duration = BandageRules.durationTicks(MedicalConfig.get(MedicalConfigKeys.BANDAGE_EFFECT_DURATION));
 
         target.addEffect(new MobEffectInstance(
                 Medicalsystemcore.BANDAGE_EFFECT.get(),
                 duration,
-                newLevel - 1, // amplifierは0から始まるため-1
+                BandageRules.amplifierForLevel(newLevel),
                 true,
                 true
         ));
@@ -78,7 +77,7 @@ public class BandageItem extends Item {
      */
     @Override
     public int getUseDuration(ItemStack pStack) {
-        return Config.BANDAGE_SELF_USE_DURATION * 20; // 秒からtickに変換
+        return BandageRules.durationTicks(MedicalConfig.get(MedicalConfigKeys.BANDAGE_SELF_USE_DURATION));
     }
 
     /**

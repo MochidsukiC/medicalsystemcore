@@ -1,7 +1,9 @@
 package jp.houlab.mochidsuki.medicalsystemcore.network;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
+import jp.houlab.mochidsuki.medicalsystemcore.common.rules.BandageRules;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.PlayerMedicalDataProvider;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -47,17 +49,18 @@ public class ServerboundFinishHealPacket {
                         MobEffectInstance existingEffect = targetPlayer.getEffect(Medicalsystemcore.BANDAGE_EFFECT.get());
                         int currentLevel = 0;
                         if (existingEffect != null) {
-                            currentLevel = existingEffect.getAmplifier() + 1;
+                            currentLevel = BandageRules.levelFromAmplifier(existingEffect.getAmplifier());
                         }
 
-                        // Config値を使用した他人への包帯エフェクト付与
-                        int newLevel = Math.min(Config.BANDAGE_MAX_LEVEL, currentLevel + Config.BANDAGE_OTHER_LEVEL_INCREASE);
-                        int duration = Config.BANDAGE_EFFECT_DURATION * 20; // 秒からtickに変換
+                        int newLevel = BandageRules.nextLevel(currentLevel,
+                                MedicalConfig.get(MedicalConfigKeys.BANDAGE_OTHER_LEVEL_INCREASE),
+                                MedicalConfig.get(MedicalConfigKeys.BANDAGE_MAX_LEVEL));
+                        int duration = BandageRules.durationTicks(MedicalConfig.get(MedicalConfigKeys.BANDAGE_EFFECT_DURATION));
 
                         targetPlayer.addEffect(new MobEffectInstance(
                                 Medicalsystemcore.BANDAGE_EFFECT.get(),
                                 duration,
-                                newLevel - 1, // amplifierは0から始まるため-1
+                                BandageRules.amplifierForLevel(newLevel),
                                 true,
                                 true
                         ));

@@ -1,6 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.client;
 
-import jp.houlab.mochidsuki.medicalsystemcore.Config;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfig;
+import jp.houlab.mochidsuki.medicalsystemcore.common.config.MedicalConfigKeys;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundGiveUpPacket;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -18,7 +19,7 @@ public class ClientGiveUpManager {
             return;
         }
 
-        if (!Config.GIVE_UP_ENABLED) {
+        if (!MedicalConfig.get(MedicalConfigKeys.GIVE_UP_ENABLED)) {
             reset();
             return;
         }
@@ -51,7 +52,7 @@ public class ClientGiveUpManager {
             holdTicks++;
             holding = true;
 
-            int requiredTicks = Config.GIVE_UP_DURATION * 20;
+            int requiredTicks = MedicalConfig.get(MedicalConfigKeys.GIVE_UP_DURATION) * 20;
             if (holdTicks >= requiredTicks) {
                 // サーバーにギブアップパケット送信
                 ModPackets.sendToServer(new ServerboundGiveUpPacket());
@@ -73,7 +74,7 @@ public class ClientGiveUpManager {
 
     public static float getProgress() {
         if (!holding) return 0;
-        int requiredTicks = Config.GIVE_UP_DURATION * 20;
+        int requiredTicks = MedicalConfig.get(MedicalConfigKeys.GIVE_UP_DURATION) * 20;
         if (requiredTicks == 0) return 0;
         return (float) holdTicks / requiredTicks;
     }

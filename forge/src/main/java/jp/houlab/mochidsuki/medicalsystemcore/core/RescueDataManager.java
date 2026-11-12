@@ -1,5 +1,7 @@
 package jp.houlab.mochidsuki.medicalsystemcore.core;
 
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.RescueCategory;
+
 import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundUpdateRescueDataPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundUpdateRescueDataPacket;
