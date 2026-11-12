@@ -15,12 +15,16 @@ import jp.houlab.mochidsuki.medicalsystemcore.client.model.StretcherModel;
 import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.item.*;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.IVStandMenu;
+import jp.houlab.mochidsuki.medicalsystemcore.menu.MedicalBagMenu;
 import jp.houlab.mochidsuki.medicalsystemcore.menu.RescuePortalMenu;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
+import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.block.SoundType;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.*;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.DefibrillatorBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.IVStandScreen;
+import jp.houlab.mochidsuki.medicalsystemcore.client.screen.MedicalBagScreen;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.HeadsideMonitorBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.blockentity.IVStandBlockEntityRenderer;
 import jp.houlab.mochidsuki.medicalsystemcore.client.renderer.StretcherRenderer;
@@ -49,6 +53,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.ModelEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.capabilities.RegisterCapabilitiesEvent;
 import net.minecraftforge.common.extensions.IForgeMenuType;
@@ -85,11 +90,11 @@ public class Medicalsystemcore {
     // Blocks
     public static final RegistryObject<Block> IV_STAND = BLOCKS.register("iv_stand", IVStandBlock::new);
     public static final RegistryObject<Block> DEFIBRILLATOR_BLOCK = BLOCKS.register("defibrillator_block",
-            () -> new DefibrillatorBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)));
+            () -> new DefibrillatorBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(1.5f).sound(SoundType.METAL)));
     public static final RegistryObject<Block> HEAD_SIDE_MONITOR_BLOCK = BLOCKS.register("head_side_monitor",
-            () -> new HeadsideMonitorBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)));
+            () -> new HeadsideMonitorBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(1.5f).sound(SoundType.METAL)));
     public static final RegistryObject<Block> STRETCHER_BLOCK = BLOCKS.register("stretcher",
-            () -> new StretcherBlock(BlockBehaviour.Properties.copy(Blocks.WHITE_WOOL)));
+            () -> new StretcherBlock(BlockBehaviour.Properties.copy(Blocks.WHITE_WOOL).strength(0.3f)));
 
     // Block Entities
     public static final RegistryObject<BlockEntityType<IVStandBlockEntity>> IV_STAND_BLOCK_ENTITY =
@@ -109,7 +114,7 @@ public class Medicalsystemcore {
     public static final RegistryObject<Item> DEFIBRILLATOR_BLOCK_ITEM = ITEMS.register("defibrillator_block",
             () -> new BlockItem(DEFIBRILLATOR_BLOCK.get(), new Item.Properties()));
     public static final RegistryObject<Item> BANDAGE = ITEMS.register("bandage",
-            () -> new BandageItem(new Item.Properties().stacksTo(16)));
+            () -> new BandageItem(new Item.Properties().stacksTo(64)));
     public static final RegistryObject<Item> IV_STAND_ITEM = ITEMS.register("iv_stand",
             () -> new BlockItem(IV_STAND.get(), new Item.Properties()));
     public static final RegistryObject<Item> HEAD_SIDE_MONITOR_BLOCK_ITEM = ITEMS.register("head_side_monitor",
@@ -124,6 +129,8 @@ public class Medicalsystemcore {
             () -> new DoctorCardItem(new Item.Properties()));
     public static final RegistryObject<Item> RESCUE_TABLET = ITEMS.register("rescue_tablet",
             () -> new RescueTabletItem(new Item.Properties().stacksTo(1)));
+    public static final RegistryObject<Item> MEDICAL_BAG = ITEMS.register("medical_bag",
+            () -> new MedicalBagItem(new Item.Properties().stacksTo(1)));
 
     // Medical Packs
     public static final RegistryObject<Item> BLOOD_PACK = ITEMS.register("blood_pack",
@@ -146,6 +153,8 @@ public class Medicalsystemcore {
             MENU_TYPES.register("iv_stand_menu", () -> IForgeMenuType.create(IVStandMenu::new));
     public static final RegistryObject<MenuType<RescuePortalMenu>> RESCUE_PORTAL_MENU =
             MENU_TYPES.register("rescue_portal_menu", () -> IForgeMenuType.create((windowId, inv, data) -> new RescuePortalMenu(windowId, inv)));
+    public static final RegistryObject<MenuType<MedicalBagMenu>> MEDICAL_BAG_MENU =
+            MENU_TYPES.register("medical_bag_menu", () -> IForgeMenuType.create(MedicalBagMenu::new));
 
 
 
@@ -156,6 +165,7 @@ public class Medicalsystemcore {
     public static final RegistryObject<MobEffect> ADRENALINE_EFFECT = MOB_EFFECTS.register("adrenaline_effect", AdrenalineEffect::new);
     public static final RegistryObject<MobEffect> FIBRINOGEN_EFFECT = MOB_EFFECTS.register("fibrinogen_effect", FibrinogenEffect::new);
     public static final RegistryObject<MobEffect> TRANEXAMIC_ACID_EFFECT = MOB_EFFECTS.register("tranexamic_acid_effect", TranexamicAcidEffect::new);
+    public static final RegistryObject<MobEffect> BLEEDING_EFFECT = MOB_EFFECTS.register("bleeding", BleedingEffect::new);
 
     // Entity
     public static final RegistryObject<EntityType<StretcherEntity>> STRETCHER_ENTITY =
@@ -186,6 +196,7 @@ public class Medicalsystemcore {
                 output.accept(HEAD_SIDE_MONITOR_BLOCK_ITEM.get());
                 output.accept(STRETCHER.get());
                 output.accept(RESCUE_TABLET.get());
+                if (MEDICAL_BAG.isPresent()) output.accept(MEDICAL_BAG.get());
             }).build());
 
     public Medicalsystemcore() {
@@ -217,7 +228,6 @@ public class Medicalsystemcore {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
-        LOGGER.info("Medical System Core - Common Setup Complete");
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
@@ -228,7 +238,6 @@ public class Medicalsystemcore {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Medical System Core - Server Starting");
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {
@@ -250,7 +259,8 @@ public class Medicalsystemcore {
 
             // Menu Screens
             MenuScreens.register(IV_STAND_MENU.get(), IVStandScreen::new);
-            MenuScreens.register(RESCUE_PORTAL_MENU.get(), RescuePortalScreen::new);
+
+            MenuScreens.register(MEDICAL_BAG_MENU.get(), MedicalBagScreen::new);
 
 
             // Render Layers
@@ -284,9 +294,6 @@ public class Medicalsystemcore {
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00F7FF), TRANEXAMIC_ACID_PACK.get());
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00FFAA), FIBRINOGEN_PACK.get());
             Minecraft.getInstance().getItemColors().register(new PackColor(0x00FF00), GLUCOSE_PACK.get());
-
-
-            LOGGER.info("Medical System Core - Client Setup Complete");
         }
 
         @SubscribeEvent
@@ -299,6 +306,11 @@ public class Medicalsystemcore {
         public static void registerLayerDefinitions(final EntityRenderersEvent.RegisterLayerDefinitions event) {
             // StretcherModelのレイヤー定義（形状）を登録します。
             event.registerLayerDefinition(StretcherModel.LAYER_LOCATION, StretcherModel::createBodyLayer);
+        }
+
+        @SubscribeEvent
+        public static void onRegisterAdditionalModels(ModelEvent.RegisterAdditional event) {
+            event.register(new ResourceLocation(MODID, "item/rescue_tablet_base"));
         }
     }
 }

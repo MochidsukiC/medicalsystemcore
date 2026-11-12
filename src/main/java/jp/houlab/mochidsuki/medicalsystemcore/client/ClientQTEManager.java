@@ -33,7 +33,6 @@ public class ClientQTEManager {
             targetId = target.getId();
             barPosition = 0.0f;
             direction = 1;
-            LOGGER.info("QTE Minigame Started for target: {}", targetId);
         }
     }
 

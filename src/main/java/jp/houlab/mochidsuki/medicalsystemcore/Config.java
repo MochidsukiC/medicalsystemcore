@@ -3,6 +3,7 @@ package jp.houlab.mochidsuki.medicalsystemcore;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
@@ -62,6 +63,17 @@ public class Config {
     private static final ForgeConfigSpec.IntValue BANDAGE_SELF_LEVEL_INCREASE_SPEC;
     private static final ForgeConfigSpec.IntValue BANDAGE_OTHER_LEVEL_INCREASE_SPEC;
     private static final ForgeConfigSpec.IntValue BANDAGE_MAX_LEVEL_SPEC;
+
+    // === 意識不明時設定 ===
+    private static final ForgeConfigSpec.BooleanValue UNCONSCIOUS_FLOAT_IN_LIQUID_SPEC;
+    private static final ForgeConfigSpec.DoubleValue UNCONSCIOUS_FLOAT_SPEED_SPEC;
+    private static final ForgeConfigSpec.BooleanValue GIVE_UP_ENABLED_SPEC;
+    private static final ForgeConfigSpec.IntValue GIVE_UP_DURATION_SPEC;
+    private static final ForgeConfigSpec.BooleanValue TRANSPORT_MODE_SPEC;
+    private static final ForgeConfigSpec.IntValue TRANSPORT_X_SPEC;
+    private static final ForgeConfigSpec.IntValue TRANSPORT_Y_SPEC;
+    private static final ForgeConfigSpec.IntValue TRANSPORT_Z_SPEC;
+    private static final ForgeConfigSpec.ConfigValue<String> TRANSPORT_DIMENSION_SPEC;
 
     static {
         BUILDER.push("Blood System");
@@ -186,6 +198,30 @@ public class Config {
                 .defineInRange("bandage_max_level", 6, 1, 20);
 
         BUILDER.pop();
+
+        BUILDER.push("Unconscious System");
+        BUILDER.comment("意識不明時の挙動に関する設定");
+
+        UNCONSCIOUS_FLOAT_IN_LIQUID_SPEC = BUILDER.comment("意識不明時に液体中で浮上するか")
+                .define("unconscious_float_in_liquid", true);
+        UNCONSCIOUS_FLOAT_SPEED_SPEC = BUILDER.comment("液体中の浮上速度")
+                .defineInRange("unconscious_float_speed", 0.05, 0.0, 1.0);
+        GIVE_UP_ENABLED_SPEC = BUILDER.comment("意識不明時にShift長押しでリスポーンできるか")
+                .define("give_up_enabled", true);
+        GIVE_UP_DURATION_SPEC = BUILDER.comment("確殺に必要なShift長押し時間（秒）")
+                .defineInRange("give_up_duration", 5, 1, 60);
+        TRANSPORT_MODE_SPEC = BUILDER.comment("搬送モード（trueで搬送、falseで自死）")
+                .define("transport_mode", true);
+        TRANSPORT_X_SPEC = BUILDER.comment("搬送先X座標")
+                .defineInRange("transport_x", 0, -30000000, 30000000);
+        TRANSPORT_Y_SPEC = BUILDER.comment("搬送先Y座標")
+                .defineInRange("transport_y", 64, -64, 320);
+        TRANSPORT_Z_SPEC = BUILDER.comment("搬送先Z座標")
+                .defineInRange("transport_z", 0, -30000000, 30000000);
+        TRANSPORT_DIMENSION_SPEC = BUILDER.comment("搬送先ディメンション（例: minecraft:overworld）")
+                .define("transport_dimension", "minecraft:overworld");
+
+        BUILDER.pop();
     }
 
     public static final ForgeConfigSpec SPEC = BUILDER.build();
@@ -242,6 +278,17 @@ public class Config {
     public static int BANDAGE_SELF_LEVEL_INCREASE;
     public static int BANDAGE_OTHER_LEVEL_INCREASE;
     public static int BANDAGE_MAX_LEVEL;
+
+    // 意識不明時設定
+    public static boolean UNCONSCIOUS_FLOAT_IN_LIQUID;
+    public static double UNCONSCIOUS_FLOAT_SPEED;
+    public static boolean GIVE_UP_ENABLED;
+    public static int GIVE_UP_DURATION;
+    public static boolean TRANSPORT_MODE;
+    public static int TRANSPORT_X;
+    public static int TRANSPORT_Y;
+    public static int TRANSPORT_Z;
+    public static String TRANSPORT_DIMENSION;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
@@ -300,5 +347,22 @@ public class Config {
         BANDAGE_SELF_LEVEL_INCREASE = BANDAGE_SELF_LEVEL_INCREASE_SPEC.get();
         BANDAGE_OTHER_LEVEL_INCREASE = BANDAGE_OTHER_LEVEL_INCREASE_SPEC.get();
         BANDAGE_MAX_LEVEL = BANDAGE_MAX_LEVEL_SPEC.get();
+
+        // 意識不明時設定
+        UNCONSCIOUS_FLOAT_IN_LIQUID = UNCONSCIOUS_FLOAT_IN_LIQUID_SPEC.get();
+        UNCONSCIOUS_FLOAT_SPEED = UNCONSCIOUS_FLOAT_SPEED_SPEC.get();
+        GIVE_UP_ENABLED = GIVE_UP_ENABLED_SPEC.get();
+        GIVE_UP_DURATION = GIVE_UP_DURATION_SPEC.get();
+        TRANSPORT_MODE = TRANSPORT_MODE_SPEC.get();
+
+        // 搬送座標はSERVER Configからのみ読み込む
+        // （同一SPECがSERVERとCOMMONの両方に登録されており、
+        //   COMMON Configのデフォルト値で上書きされるのを防ぐ）
+        if (event.getConfig().getType() == ModConfig.Type.SERVER) {
+            TRANSPORT_X = TRANSPORT_X_SPEC.get();
+            TRANSPORT_Y = TRANSPORT_Y_SPEC.get();
+            TRANSPORT_Z = TRANSPORT_Z_SPEC.get();
+            TRANSPORT_DIMENSION = TRANSPORT_DIMENSION_SPEC.get();
+        }
     }
 }

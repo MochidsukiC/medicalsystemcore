@@ -4,7 +4,9 @@ import jp.houlab.mochidsuki.medicalsystemcore.network.ClientboundUpdateRescueDat
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundUpdateRescueDataPacket;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,10 +30,11 @@ public class RescueDataManager {
      * @param category 通報カテゴリ
      * @param description 通報内容
      * @param location 通報地点
+     * @param dimension ディメンション
      */
-    public static void createNewRescueData(String reporterName, RescueCategory category, String description, BlockPos location) {
+    public static void createNewRescueData(String reporterName, RescueCategory category, String description, BlockPos location, ResourceKey<Level> dimension) {
         // 新しいIDを採番してデータを作成
-        RescueData newData = new RescueData(reporterName, category, description, location);
+        RescueData newData = new RescueData(reporterName, category, description, location, dimension);
 
         // サーバーのマスターリストに追加
         RESCUE_DATA_LIST.add(newData); // 常にリストの先頭に追加

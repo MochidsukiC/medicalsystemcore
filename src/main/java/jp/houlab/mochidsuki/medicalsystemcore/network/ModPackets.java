@@ -78,6 +78,18 @@ public class ModPackets {
                 .consumerMainThread(ClientboundUpdateRescueDataPacket::handle)
                 .add();
 
+        net.messageBuilder(ServerboundGiveUpPacket.class, id(), NetworkDirection.PLAY_TO_SERVER)
+                .decoder(ServerboundGiveUpPacket::new)
+                .encoder(ServerboundGiveUpPacket::toBytes)
+                .consumerMainThread(ServerboundGiveUpPacket::handle)
+                .add();
+
+        net.messageBuilder(ClientboundOpenRescuePortalPacket.class, id(), NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(ClientboundOpenRescuePortalPacket::new)
+                .encoder(ClientboundOpenRescuePortalPacket::toBytes)
+                .consumerMainThread(ClientboundOpenRescuePortalPacket::handle)
+                .add();
+
     }
 
     // 特定のプレイヤーにパケットを送信するヘルパーメソッド

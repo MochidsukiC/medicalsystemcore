@@ -13,19 +13,6 @@ import java.util.List;
 public class DebugOverlayHandler {
     @SubscribeEvent
     public static void onRenderDebugScreen(CustomizeGuiOverlayEvent.DebugText event) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) {
-            ClientMedicalDataManager.getPlayerData(mc.player).ifPresent(data -> {
-                List<String> leftStrings = event.getLeft();
-
-                leftStrings.add("");
-                leftStrings.add("§c[Medical System Core]");
-                leftStrings.add(String.format("Blood Level: %.1f%%", data.bloodLevel));
-                leftStrings.add("Heart Status: " + data.heartStatus.name());
-                leftStrings.add(String.format("Bleeding Speed: %.2f", data.bleedingSpeed));
-                leftStrings.add(String.format("Resuscitation Chance: %.1f%%", data.resuscitationChance));
-                leftStrings.add("Conscious: " + (data.isConscious ? "Yes" : "No")); // 追加
-            });
-        }
+        // デバッグ表示は無効化
     }
 }

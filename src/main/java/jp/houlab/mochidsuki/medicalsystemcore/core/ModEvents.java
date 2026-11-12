@@ -23,6 +23,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
@@ -44,6 +45,16 @@ public class ModEvents {
                 if (medicalData.getHeartStatus() != HeartStatus.NORMAL) {
                     medicalData.setHeartStatus(HeartStatus.NORMAL);
                     medicalData.setDamageImmune(false);
+                    medicalData.setConscious(true);
+                    // 姿勢制御をクリアして泳ぎ姿勢を解除し、全クライアントに同期
+                    if (player instanceof ServerPlayer serverPlayer) {
+                        PoseController.clearPoseControl(serverPlayer);
+                        ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
+                                serverPlayer.getUUID(),
+                                HeartStatus.NORMAL,
+                                medicalData
+                        ), serverPlayer);
+                    }
                     return;
                 }
 
@@ -195,8 +206,10 @@ public class ModEvents {
             handleCardiacArrest(serverPlayer, medicalData);
             handleBleedingRecovery(serverPlayer, medicalData);
             handleBloodLoss(serverPlayer, medicalData);
+            handleBleedingEffect(serverPlayer, medicalData);
             handleBloodDamage(serverPlayer, medicalData);
             handleConsciousnessState(serverPlayer, medicalData);
+            handleUnconsciousFloating(serverPlayer, medicalData);
             handleECGSimulation(serverPlayer, medicalData);
 
             // *** 一元姿勢管理システムによる姿勢制御の維持 ***
@@ -396,6 +409,18 @@ public class ModEvents {
         }
     }
 
+    private static void handleBleedingEffect(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        float bleedingSpeed = medicalData.getBleedingSpeed();
+        if (bleedingSpeed > 0) {
+            int level = (int) Math.ceil(bleedingSpeed);
+            serverPlayer.addEffect(new MobEffectInstance(
+                    Medicalsystemcore.BLEEDING_EFFECT.get(),
+                    40, level - 1, true, true, true));
+        } else {
+            serverPlayer.removeEffect(Medicalsystemcore.BLEEDING_EFFECT.get());
+        }
+    }
+
     private static void handleBloodDamage(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
         if (medicalData.getHeartStatus() == HeartStatus.NORMAL) {
             int ticks = medicalData.getTickCounter();
@@ -517,6 +542,16 @@ public class ModEvents {
         float x = (float) (Math.sin(time * 8) * 0.4 + Math.sin(time * 15) * 0.6 + (Math.random() - 0.5) * 0.3);
         float y = (float) (Math.sin(time * 7) * 0.5 + Math.sin(time * 18) * 0.5 + (Math.random() - 0.5) * 0.3);
         return new float[]{x, y};
+    }
+
+    private static void handleUnconsciousFloating(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        if (!Config.UNCONSCIOUS_FLOAT_IN_LIQUID) return;
+        if (medicalData.isConscious()) return;
+        if (!serverPlayer.isInWater() && !serverPlayer.isInLava()) return;
+
+        Vec3 motion = serverPlayer.getDeltaMovement();
+        serverPlayer.setDeltaMovement(motion.x, Config.UNCONSCIOUS_FLOAT_SPEED, motion.z);
+        serverPlayer.hurtMarked = true;
     }
 
     // 意識障害判定のヘルパーメソッド

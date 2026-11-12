@@ -1,10 +1,11 @@
 package jp.houlab.mochidsuki.medicalsystemcore.core;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-
-import java.util.ArrayList;
-import java.util.List;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.Level;
 
 public class RescueData {
     //public static final List<RescueData> RESCUE_DATA_LIST = new ArrayList<>();
@@ -21,9 +22,10 @@ public class RescueData {
     private boolean isDispatch;
     private boolean isTreatment;
     private BlockPos location;
+    private ResourceKey<Level> dimension;
     private String memo;
 
-    public RescueData(String name, RescueCategory category, String description, BlockPos location) {
+    public RescueData(String name, RescueCategory category, String description, BlockPos location, ResourceKey<Level> dimension) {
         this.id = nextId++; // IDを自動で割り振り、カウンターをインクリメント
         this.name = name;
         this.category = category;
@@ -31,6 +33,7 @@ public class RescueData {
         this.isDispatch = false;
         this.isTreatment = false;
         this.location = location;
+        this.dimension = dimension;
         this.reportTime = System.currentTimeMillis(); // ★ 2. オブジェクト生成時の現在時刻を記録
 
     }
@@ -91,6 +94,25 @@ public class RescueData {
         this.location = location;
     }
 
+    public ResourceKey<Level> getDimension() {
+        return dimension;
+    }
+
+    public void setDimension(ResourceKey<Level> dimension) {
+        this.dimension = dimension;
+    }
+
+    public String getDimensionDisplayName() {
+        if (dimension == null) return "不明";
+        String path = dimension.location().getPath();
+        switch (path) {
+            case "overworld": return "オーバーワールド";
+            case "the_nether": return "ネザー";
+            case "the_end": return "ジ・エンド";
+            default: return dimension.location().toString();
+        }
+    }
+
     public String getMemo() {
         return memo;
     }
@@ -113,6 +135,8 @@ public class RescueData {
         this.isDispatch = buf.readBoolean();
         this.isTreatment = buf.readBoolean();
         this.location = buf.readBlockPos();
+        ResourceLocation dimRL = buf.readResourceLocation();
+        this.dimension = ResourceKey.create(Registries.DIMENSION, dimRL);
         this.memo = buf.readUtf();
     }
 
@@ -129,6 +153,7 @@ public class RescueData {
         buf.writeBoolean(isDispatch);
         buf.writeBoolean(isTreatment);
         buf.writeBlockPos(location);
+        buf.writeResourceLocation(dimension.location());
         buf.writeUtf(memo != null ? memo : "");
     }
 

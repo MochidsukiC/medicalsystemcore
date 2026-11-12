@@ -5,7 +5,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.MovementInputUpdateEvent;
-import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -24,8 +23,12 @@ public class ClientInputHandler {
         if (event.side.isClient() && event.phase == TickEvent.Phase.END) {
             Player player = event.player;
 
-            ClientQTEManager.tick();
-            ClientHealingManager.tick();
+            // ローカルプレイヤーの場合のみタイマーを更新
+            if (player == net.minecraft.client.Minecraft.getInstance().player) {
+                ClientQTEManager.tick();
+                ClientHealingManager.tick();
+                ClientGiveUpManager.tick();
+            }
 
             if (player != null) {
 
@@ -99,14 +102,4 @@ public class ClientInputHandler {
 
 
 
-    /**
-     * 意識不明時のマウススクロール制限
-     */
-    @SubscribeEvent
-    public static void onMouseScroll(InputEvent.MouseScrollingEvent event) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.player != null && ClientMedicalDataManager.isPlayerUnconscious(mc.player)) {
-            event.setCanceled(true);
-        }
-    }
 }

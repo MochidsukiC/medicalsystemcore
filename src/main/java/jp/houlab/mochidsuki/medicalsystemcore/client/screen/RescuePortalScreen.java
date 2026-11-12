@@ -2,21 +2,19 @@ package jp.houlab.mochidsuki.medicalsystemcore.client.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
+import jp.houlab.mochidsuki.medicalsystemcore.client.ClientTrackingManager;
 import jp.houlab.mochidsuki.medicalsystemcore.client.screen.widget.RescueDataListWidget;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RescueData;
-import jp.houlab.mochidsuki.medicalsystemcore.menu.RescuePortalMenu;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundRequestRescueListPacket;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ServerboundUpdateRescueDataPacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.Inventory;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -24,7 +22,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
-public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu> {
+public class RescuePortalScreen extends Screen {
     // 固定サイズのテクスチャは使用しないため、ResourceLocationは不要になります
     private static final ResourceLocation RESCUE_ICON_TEXTURE = new ResourceLocation(Medicalsystemcore.MODID, "textures/gui/rescue_icon.png");
 
@@ -51,6 +49,7 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
     private Checkbox dispatchedCheckbox;
     private Checkbox treatedCheckbox;
     private Button saveButton; // ★ 保存ボタンを追加
+    private Button trackButton;
 
     private RescueDataListWidget rescueListWidget;
     private RescueData selectedData = null;
@@ -60,11 +59,13 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
     private boolean hasChanges = false; // ★ 変更フラグを追加
 
 
-    public RescuePortalScreen(RescuePortalMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
-        super(pMenu, pPlayerInventory, pTitle);
-        // 固定サイズの指定を削除
-        // this.imageWidth = 256;
-        // this.imageHeight = 166;
+    public RescuePortalScreen(Component pTitle) {
+        super(pTitle);
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
     }
 
     @Override
@@ -132,11 +133,17 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
                 .bounds(this.width - 50, this.height - 25, 40, 20)
                 .build();
 
+        // 追跡ボタンの初期化
+        this.trackButton = Button.builder(Component.translatable("gui.medicalsystemcore.rescue_portal.track"), button -> toggleTracking())
+                .bounds(this.width - 100, this.height - 25, 45, 20)
+                .build();
+
 
         this.addRenderableWidget(this.memoBox);
         this.addRenderableWidget(this.dispatchedCheckbox);
         this.addRenderableWidget(this.treatedCheckbox);
         this.addRenderableWidget(this.saveButton);
+        this.addRenderableWidget(this.trackButton);
 
         updateWidgetVisibility();
     }
@@ -176,7 +183,6 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
         if (!isUpdatingFromServer) {
             this.hasChanges = true;
             updateSaveButtonState();
-            System.out.println("a");
         }
     }
 
@@ -206,6 +212,26 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
 
         this.hasChanges = dispatchStateChanged || treatmentStateChanged || memoChanged;
         updateSaveButtonState();
+    }
+
+    private void toggleTracking() {
+        if (selectedData == null) return;
+        RescueData currentlyTracked = ClientTrackingManager.getTrackedData();
+        if (currentlyTracked != null && currentlyTracked.getId() == selectedData.getId()) {
+            ClientTrackingManager.clearTracking();
+        } else {
+            ClientTrackingManager.setTrackedData(selectedData);
+        }
+        updateTrackButtonLabel();
+    }
+
+    private void updateTrackButtonLabel() {
+        if (this.trackButton == null || this.selectedData == null) return;
+        RescueData currentlyTracked = ClientTrackingManager.getTrackedData();
+        boolean isTracking = currentlyTracked != null && currentlyTracked.getId() == selectedData.getId();
+        this.trackButton.setMessage(Component.translatable(
+                isTracking ? "gui.medicalsystemcore.rescue_portal.tracking" : "gui.medicalsystemcore.rescue_portal.track"
+        ));
     }
 
     /**
@@ -288,6 +314,7 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
             // 最後に変更状態をリセットし、ボタンを非アクティブ化する
             hasChanges = false;
             updateSaveButtonState();
+            updateTrackButtonLabel();
         }
     }
 
@@ -297,6 +324,7 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
         this.dispatchedCheckbox.visible = detailsVisible;
         this.treatedCheckbox.visible = detailsVisible;
         this.saveButton.visible = detailsVisible;
+        this.trackButton.visible = detailsVisible;
     }
 
     @Override
@@ -312,9 +340,6 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
 
         // ウィジェット（ボタン、テキストボックス等）の描画
         super.render(pGuiGraphics, pMouseX, pMouseY, pPartialTick);
-
-        // ツールチップの描画
-        this.renderTooltip(pGuiGraphics, pMouseX, pMouseY);
 
     }
 
@@ -358,7 +383,8 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
         pGuiGraphics.drawString(this.font, "通報カテゴリー: " + selectedData.getCategory().getName(), RIGHT_X+5, RIGHT_Y+30, 0xFFFFFF, false);
         pGuiGraphics.drawString(this.font, "通報時刻: " + new SimpleDateFormat("HH:mm:ss").format(new Date(selectedData.getReportTime())), RIGHT_X+5, RIGHT_Y+40, 0xFFFFFF, false);
         pGuiGraphics.drawString(this.font, "通報地点: " + selectedData.getLocation(), RIGHT_X+5, RIGHT_Y+50, 0xFFFFFF, false);
-        pGuiGraphics.drawString(this.font, "通報内容: " + selectedData.getDescription(), RIGHT_X+5, RIGHT_Y+60, 0xFFFFFF, false);
+        pGuiGraphics.drawString(this.font, "ディメンション: " + selectedData.getDimensionDisplayName(), RIGHT_X+5, RIGHT_Y+60, 0x55FFFF, false);
+        pGuiGraphics.drawString(this.font, "通報内容: " + selectedData.getDescription(), RIGHT_X+5, RIGHT_Y+70, 0xFFFFFF, false);
 
         //updateSaveButtonState();
         // チェックボックスのラベル
@@ -366,15 +392,4 @@ public class RescuePortalScreen extends AbstractContainerScreen<RescuePortalMenu
         //pGuiGraphics.drawString(this.font, "処置", RIGHT_X + 122, 106, 0xFFFFFF, false);
     }
 
-    // renderBgは不要なので削除
-    @Override
-    protected void renderBg(GuiGraphics pGuiGraphics, float pPartialTick, int pMouseX, int pMouseY) {
-        // このメソッドは空にする
-    }
-
-    // renderLabelsは描画座標が変わるため、renderUIメソッドにロジックを統合
-    @Override
-    protected void renderLabels(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY) {
-        // このメソッドも空にする
-    }
 }

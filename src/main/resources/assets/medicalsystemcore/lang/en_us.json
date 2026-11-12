@@ -12,6 +12,8 @@
   "item.medicalsystemcore.electrode": "Electrode",
   "item.medicalsystemcore.head_side_cable": "Bedside Cable",
   "item.medicalsystemcore.tube": "Medical Tube",
+  "item.medicalsystemcore.rescue_tablet": "Rescue Tablet",
+  "item.medicalsystemcore.medical_bag": "Medical Bag",
 
   "_comment_medical_packs": "=== MEDICAL PACKS ===",
   "item.medicalsystemcore.blood_pack": "Blood Pack",
@@ -33,12 +35,14 @@
   "effect.medicalsystemcore.adrenaline_effect": "Adrenaline",
   "effect.medicalsystemcore.fibrinogen_effect": "Fibrinogen",
   "effect.medicalsystemcore.tranexamic_acid_effect": "Tranexamic Acid",
+  "effect.medicalsystemcore.bleeding": "Bleeding",
 
   "_comment_entities": "=== ENTITIES ===",
   "entity.medicalsystemcore.stretcher_entity": "Stretcher",
 
   "_comment_menus": "=== MENUS/GUIS ===",
   "container.medicalsystemcore.iv_stand_menu": "IV Stand",
+  "container.medicalsystemcore.medical_bag": "Medical Bag",
 
   "_comment_tooltips": "=== TOOLTIPS & DESCRIPTIONS ===",
   "tooltip.medicalsystemcore.bandage": "Used to treat wounds and stop bleeding",
@@ -51,11 +55,14 @@
   "tooltip.medicalsystemcore.glucose_pack": "Energy and blood sugar restoration",
   "tooltip.medicalsystemcore.tube": "Connects medical equipment",
   "tooltip.medicalsystemcore.head_side_cable": "Connects bedside monitor to patient",
+  "tooltip.medicalsystemcore.rescue_tablet": "Opens the rescue portal to manage emergency calls",
 
   "_comment_gui_elements": "=== GUI ELEMENTS ===",
   "gui.medicalsystemcore.iv_stand.blood_slot": "Blood Pack",
   "gui.medicalsystemcore.iv_stand.drug_slot_1": "Medicine Pack 1",
   "gui.medicalsystemcore.iv_stand.drug_slot_2": "Medicine Pack 2",
+  "gui.medicalsystemcore.rescue_portal.track": "Track",
+  "gui.medicalsystemcore.rescue_portal.tracking": "Tracking",
 
   "_comment_messages": "=== SYSTEM MESSAGES ===",
   "message.medicalsystemcore.treatment_started": "Treatment started",
@@ -63,6 +70,22 @@
   "message.medicalsystemcore.insufficient_blood": "Insufficient blood volume",
   "message.medicalsystemcore.defibrillator_ready": "Defibrillator ready",
   "message.medicalsystemcore.defibrillator_charging": "Defibrillator charging...",
+
+  "_comment_emergency": "=== EMERGENCY CALLS ===",
+  "emergency.medicalsystemcore.title": "Emergency Call Received",
+  "emergency.medicalsystemcore.reporter": "Reporter: %s",
+  "emergency.medicalsystemcore.category": "Category: %s",
+  "emergency.medicalsystemcore.location": "Location: X:%d Y:%d Z:%d",
+  "emergency.medicalsystemcore.dimension": "Dimension: %s",
+  "emergency.medicalsystemcore.content": "Content: %s",
+  "emergency.medicalsystemcore.nearest": "You are the nearest to the downed person. Distance: %s blocks",
+  "emergency.medicalsystemcore.no_same_dimension": "No medics in the same dimension as the reporter. Notifying all medics.",
+
+  "_comment_give_up": "=== GIVE UP ===",
+  "hud.medicalsystemcore.give_up_hint": "Respawning...",
+  "hud.medicalsystemcore.transport_hint": "Transporting...",
+  "hud.medicalsystemcore.sneak_give_up": "Sneak to Respawn",
+  "hud.medicalsystemcore.sneak_transport": "Sneak to Transport",
 
   "_comment_advancement": "=== ADVANCEMENTS ===",
   "advancement.medicalsystemcore.first_aid": "First Aid",

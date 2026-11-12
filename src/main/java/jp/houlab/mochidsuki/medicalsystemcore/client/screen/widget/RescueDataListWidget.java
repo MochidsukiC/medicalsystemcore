@@ -74,7 +74,15 @@ public class RescueDataListWidget {
                 String timeStr = new SimpleDateFormat("HH:mm:ss").format(new Date(data.getReportTime()));
                 // 表示テキストに時刻を追加
                 String displayText = String.format("[%s] %s", timeStr, data.getName());
-                pGuiGraphics.drawString(Minecraft.getInstance().font, displayText, x + 5, rowTopY + 4, 0xFFFFFF, false);
+                int textColor;
+                if (data.isTreatment()) {
+                    textColor = 0xAAAAAA; // 処置済み: 灰色
+                } else if (data.isDispatch()) {
+                    textColor = 0xFFAA00; // 出動済み: オレンジ
+                } else {
+                    textColor = 0xFF5555; // 非対応: 赤
+                }
+                pGuiGraphics.drawString(Minecraft.getInstance().font, displayText, x + 5, rowTopY + 4, textColor, false);
             }
         }
 

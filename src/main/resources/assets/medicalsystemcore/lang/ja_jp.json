@@ -12,6 +12,8 @@
   "item.medicalsystemcore.electrode": "電極",
   "item.medicalsystemcore.head_side_cable": "ベッドサイドケーブル",
   "item.medicalsystemcore.tube": "医療用チューブ",
+  "item.medicalsystemcore.rescue_tablet": "レスキュータブレット",
+  "item.medicalsystemcore.medical_bag": "医療バッグ",
   "item.medicalsystemcore.doctor_card": "医師カード",
   "item.medicalsystemcore.card_reader": "カード照会器",
 
@@ -35,12 +37,14 @@
   "effect.medicalsystemcore.adrenaline_effect": "アドレナリン",
   "effect.medicalsystemcore.fibrinogen_effect": "フィブリノーゲン",
   "effect.medicalsystemcore.tranexamic_acid_effect": "トラネキサム酸",
+  "effect.medicalsystemcore.bleeding": "出血",
 
   "_comment_entities": "=== エンティティ ===",
   "entity.medicalsystemcore.stretcher_entity": "ストレッチャー",
 
   "_comment_menus": "=== メニュー/GUI ===",
   "container.medicalsystemcore.iv_stand_menu": "点滴スタンド",
+  "container.medicalsystemcore.medical_bag": "医療バッグ",
 
   "_comment_tooltips": "=== ツールチップ・説明 ===",
   "tooltip.medicalsystemcore.bandage": "傷の治療と止血に使用します",
@@ -53,6 +57,7 @@
   "tooltip.medicalsystemcore.glucose_pack": "エネルギーと血糖値の回復",
   "tooltip.medicalsystemcore.tube": "医療機器を接続します",
   "tooltip.medicalsystemcore.head_side_cable": "ベッドサイドモニターを患者に接続します",
+  "tooltip.medicalsystemcore.rescue_tablet": "救急ポータルを開いて緊急通報を管理します",
   "tooltip.medicalsystemcore.doctor_card": "医療活動を行うために必要な資格証明書",
   "tooltip.medicalsystemcore.card_reader": "医師カードの真偽を判定する装置",
 
@@ -64,6 +69,8 @@
   "gui.medicalsystemcore.rescue_portal.memo": "メモ...",
   "gui.medicalsystemcore.rescue_portal.dispatched": "出動",
   "gui.medicalsystemcore.rescue_portal.treated": "処置",
+  "gui.medicalsystemcore.rescue_portal.track": "追跡",
+  "gui.medicalsystemcore.rescue_portal.tracking": "追跡中",
 
   "_comment_messages": "=== システムメッセージ ===",
   "message.medicalsystemcore.treatment_started": "治療を開始しました",
@@ -71,6 +78,22 @@
   "message.medicalsystemcore.insufficient_blood": "血液量が不足しています",
   "message.medicalsystemcore.defibrillator_ready": "除細動器の準備完了",
   "message.medicalsystemcore.defibrillator_charging": "除細動器を充電中...",
+
+  "_comment_emergency": "=== 緊急通報 ===",
+  "emergency.medicalsystemcore.title": "緊急通報受信",
+  "emergency.medicalsystemcore.reporter": "通報者: %s",
+  "emergency.medicalsystemcore.category": "種別: %s",
+  "emergency.medicalsystemcore.location": "座標: X:%d Y:%d Z:%d",
+  "emergency.medicalsystemcore.dimension": "ディメンション: %s",
+  "emergency.medicalsystemcore.content": "内容: %s",
+  "emergency.medicalsystemcore.nearest": "あなたが最もダウン者に近いです。距離: %sブロック",
+  "emergency.medicalsystemcore.no_same_dimension": "通報者と同じディメンションに救急隊員がいません。全員に通知しています。",
+
+  "_comment_give_up": "=== ギブアップ ===",
+  "hud.medicalsystemcore.give_up_hint": "リスポーンします...",
+  "hud.medicalsystemcore.transport_hint": "搬送されます...",
+  "hud.medicalsystemcore.sneak_give_up": "スニークでリスポーン",
+  "hud.medicalsystemcore.sneak_transport": "スニークで搬送",
 
   "_comment_advancement": "=== 進歩 ===",
   "advancement.medicalsystemcore.first_aid": "応急手当",
