@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "medicalsystemcore",
+	"version": "${version}",
+	"name": "MedicalSystemCore",
+	"description": "",
+	"authors": [],
+	"license": "All Rights Reserved",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore"
+		],
+		"client": [
+			"jp.houlab.mochidsuki.medicalsystemcore.client.MedicalsystemcoreClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
