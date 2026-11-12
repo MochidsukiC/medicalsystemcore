@@ -1,0 +1,132 @@
+package jp.houlab.mochidsuki.medicalsystemcore.item;
+
+import jp.houlab.mochidsuki.medicalsystemcore.block.IVStandBlock;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.capability.ModAttachments;
+import jp.houlab.mochidsuki.medicalsystemcore.core.ModDataComponents;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+
+import java.util.Optional;
+import java.util.UUID;
+
+public class TubeItem extends Item {
+    public TubeItem(Properties pProperties) {
+        super(pProperties);
+    }
+
+    @Override
+    public InteractionResult useOn(UseOnContext pContext) {
+        Level level = pContext.getLevel();
+        BlockPos clickedPos = pContext.getClickedPos();
+        Player player = pContext.getPlayer();
+        ItemStack heldItem = pContext.getItemInHand();
+
+        if (player == null) {
+            return InteractionResult.PASS;
+        }
+
+        if (!level.isClientSide()) {
+            if (level.getBlockState(clickedPos).getBlock() instanceof IVStandBlock) {
+                // 権限の判定とエラーメッセージの送信はサーバーだけが、点滴台が対象のときだけ行う(クライアントでも行うと二重に表示される)
+                if (!MedicalAuthorizationUtil.checkMedicalAuthorization(player, "点滴チューブの接続")) {
+                    return InteractionResult.FAIL;
+                }
+
+                BlockPos startPos = level.getBlockState(clickedPos).getValue(IVStandBlock.HALF) == DoubleBlockHalf.LOWER
+                        ? clickedPos
+                        : clickedPos.below();
+
+                heldItem.set(ModDataComponents.START_POS, startPos);
+                player.sendSystemMessage(Component.literal("§a始点を設定しました。終点となるプレイヤーを右クリックしてください。"));
+                return InteractionResult.CONSUME;
+            }
+        }
+        return InteractionResult.PASS;
+    }
+
+    @Override
+    public InteractionResult interactLivingEntity(ItemStack pStack, Player pPlayer, LivingEntity pTarget, InteractionHand pHand) {
+        Level level = pPlayer.level();
+        if (!level.isClientSide() && pTarget instanceof Player targetPlayer) {
+            BlockPos startPos = pStack.get(ModDataComponents.START_POS);
+
+            if (startPos != null) {
+                // 医師カード認証チェック(エラーメッセージが二重に出ないようサーバー側だけで行う)
+                if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "点滴チューブの接続")) {
+                    return InteractionResult.FAIL;
+                }
+
+                BlockEntity be = level.getBlockEntity(startPos);
+
+                if (be instanceof IVStandBlockEntity standEntity) {
+                    // 修正: 既に他のプレイヤーが接続している場合は切断する
+                    disconnectExistingConnections(level, startPos, targetPlayer.getUUID());
+
+                    boolean hasAnyPack = false;
+                    for (int i = 0; i < standEntity.inventory.getContainerSize(); i++) {
+                        if (!standEntity.inventory.getItem(i).isEmpty()) {
+                            hasAnyPack = true;
+                            break;
+                        }
+                    }
+
+                    // 修正: パックがなくても接続可能
+                    targetPlayer.getAttachedOrCreate(ModAttachments.MEDICAL_DATA).setTransfusingFromStandPos(Optional.of(startPos));
+
+                    if (hasAnyPack) {
+                        pPlayer.sendSystemMessage(Component.literal("§a" + targetPlayer.getName().getString() + " への点滴を開始しました。"));
+                        targetPlayer.sendSystemMessage(Component.literal("§a点滴が開始されました。"));
+                    } else {
+                        pPlayer.sendSystemMessage(Component.literal("§e" + targetPlayer.getName().getString() + " にチューブを接続しました。パックを補充してください。"));
+                        targetPlayer.sendSystemMessage(Component.literal("§eチューブが接続されました。"));
+                    }
+
+                    // クリエイティブでは pStack が Player.interactOn の作ったコピーなので、手持ちの実物のスタックを操作する
+                    ItemStack heldStack = pPlayer.getItemInHand(pHand);
+                    heldStack.remove(ModDataComponents.START_POS);
+                    if (!pPlayer.getAbilities().instabuild) {
+                        heldStack.shrink(1); // チューブを消費
+                    }
+                    return InteractionResult.SUCCESS;
+                }
+                pPlayer.sendSystemMessage(Component.literal("§cエラー: 点滴スタンドが見つかりません。"));
+                return InteractionResult.FAIL;
+            }
+        }
+        return InteractionResult.PASS;
+    }
+
+    /**
+     * 既存の接続を切断するメソッド
+     */
+    private void disconnectExistingConnections(Level level, BlockPos standPos, UUID newPlayerUUID) {
+        if (!(level instanceof ServerLevel serverLevel)) return;
+
+        // 全てのプレイヤーをチェックして、この点滴スタンドに接続しているプレイヤーを見つける
+        for (ServerPlayer player : serverLevel.getPlayers(p -> true)) {
+            if (player.getUUID().equals(newPlayerUUID)) continue; // 新しく接続するプレイヤーはスキップ
+
+            var data = player.getAttachedOrCreate(ModAttachments.MEDICAL_DATA);
+            Optional<BlockPos> connectedStand = data.getTransfusingFromStandPos();
+            if (connectedStand.isPresent() && connectedStand.get().equals(standPos)) {
+                // 既存の接続を切断
+                data.setTransfusingFromStandPos(Optional.empty());
+                player.sendSystemMessage(Component.literal("§e点滴が切断されました。（新しいプレイヤーが接続されました）"));
+            }
+        }
+    }
+}

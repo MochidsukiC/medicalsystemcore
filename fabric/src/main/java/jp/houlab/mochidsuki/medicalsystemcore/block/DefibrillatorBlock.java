@@ -1,0 +1,228 @@
+package jp.houlab.mochidsuki.medicalsystemcore.block;
+
+import com.mojang.serialization.MapCodec;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.ModBlockEntities;
+import jp.houlab.mochidsuki.medicalsystemcore.core.ModDataComponents;
+import jp.houlab.mochidsuki.medicalsystemcore.item.ElectrodeItem;
+import jp.houlab.mochidsuki.medicalsystemcore.item.ModItems;
+import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseEntityBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.redstone.Orientation;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import org.jspecify.annotations.Nullable;
+
+public class DefibrillatorBlock extends BaseEntityBlock {
+    public static final MapCodec<DefibrillatorBlock> CODEC = simpleCodec(DefibrillatorBlock::new);
+    public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
+    public static final BooleanProperty CHARGED = BooleanProperty.create("charged");
+    public static final BooleanProperty HAS_PADS = BooleanProperty.create("has_pads");
+    public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
+    protected static final VoxelShape SHAPE = Block.box(1.0D, 0.0D, 1.0D, 15.0D, 12.0D, 15.0D);
+
+
+    public DefibrillatorBlock(Properties pProperties) {
+        super(pProperties);
+        this.registerDefaultState(this.stateDefinition.any()
+                .setValue(FACING, Direction.NORTH)
+                .setValue(POWERED, false)
+                .setValue(CHARGED, false)
+                .setValue(HAS_PADS, true));
+    }
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> pBuilder) {
+        pBuilder.add(FACING, POWERED, CHARGED, HAS_PADS);
+    }
+
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext pContext) {
+        boolean isPowered = pContext.getLevel().hasNeighborSignal(pContext.getClickedPos());
+        return this.defaultBlockState()
+                .setValue(FACING, pContext.getHorizontalDirection().getOpposite())
+                .setValue(POWERED, isPowered);
+    }
+
+    // 右クリック処理。Forge の use は手を問わず 1 つのメソッドだったので、26.2 では手を受け取る useItemOn に全体を置く
+    // (useWithoutItem はメインハンドだけで手を受け取れない)。
+    @Override
+    protected InteractionResult useItemOn(ItemStack pStack, BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
+        if (pLevel.isClientSide()) {
+            return InteractionResult.SUCCESS; // クライアント側では常に成功を返し、腕振りモーションを再生
+        }
+
+        // 権限の判定とエラーメッセージの送信はサーバーだけが行う(クライアントでも行うと二重に表示される)
+        if (!MedicalAuthorizationUtil.checkMedicalAuthorization(pPlayer, "除細動器の操作")) {
+            return InteractionResult.FAIL;
+        }
+
+        if (!(pLevel.getBlockEntity(pPos) instanceof DefibrillatorBlockEntity be)) {
+            return InteractionResult.FAIL;
+        }
+
+        // --- クリックされたY座標で処理を分岐 ---
+        // pHit.getLocation()はワールド座標なので、ブロックのローカル座標に変換
+        double hitY = pHit.getLocation().y() - pPos.getY();
+
+        // ブロックの上部 (11/16以上) をクリックした場合 -> 電極の処理
+        if (hitY >= 11.0 / 16.0) {
+            handlePadInteraction(pPlayer, pHand, be);
+        }
+        // ブロックの下部をクリックした場合 -> 機械の操作
+        else {
+            handleMachineInteraction(pPlayer, be);
+        }
+
+        return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * 電極の出し入れを担当するメソッド
+     */
+    private void handlePadInteraction(Player player, InteractionHand hand, DefibrillatorBlockEntity be) {
+        ItemStack heldItem = player.getItemInHand(hand);
+        Level level = player.level();
+        BlockPos pos = be.getBlockPos();
+
+        // 電極を戻す(この除細動器から取り出した電極だけ受け付ける)
+        if (heldItem.is(ModItems.ELECTRODE)) {
+            if (!ElectrodeItem.isLinkedTo(heldItem, be)) {
+                player.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.not_this_defibrillator").withStyle(ChatFormatting.RED));
+                return;
+            }
+            be.returnPads();
+            heldItem.shrink(1);
+            player.sendSystemMessage(Component.literal("§e電極を収納しました。"));
+            // ▼▼▼ ブロックの状態を「パッドあり」に更新 ▼▼▼
+            level.setBlock(pos, be.getBlockState().setValue(HAS_PADS, true), 3);
+            be.setChanged();
+        }
+        // 電極を取り出す
+        else if (heldItem.isEmpty() && !be.arePadsTaken()) {
+            player.setItemInHand(hand, createLinkedElectrode(be));
+            player.sendSystemMessage(Component.literal("§a電極を準備しました。"));
+            // ▼▼▼ ブロックの状態を「パッドなし」に更新 ▼▼▼
+            level.setBlock(pos, be.getBlockState().setValue(HAS_PADS, false), 3);
+            be.setChanged();
+        }
+        // 電極を紛失した場合の再発行(しゃがんで素手)。以前の電極は無効になる
+        else if (heldItem.isEmpty() && player.isShiftKeyDown()) {
+            player.setItemInHand(hand, createLinkedElectrode(be));
+            player.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.reissued").withStyle(ChatFormatting.GREEN));
+            be.setChanged();
+        }
+        // 電極がすでに取り出されている
+        else if (heldItem.isEmpty()) {
+            player.sendSystemMessage(Component.translatable("message.medicalsystemcore.electrode.in_use").withStyle(ChatFormatting.RED));
+        }
+    }
+
+    /** 新しい識別子を発行し、この除細動器に紐づいた電極を作る。 */
+    private static ItemStack createLinkedElectrode(DefibrillatorBlockEntity be) {
+        ItemStack electrodeStack = new ItemStack(ModItems.ELECTRODE);
+        electrodeStack.set(ModDataComponents.DEFIBRILLATOR_POS, be.getBlockPos());
+        electrodeStack.set(ModDataComponents.PADS_ID, be.issuePads());
+        return electrodeStack;
+    }
+
+    /**
+     * チャージ操作を担当するメソッド
+     */
+    private void handleMachineInteraction(Player player, DefibrillatorBlockEntity be) {
+        if (!be.getBlockState().getValue(POWERED)) {
+            player.sendSystemMessage(Component.literal("§c電源が入っていません。"));
+            return;
+        }
+        if (be.isCharging()) {
+            player.sendSystemMessage(Component.literal("§e現在充電中です..."));
+            return;
+        }
+        if (be.isCharged()) {
+            player.sendSystemMessage(Component.literal("§a既に充電完了しています。"));
+            return;
+        }
+        if (be.isOnCooldown()) {
+            long secondsLeft = be.getCooldownSecondsLeft();
+            player.sendSystemMessage(Component.literal("§cクールダウン中です... 残り" + secondsLeft + "秒"));
+            return;
+        }
+
+        // 全ての条件をクリアした場合、チャージを開始
+        be.startCharge();
+        player.sendSystemMessage(Component.literal("§eチャージを開始します..."));
+    }
+
+
+    @Override
+    protected void onPlace(BlockState pState, Level pLevel, BlockPos pPos, BlockState pOldState, boolean pIsMoving) {
+        if (!pLevel.isClientSide()) {
+            // 設置された瞬間に、隣接するレッドストーン信号があるかチェック
+            boolean isPowered = pLevel.hasNeighborSignal(pPos);
+            if (pState.getValue(POWERED) != isPowered) {
+                pLevel.setBlock(pPos, pState.setValue(POWERED, isPowered), 2);
+            }
+        }
+    }
+
+    // レッドストーン信号の処理
+    @Override
+    protected void neighborChanged(BlockState pState, Level pLevel, BlockPos pPos, Block pBlock, @Nullable Orientation pOrientation, boolean pIsMoving) {
+        if (!pLevel.isClientSide()) {
+            boolean isPowered = pLevel.hasNeighborSignal(pPos);
+            if (pState.getValue(POWERED) != isPowered) {
+                pLevel.setBlock(pPos, pState.setValue(POWERED, isPowered), 2);
+            }
+        }
+    }
+
+    // Tick処理を有効にする
+    @Nullable
+    @Override
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level pLevel, BlockState pState, BlockEntityType<T> pBlockEntityType) {
+        return createTickerHelper(pBlockEntityType, ModBlockEntities.DEFIBRILLATOR_BLOCK_ENTITY, DefibrillatorBlockEntity::tick);
+    }
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pPos, BlockState pState) {
+        return new DefibrillatorBlockEntity(pPos, pState);
+    }
+
+    @Override
+    protected RenderShape getRenderShape(BlockState pState) {
+        return RenderShape.MODEL;
+    }
+
+    @Override
+    protected VoxelShape getShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
+        return SHAPE;
+    }
+}

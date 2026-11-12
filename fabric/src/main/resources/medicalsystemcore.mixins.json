@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "jp.houlab.mochidsuki.medicalsystemcore.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"PlayerMixin"
+	],
+	"client": [
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

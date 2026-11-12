@@ -1,12 +1,19 @@
 package jp.houlab.mochidsuki.medicalsystemcore;
 
+import jp.houlab.mochidsuki.medicalsystemcore.block.ModBlocks;
+import jp.houlab.mochidsuki.medicalsystemcore.blockentity.ModBlockEntities;
 import jp.houlab.mochidsuki.medicalsystemcore.capability.ModAttachments;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ConfigSyncHandler;
 import jp.houlab.mochidsuki.medicalsystemcore.core.GiveUpGuard;
+import jp.houlab.mochidsuki.medicalsystemcore.core.ModCreativeTabs;
 import jp.houlab.mochidsuki.medicalsystemcore.core.ModDataComponents;
 import jp.houlab.mochidsuki.medicalsystemcore.core.PendingHealManager;
+import jp.houlab.mochidsuki.medicalsystemcore.core.PendingQteManager;
 import jp.houlab.mochidsuki.medicalsystemcore.core.RevokedLicenseSavedData;
 import jp.houlab.mochidsuki.medicalsystemcore.effect.ModEffects;
+import jp.houlab.mochidsuki.medicalsystemcore.entity.ModEntities;
+import jp.houlab.mochidsuki.medicalsystemcore.item.ModItems;
+import jp.houlab.mochidsuki.medicalsystemcore.menu.ModMenus;
 import jp.houlab.mochidsuki.medicalsystemcore.network.ModPackets;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.Identifier;
@@ -29,6 +36,15 @@ public class Medicalsystemcore implements ModInitializer {
 		ModDataComponents.register();
 		ModEffects.register();
 
+		// 段 2: ブロック → BlockEntityType → アイテム → エンティティ型 → メニュー型 → クリエイティブタブ の順に登録する
+		// (ブロックのアイテムも BlockEntityType も、ブロックの登録後でなければならない)
+		ModBlocks.register();
+		ModBlockEntities.register();
+		ModItems.register();
+		ModEntities.register();
+		ModMenus.register();
+		ModCreativeTabs.register();
+
 		// 全 payload の型登録(送受信の両側で必要)
 		ModPackets.register();
 
@@ -39,6 +55,7 @@ public class Medicalsystemcore implements ModInitializer {
 		// メモリ上の記録(ログアウト・サーバー停止で破棄)
 		GiveUpGuard.register();
 		PendingHealManager.register();
+		PendingQteManager.register();
 
 		LOGGER.info("MedicalSystemCore initialized");
 	}

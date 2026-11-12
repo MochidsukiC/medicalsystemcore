@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "medicalsystemcore:item/pack/pack_base",
+    "layer1": "medicalsystemcore:item/pack/pack_overlay1"
+  }
+}
