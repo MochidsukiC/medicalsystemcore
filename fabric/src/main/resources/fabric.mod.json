@@ -8,7 +8,11 @@
 	"license": "All Rights Reserved",
 	"environment": "*",
 	"mixins": [
-		"medicalsystemcore.mixins.json"
+		"medicalsystemcore.mixins.json",
+		{
+			"config": "medicalsystemcore.client.mixins.json",
+			"environment": "client"
+		}
 	],
 	"entrypoints": {
 		"main": [

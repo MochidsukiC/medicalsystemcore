@@ -1,0 +1,24 @@
+package jp.houlab.mochidsuki.medicalsystemcore.client;
+
+import jp.houlab.mochidsuki.medicalsystemcore.common.model.HeartStatus;
+
+/**
+ * クライアントサイドでプレイヤーの医療データをまとめて保持するためのクラス
+ */
+public class ClientMedicalData {
+    public float bloodLevel;
+    public HeartStatus heartStatus;
+    public float bleedingSpeed;
+    public float resuscitationChance;
+    public boolean isConscious;
+    // 他にも表示したいステータスがあればここに追加
+
+    public ClientMedicalData() {
+        // 初期値
+        this.bloodLevel = 100.0f;
+        this.heartStatus = HeartStatus.NORMAL;
+        this.bleedingSpeed = 0;
+        this.resuscitationChance = 100.0f;
+        this.isConscious = true;
+    }
+}
