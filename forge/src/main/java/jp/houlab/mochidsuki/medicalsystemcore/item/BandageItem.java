@@ -48,7 +48,10 @@ public class BandageItem extends Item {
             // Config値を使用して自分にエフェクトを付与
             applyBandageEffect(player, MedicalConfig.get(MedicalConfigKeys.BANDAGE_SELF_LEVEL_INCREASE));
         }
-        pStack.shrink(1);
+        // バニラの食料と同じく、クリエイティブでは消費しない
+        if (!(pLivingEntity instanceof Player player && player.getAbilities().instabuild)) {
+            pStack.shrink(1);
+        }
         return super.finishUsingItem(pStack, pLevel, pLivingEntity);
     }
 

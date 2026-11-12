@@ -1,7 +1,6 @@
 package jp.houlab.mochidsuki.medicalsystemcore.menu;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
-import jp.houlab.mochidsuki.medicalsystemcore.item.MedicalBagItem;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
@@ -18,8 +17,15 @@ import net.minecraftforge.registries.ForgeRegistries;
 public class MedicalBagMenu extends AbstractContainerMenu {
     private static final int BAG_SLOT_COUNT = 27;
 
+    private static final int OFFHAND_INVENTORY_INDEX = 40;
+
     private final ItemStackHandler bagInventory;
     private final InteractionHand hand;
+    private final boolean serverSide;
+    /** 開いた時点のバッグの ItemStack。サーバー側では参照の同一性でバッグを追跡する。 */
+    private final ItemStack bagStack;
+    /** プレイヤーインベントリ上でバッグが入っているインデックス（メインハンドは選択中スロット、オフハンドは 40）。 */
+    private final int bagInventoryIndex;
 
     // Client constructor
     public MedicalBagMenu(int windowId, Inventory inv, FriendlyByteBuf data) {
@@ -30,10 +36,17 @@ public class MedicalBagMenu extends AbstractContainerMenu {
     public MedicalBagMenu(int windowId, Inventory inv, InteractionHand hand) {
         super(Medicalsystemcore.MEDICAL_BAG_MENU.get(), windowId);
         this.hand = hand;
-        this.bagInventory = new ItemStackHandler(BAG_SLOT_COUNT);
+        this.serverSide = !inv.player.level().isClientSide();
+        this.bagStack = inv.player.getItemInHand(hand);
+        this.bagInventoryIndex = hand == InteractionHand.MAIN_HAND ? inv.selected : OFFHAND_INVENTORY_INDEX;
+        this.bagInventory = new ItemStackHandler(BAG_SLOT_COUNT) {
+            @Override
+            protected void onContentsChanged(int slot) {
+                MedicalBagMenu.this.saveToBag();
+            }
+        };
 
         // Load inventory from NBT
-        ItemStack bagStack = inv.player.getItemInHand(hand);
         if (bagStack.hasTag() && bagStack.getTag().contains("Inventory")) {
             bagInventory.deserializeNBT(bagStack.getTag().getCompound("Inventory"));
         }
@@ -41,7 +54,7 @@ public class MedicalBagMenu extends AbstractContainerMenu {
         // Bag inventory slots (3 rows × 9 cols)
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 9; j++) {
-                this.addSlot(new MedicalBagSlot(bagInventory, j + i * 9, 8 + j * 18, 18 + i * 18));
+                this.addSlot(new MedicalBagSlot(bagInventory, j + i * 9, 8 + j * 18, 18 + i * 18, this::saveToBag));
             }
         }
 
@@ -52,42 +65,52 @@ public class MedicalBagMenu extends AbstractContainerMenu {
             }
         }
 
-        // Player hotbar slots
+        // Player hotbar slots（メインハンドで開いた場合、バッグが入っているスロットは動かせない）
         for (int k = 0; k < 9; k++) {
-            this.addSlot(new Slot(inv, k, 8 + k * 18, 143));
+            if (hand == InteractionHand.MAIN_HAND && k == bagInventoryIndex) {
+                this.addSlot(new LockedSlot(inv, k, 8 + k * 18, 143));
+            } else {
+                this.addSlot(new Slot(inv, k, 8 + k * 18, 143));
+            }
         }
     }
 
-    @Override
-    public boolean stillValid(Player pPlayer) {
-        return pPlayer.getItemInHand(hand).getItem() instanceof MedicalBagItem;
+    /**
+     * 中身を開いたバッグの ItemStack へ書き戻す（サーバーのみ。クライアントはサーバーの同期結果を受けるだけ）。
+     * 書き込み先は getItemInHand ではなく開いた時点の参照なので、バッグが別スロットへ動いても正しい ItemStack に入る。
+     */
+    private void saveToBag() {
+        if (serverSide) {
+            bagStack.getOrCreateTag().put("Inventory", bagInventory.serializeNBT());
+        }
     }
 
     @Override
     public void removed(Player pPlayer) {
         super.removed(pPlayer);
-        if (!pPlayer.level().isClientSide()) {
-            ItemStack stack = pPlayer.getItemInHand(hand);
-            if (stack.getItem() instanceof MedicalBagItem) {
-                stack.getOrCreateTag().put("Inventory", bagInventory.serializeNBT());
-            }
-        }
+        // バニラの shift クリック・スタック合流はスタックを直接書き換えて Slot#setChanged だけを呼ぶ経路があるため、閉じるときにも最終保存する
+        saveToBag();
+    }
+
+    @Override
+    public boolean stillValid(Player pPlayer) {
+        // サーバーでは、開いたバッグと同一の ItemStack が今も開いた手にある場合だけ有効。
+        // 別のバッグとの入れ替えも検出するため instanceof ではなく参照で比較する。
+        return !serverSide || pPlayer.getItemInHand(hand) == bagStack;
     }
 
     @Override
     public void clicked(int slotId, int button, ClickType type, Player player) {
-        // Prevent interaction with the slot holding the bag itself
-        if (hand == InteractionHand.MAIN_HAND && slotId >= 0 && slotId < this.slots.size()) {
-            int bagHotbarIndex = BAG_SLOT_COUNT + 27 + player.getInventory().selected;
-            if (slotId == bagHotbarIndex) {
-                return;
-            }
+        // バッグが入っているインベントリスロットとの SWAP（数字キー／F キー）は、バッグを手から外すので拒否する
+        if (type == ClickType.SWAP && button == bagInventoryIndex) {
+            return;
         }
         super.clicked(slotId, button, type, player);
     }
 
     @Override
     public ItemStack quickMoveStack(Player playerIn, int index) {
+        if (index < 0 || index >= slots.size() || slots.get(index) instanceof LockedSlot) return ItemStack.EMPTY;
         Slot sourceSlot = slots.get(index);
         if (sourceSlot == null || !sourceSlot.hasItem()) return ItemStack.EMPTY;
         ItemStack sourceStack = sourceSlot.getItem();
@@ -127,10 +150,38 @@ public class MedicalBagMenu extends AbstractContainerMenu {
         return copyOfSourceStack;
     }
 
+    // バッグ自身が入っているスロット。取り出し・置き換えを一切許可しない
+    private static class LockedSlot extends Slot {
+        public LockedSlot(Inventory inv, int index, int x, int y) {
+            super(inv, index, x, y);
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return false;
+        }
+
+        @Override
+        public boolean mayPickup(Player player) {
+            return false;
+        }
+    }
+
     // Custom slot that only accepts mod items (excluding the bag itself)
     private static class MedicalBagSlot extends SlotItemHandler {
-        public MedicalBagSlot(ItemStackHandler handler, int index, int x, int y) {
+        private final Runnable onChanged;
+
+        public MedicalBagSlot(ItemStackHandler handler, int index, int x, int y, Runnable onChanged) {
             super(handler, index, x, y);
+            this.onChanged = onChanged;
+        }
+
+        // moveItemStackTo / quickMoveStack はスタックを直接書き換えて setChanged() だけを呼ぶことがある
+        // (SlotItemHandler は setChanged を handler へ伝えない)ので、ここでも書き戻す
+        @Override
+        public void setChanged() {
+            super.setChanged();
+            onChanged.run();
         }
 
         @Override

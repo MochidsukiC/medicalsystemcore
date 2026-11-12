@@ -2,7 +2,7 @@ package jp.houlab.mochidsuki.medicalsystemcore.block;
 
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity;
-import jp.houlab.mochidsuki.medicalsystemcore.blockentity.IVStandBlockEntity;
+import jp.houlab.mochidsuki.medicalsystemcore.item.ElectrodeItem;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -102,9 +102,13 @@ public class DefibrillatorBlock extends BaseEntityBlock {
         Level level = player.level();
         BlockPos pos = be.getBlockPos();
 
-        // 電極を戻す
+        // 電極を戻す(この除細動器から取り出した電極だけ受け付ける)
         if (heldItem.is(Medicalsystemcore.ELECTRODE.get())) {
-            be.arePadsTaken = false;
+            if (!ElectrodeItem.isLinkedTo(heldItem, be)) {
+                player.sendSystemMessage(Component.literal("§cこの除細動器の電極ではありません。"));
+                return;
+            }
+            be.returnPads();
             heldItem.shrink(1);
             player.sendSystemMessage(Component.literal("§e電極を収納しました。"));
             // ▼▼▼ ブロックの状態を「パッドあり」に更新 ▼▼▼
@@ -112,23 +116,32 @@ public class DefibrillatorBlock extends BaseEntityBlock {
             be.setChanged();
         }
         // 電極を取り出す
-        else if (heldItem.isEmpty() && !be.arePadsTaken) {
-            be.arePadsTaken = true;
-
-            ItemStack electrodeStack = new ItemStack(Medicalsystemcore.ELECTRODE.get());
-            CompoundTag nbt = electrodeStack.getOrCreateTag();
-            nbt.put("DefibrillatorPos", NbtUtils.writeBlockPos(be.getBlockPos()));
-
-            player.setItemInHand(hand, electrodeStack);
+        else if (heldItem.isEmpty() && !be.arePadsTaken()) {
+            player.setItemInHand(hand, createLinkedElectrode(be));
             player.sendSystemMessage(Component.literal("§a電極を準備しました。"));
             // ▼▼▼ ブロックの状態を「パッドなし」に更新 ▼▼▼
             level.setBlock(pos, be.getBlockState().setValue(HAS_PADS, false), 3);
             be.setChanged();
         }
-        // 電極がすでに取り出されている
-        else if (heldItem.isEmpty() && be.arePadsTaken) {
-            player.sendSystemMessage(Component.literal("§c電極は既に使用中です。"));
+        // 電極を紛失した場合の再発行(しゃがんで素手)。以前の電極は無効になる
+        else if (heldItem.isEmpty() && player.isShiftKeyDown()) {
+            player.setItemInHand(hand, createLinkedElectrode(be));
+            player.sendSystemMessage(Component.literal("§a電極を再発行しました。以前の電極は使えなくなります。"));
+            be.setChanged();
         }
+        // 電極がすでに取り出されている
+        else if (heldItem.isEmpty()) {
+            player.sendSystemMessage(Component.literal("§c電極は既に使用中です。紛失した場合は、しゃがんで素手で右クリックすると再発行できます。"));
+        }
+    }
+
+    /** 新しい識別子を発行し、この除細動器に紐づいた電極を作る。 */
+    private static ItemStack createLinkedElectrode(DefibrillatorBlockEntity be) {
+        ItemStack electrodeStack = new ItemStack(Medicalsystemcore.ELECTRODE.get());
+        CompoundTag nbt = electrodeStack.getOrCreateTag();
+        nbt.put(ElectrodeItem.TAG_DEFIBRILLATOR_POS, NbtUtils.writeBlockPos(be.getBlockPos()));
+        nbt.putUUID(ElectrodeItem.TAG_PADS_ID, be.issuePads());
+        return electrodeStack;
     }
 
     /**

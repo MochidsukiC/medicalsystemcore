@@ -33,7 +33,9 @@ public class StretcherEntity extends Entity {
             SynchedEntityData.defineId(StretcherEntity.class, EntityDataSerializers.OPTIONAL_UUID);
 
     private Player carrier; // 運搬者
-    private Player passenger; // 乗車者
+    // 乗車者は独自に保持せず、バニラの騎乗状態（getFirstPassenger）を唯一の情報源にする。
+    // 一度でも乗車者を確認したか（サーバーのみ）。乗車者が降りたことの検出に使う。
+    private boolean passengerSeated = false;
 
     public StretcherEntity(EntityType<?> entityType, Level level) {
         super(entityType, level);
@@ -58,6 +60,13 @@ public class StretcherEntity extends Entity {
 
         // --- サーバーサイドの処理 ---
         if (!this.level().isClientSide()) {
+            // ロード後（再ログイン・再起動）はサーバー側の運搬者参照が無いので、保存された UUID から復元する
+            if (this.carrier == null) {
+                this.entityData.get(CARRIER_UUID).ifPresent(uuid ->
+                        this.carrier = this.level().getPlayerByUUID(uuid)
+                );
+            }
+
             // 運搬者の有効性チェック
             if (this.carrier == null || !this.carrier.isAlive() || this.carrier.isRemoved()) {
                 this.returnStretcherToCarrier();
@@ -120,8 +129,9 @@ public class StretcherEntity extends Entity {
 
 
         // 乗車者の向きをリアルタイムで同期
-        if (this.passenger != null && this.passenger.isAlive()) {
-            syncPassengerRotationRealtime();
+        Player clientPassenger = this.getPassenger();
+        if (clientPassenger != null && clientPassenger.isAlive()) {
+            syncPassengerRotationRealtime(clientPassenger);
         }
     }
 
@@ -143,25 +153,30 @@ public class StretcherEntity extends Entity {
      * 乗車者の処理（サーバーサイド専用）
      */
     private void handlePassengerServerSide() {
-        if (this.passenger == null) {
+        Player passenger = this.getPassenger();
+        if (passenger == null) {
+            // 乗せていた患者が降りた（Shift、搬送、切断など）場合は運搬者へ返却する。空の状態で回収された担架はそのまま運搬できる。
+            if (this.passengerSeated) {
+                this.returnStretcherToCarrier();
+            }
             return;
         }
+        this.passengerSeated = true;
 
-        if (this.passenger.isRemoved() || !this.passenger.isAlive()) {
-            this.passenger = null;
+        if (passenger.isRemoved() || !passenger.isAlive()) {
+            passenger.stopRiding();
             this.returnStretcherToCarrier();
             return;
         }
 
-        if (this.passenger.isShiftKeyDown()) {
-            this.passenger.stopRiding();
-            this.passenger = null;
+        if (passenger.isShiftKeyDown()) {
+            passenger.stopRiding();
             this.returnStretcherToCarrier();
             return;
         }
 
         // サーバーサイドで乗車者の体の向きをストレッチャーに同期
-        if (this.passenger instanceof ServerPlayer serverPlayer) {
+        if (passenger instanceof ServerPlayer serverPlayer) {
             float targetYaw = this.getYRot();
             serverPlayer.yBodyRot = lerpYaw(serverPlayer.yBodyRot, targetYaw, 0.3f);
             serverPlayer.yHeadRot = lerpYaw(serverPlayer.yHeadRot, targetYaw, 0.3f);
@@ -174,6 +189,15 @@ public class StretcherEntity extends Entity {
     // private void handlePassengerClientSide() { ... }
     // private void handlePassenger() { ... }
     // private void syncPassengerRotationSmooth() { ... }
+
+    /**
+     * 乗車者がログアウトする際に、乗車者を降ろして担架を運搬者へ返却する（サーバー専用）。
+     * 乗せたままログアウトされるとバニラが担架ごと保存・除去してしまい、運搬者に返らない。
+     */
+    public void releaseOnPassengerLogout() {
+        this.ejectPassengers();
+        this.returnStretcherToCarrier();
+    }
 
     /**
      * 新仕様: ストレッチャーを運搬者に返還（アイテムとして）
@@ -210,26 +234,13 @@ public class StretcherEntity extends Entity {
     /**
      * 乗車者の向きを同期（リアルタイム版 - クライアントサイド用）
      */
-    private void syncPassengerRotationRealtime() {
-        if (!(this.passenger instanceof Player)) return;
-
+    private void syncPassengerRotationRealtime(Player passenger) {
         // ストレッチャーの向きに合わせてプレイヤーの体の向きを即座に設定
         float stretcherYaw = this.getYRot();
-        this.passenger.yBodyRot = stretcherYaw;
-        this.passenger.yBodyRotO = stretcherYaw;
+        passenger.yBodyRot = stretcherYaw;
+        passenger.yBodyRotO = stretcherYaw;
     }
 
-    /**
-     * エンティティが削除される際の処理（新仕様対応）
-     */
-    @Override
-    public void remove(RemovalReason pReason) {
-        // 乗車者がいる場合は降車させる
-        if (this.passenger != null) {
-            this.passenger.stopRiding();
-        }
-        super.remove(pReason);
-    }
     /**
      * 運搬者を設定
      */
@@ -242,7 +253,6 @@ public class StretcherEntity extends Entity {
      * 乗車者を設定
      */
     public void setPassenger(Player passenger) {
-        this.passenger = passenger;
         if (passenger != null) {
             passenger.startRiding(this);
         }
@@ -280,9 +290,8 @@ public class StretcherEntity extends Entity {
 
     @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
-        if (this.carrier != null) {
-            tag.putUUID("Carrier", this.carrier.getUUID());
-        }
+        // 運搬者がまだ復元されていない状態でも UUID を失わないよう、同期データ側の UUID を保存する
+        this.entityData.get(CARRIER_UUID).ifPresent(uuid -> tag.putUUID("Carrier", uuid));
     }
 
     @Override
@@ -295,8 +304,9 @@ public class StretcherEntity extends Entity {
         return this.carrier;
     }
 
+    @Nullable
     public Player getPassenger() {
-        return this.passenger;
+        return this.getFirstPassenger() instanceof Player player ? player : null;
     }
 
     // === 静的ファクトリーメソッド（更新版） ===

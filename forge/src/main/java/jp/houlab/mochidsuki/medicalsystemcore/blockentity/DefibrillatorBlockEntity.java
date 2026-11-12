@@ -14,10 +14,18 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nullable;
+import java.util.Objects;
+import java.util.UUID;
 
 public class DefibrillatorBlockEntity extends BlockEntity {
     private int chargeProgress = 0;
-    public boolean arePadsTaken = false;
+    private boolean arePadsTaken = false;
+    /**
+     * 現在取り出されている電極の識別子。取り出すたびに新しく発行し、電極アイテムの NBT に同じ値を持たせる。
+     * 再発行や収納で値が変わると、古い電極は無効になる。null は識別子導入前に取り出された電極(旧データ)。
+     */
+    @Nullable
+    private UUID padsId = null;
     private long cooldownEndTick = 0;
     /**
      * NBT から読んだクールダウンの残り tick のうち、まだ cooldownEndTick に換算していない分。
@@ -28,6 +36,28 @@ public class DefibrillatorBlockEntity extends BlockEntity {
 
     public DefibrillatorBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), pPos, pBlockState);
+    }
+
+    public boolean arePadsTaken() { return this.arePadsTaken; }
+
+    /** 電極を取り出す。新しい識別子を発行して返す(以前の電極はすべて無効になる)。 */
+    public UUID issuePads() {
+        this.arePadsTaken = true;
+        this.padsId = UUID.randomUUID();
+        setChanged();
+        return this.padsId;
+    }
+
+    /** 電極を収納した状態に戻す。 */
+    public void returnPads() {
+        this.arePadsTaken = false;
+        this.padsId = null;
+        setChanged();
+    }
+
+    /** 電極が取り出されており、かつその識別子が現在発行中のものと一致するか(識別子なしの旧電極は旧データとだけ一致する)。 */
+    public boolean isPadsLinked(@Nullable UUID electrodePadsId) {
+        return this.arePadsTaken && Objects.equals(this.padsId, electrodePadsId);
     }
 
     public boolean isCharging() { return this.chargeProgress > 0; }
@@ -57,7 +87,7 @@ public class DefibrillatorBlockEntity extends BlockEntity {
 
     public void resetChargeAndStartCooldown() {
         this.chargeProgress = 0;
-        this.arePadsTaken = false;
+        returnPads();
         startCooldown();
         if (level != null) {
             level.setBlock(getBlockPos(), getBlockState().setValue(DefibrillatorBlock.CHARGED, false), 3);
@@ -131,6 +161,9 @@ public class DefibrillatorBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag pTag) {
         pTag.putInt("ChargeProgress", this.chargeProgress);
         pTag.putBoolean("ArePadsTaken", this.arePadsTaken);
+        if (this.padsId != null) {
+            pTag.putUUID("PadsId", this.padsId);
+        }
         // クールダウンは絶対時刻ではなく残り tick で保存する(ワールドのゲーム時間に依存しない)。
         // 読み込んだ値が未換算(レベル設定前)なら、先に換算するか、換算できなければそのまま書き戻す(0 で上書きしない)。
         resolvePendingCooldown();
@@ -146,6 +179,7 @@ public class DefibrillatorBlockEntity extends BlockEntity {
         super.load(pTag);
         this.chargeProgress = pTag.getInt("ChargeProgress");
         this.arePadsTaken = pTag.getBoolean("ArePadsTaken");
+        this.padsId = pTag.hasUUID("PadsId") ? pTag.getUUID("PadsId") : null;
 
         long remainingTicks = Math.max(0, pTag.getLong("CooldownRemainingTicks"));
         if (level != null) {

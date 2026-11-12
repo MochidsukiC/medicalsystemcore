@@ -21,6 +21,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -35,6 +36,7 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,16 +54,17 @@ public class IVStandBlock extends BaseEntityBlock {
                 .setValue(FACING, Direction.NORTH));
     }
 
-    // --- onRemoveメソッドを追加 (破壊時にアイテムをドロップ) ---
+    // --- 破壊時に中身をドロップ（BE を持つ下半身だけが 1 回だけ行う） ---
     @Override
     public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
-        if (!pState.is(pNewState.getBlock())) {
-            BlockPos bePos = pState.getValue(HALF) == DoubleBlockHalf.LOWER ? pPos : pPos.below();
-            if (pLevel.getBlockEntity(bePos) instanceof IVStandBlockEntity blockEntity) {
+        if (!pState.is(pNewState.getBlock()) && pState.getValue(HALF) == DoubleBlockHalf.LOWER && !pLevel.isClientSide) {
+            if (pLevel.getBlockEntity(pPos) instanceof IVStandBlockEntity blockEntity) {
                 for (int i = 0; i < blockEntity.itemHandler.getSlots(); i++) {
                     ItemStack stack = blockEntity.itemHandler.getStackInSlot(i);
                     if (!stack.isEmpty()) {
-                        pLevel.addFreshEntity(new ItemEntity(pLevel, bePos.getX() + 0.5, bePos.getY() + 0.5, bePos.getZ() + 0.5, stack));
+                        // BE 側のスタックと ItemEntity が同じインスタンスを共有しないようコピーを渡し、スロットは空にする
+                        pLevel.addFreshEntity(new ItemEntity(pLevel, pPos.getX() + 0.5, pPos.getY() + 0.5, pPos.getZ() + 0.5, stack.copy()));
+                        blockEntity.itemHandler.setStackInSlot(i, ItemStack.EMPTY);
                     }
                 }
             }
@@ -123,7 +126,8 @@ public class IVStandBlock extends BaseEntityBlock {
     private void handleItemRemoval(Player player, IVStandBlockEntity blockEntity) {
         for (int i = 2; i >= 0; i--) {
             if (!blockEntity.itemHandler.getStackInSlot(i).isEmpty()) {
-                player.getInventory().add(blockEntity.itemHandler.extractItem(i, 1, false));
+                // 満杯の場合は足元にドロップされ、パックが消えない
+                ItemHandlerHelper.giveItemToPlayer(player, blockEntity.itemHandler.extractItem(i, 1, false));
                 break;
             }
         }
@@ -148,18 +152,28 @@ public class IVStandBlock extends BaseEntityBlock {
         pLevel.setBlock(pPos.above(), pState.setValue(HALF, DoubleBlockHalf.UPPER), 3);
     }
 
-    // プレイヤーによってブロックが破壊される時の処理
+    // 上下の片割れが失われたら、もう片方も消える（バニラのドアと同じ方式）。
+    // 消えた側は Block.updateOrDestroy 経由で destroyBlock(drop=true) となり、loot table（下半身のみ）で 1 台だけドロップする。
+    @Override
+    public BlockState updateShape(BlockState pState, Direction pDirection, BlockState pNeighborState, LevelAccessor pLevel, BlockPos pPos, BlockPos pNeighborPos) {
+        DoubleBlockHalf half = pState.getValue(HALF);
+        if (pDirection.getAxis() == Direction.Axis.Y && (half == DoubleBlockHalf.LOWER) == (pDirection == Direction.UP)) {
+            return pNeighborState.is(this) && pNeighborState.getValue(HALF) != half
+                    ? pState
+                    : Blocks.AIR.defaultBlockState();
+        }
+        return super.updateShape(pState, pDirection, pNeighborState, pLevel, pPos, pNeighborPos);
+    }
+
+    // クリエイティブで上半身を壊したとき、下半身経由で台がドロップしないようにする（バニラの DoublePlantBlock と同じ）
     @Override
     public void playerWillDestroy(Level pLevel, BlockPos pPos, BlockState pState, Player pPlayer) {
-        if (!pLevel.isClientSide) {
-            // 上下どちらかが壊されたら、もう片方も壊す
-            DoubleBlockHalf half = pState.getValue(HALF);
-            BlockPos otherPos = (half == DoubleBlockHalf.LOWER) ? pPos.above() : pPos.below();
-            BlockState otherState = pLevel.getBlockState(otherPos);
-            if (otherState.is(this) && otherState.getValue(HALF) != half) {
-                // 正しいブロックを壊す（クリエイティブモードでのドロップを防ぐため）
-                pLevel.setBlock(otherPos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 35);
-                pLevel.levelEvent(pPlayer, 2001, otherPos, Block.getId(otherState));
+        if (!pLevel.isClientSide && pPlayer.isCreative() && pState.getValue(HALF) == DoubleBlockHalf.UPPER) {
+            BlockPos lowerPos = pPos.below();
+            BlockState lowerState = pLevel.getBlockState(lowerPos);
+            if (lowerState.is(this) && lowerState.getValue(HALF) == DoubleBlockHalf.LOWER) {
+                pLevel.setBlock(lowerPos, Blocks.AIR.defaultBlockState(), 35);
+                pLevel.levelEvent(pPlayer, 2001, lowerPos, Block.getId(lowerState));
             }
         }
         super.playerWillDestroy(pLevel, pPos, pState, pPlayer);

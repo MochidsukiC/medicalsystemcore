@@ -14,11 +14,35 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
+import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.UUID;
 
 public class HeadsideCableItem extends Item {
+    public static final String TAG_MONITOR_POS = "MonitorPos";
+    public static final String TAG_CABLE_ID = "CableId";
+
     public HeadsideCableItem(Properties pProperties) {
         super(pProperties);
+    }
+
+    /** ケーブルが接続されているモニターの座標。NBT がなければ null。 */
+    @Nullable
+    public static BlockPos getLinkedPos(ItemStack cable) {
+        CompoundTag nbt = cable.getTag();
+        if (nbt == null || !nbt.contains(TAG_MONITOR_POS)) return null;
+        return NbtUtils.readBlockPos(nbt.getCompound(TAG_MONITOR_POS));
+    }
+
+    @Nullable
+    public static UUID getCableId(ItemStack cable) {
+        CompoundTag nbt = cable.getTag();
+        return nbt != null && nbt.hasUUID(TAG_CABLE_ID) ? nbt.getUUID(TAG_CABLE_ID) : null;
+    }
+
+    /** このケーブルが、指定のモニターが現在発行中のケーブル(座標と識別子が一致)か。 */
+    public static boolean isLinkedTo(ItemStack cable, HeadsideMonitorBlockEntity monitor) {
+        return monitor.getBlockPos().equals(getLinkedPos(cable)) && monitor.isCableLinked(getCableId(cable));
     }
 
     @Override
@@ -28,25 +52,27 @@ public class HeadsideCableItem extends Item {
             return InteractionResult.PASS;
         }
 
-        CompoundTag nbt = pStack.getTag();
-        if (nbt == null || !nbt.contains("MonitorPos")) {
+        BlockPos monitorPos = getLinkedPos(pStack);
+        if (monitorPos == null) {
+            pPlayer.sendSystemMessage(Component.literal("§cこのケーブルはどのモニターにも接続されていません。"));
             return InteractionResult.FAIL;
         }
 
-        BlockPos monitorPos = NbtUtils.readBlockPos(nbt.getCompound("MonitorPos"));
         BlockEntity be = level.getBlockEntity(monitorPos);
 
-        if (be instanceof HeadsideMonitorBlockEntity monitor) {
+        if (be instanceof HeadsideMonitorBlockEntity monitor && isLinkedTo(pStack, monitor)) {
             // モニターに監視対象のUUIDを設定
             monitor.setMonitoredPlayerUUID(Optional.of(targetPlayer.getUUID()));
-            // ケーブルを返却した扱いにする
-            monitor.setCableTaken(false);
+            // ケーブルを消費するので、モニターは新しいケーブルを出せる状態に戻す
+            monitor.returnCable();
 
             pPlayer.sendSystemMessage(Component.literal("§a" + targetPlayer.getName().getString() + " をモニターに接続しました。"));
-            pStack.shrink(1); // ケーブルを消費
+            // ケーブルを消費(クリエイティブでは pStack が Player.interactOn の作ったコピーなので、手持ちの実物を減らす)
+            pPlayer.getItemInHand(pHand).shrink(1);
             return InteractionResult.SUCCESS;
         }
 
+        pPlayer.sendSystemMessage(Component.literal("§cこのケーブルは無効です。接続先のモニターが見つからないか、再発行された古いケーブルです。"));
         return InteractionResult.FAIL;
     }
 }

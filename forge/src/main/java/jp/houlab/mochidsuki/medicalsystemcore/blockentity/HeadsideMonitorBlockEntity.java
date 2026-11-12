@@ -15,11 +15,18 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
 public class HeadsideMonitorBlockEntity extends BlockEntity {
     private boolean isCableTaken = false;
+    /**
+     * 現在取り出されているケーブルの識別子。取り出すたびに新しく発行し、ケーブルの NBT に同じ値を持たせる。
+     * 再発行や返却で値が変わると、古いケーブルは無効になる。
+     */
+    @Nullable
+    private UUID cableId = null;
     private Optional<UUID> monitoredPlayerUUID = Optional.empty();
 
     // 表示用のデータ
@@ -41,9 +48,24 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
         super(Medicalsystemcore.HEAD_SIDE_MONITOR_BLOCK_ENTITY.get(), pPos, pBlockState);
     }
 
-    public void setCableTaken(boolean taken) {
-        this.isCableTaken = taken;
+    /** ケーブルを取り出す。新しい識別子を発行して返す(以前のケーブルはすべて無効になる)。 */
+    public UUID issueCable() {
+        this.isCableTaken = true;
+        this.cableId = UUID.randomUUID();
         setChanged();
+        return this.cableId;
+    }
+
+    /** ケーブルをモニターに戻した状態にする(接続に使った場合も含む)。 */
+    public void returnCable() {
+        this.isCableTaken = false;
+        this.cableId = null;
+        setChanged();
+    }
+
+    /** ケーブルが取り出されており、かつその識別子が現在発行中のものと一致するか。 */
+    public boolean isCableLinked(@Nullable UUID id) {
+        return this.isCableTaken && this.cableId != null && Objects.equals(this.cableId, id);
     }
 
     public boolean isCableTaken() {
@@ -173,6 +195,9 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
     @Override
     protected void saveAdditional(CompoundTag pTag) {
         pTag.putBoolean("CableTaken", this.isCableTaken);
+        if (this.cableId != null) {
+            pTag.putUUID("CableId", this.cableId);
+        }
         if (this.monitoredPlayerUUID.isPresent()) {
             pTag.putUUID("MonitoredPlayer", this.monitoredPlayerUUID.get());
         }
@@ -191,6 +216,7 @@ public class HeadsideMonitorBlockEntity extends BlockEntity {
     public void load(CompoundTag pTag) {
         super.load(pTag);
         this.isCableTaken = pTag.getBoolean("CableTaken");
+        this.cableId = pTag.hasUUID("CableId") ? pTag.getUUID("CableId") : null;
         if (pTag.hasUUID("MonitoredPlayer")) {
             this.monitoredPlayerUUID = Optional.of(pTag.getUUID("MonitoredPlayer"));
         } else {

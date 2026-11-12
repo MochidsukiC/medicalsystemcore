@@ -6,6 +6,7 @@ import jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity;
 import jp.houlab.mochidsuki.medicalsystemcore.Medicalsystemcore;
 import jp.houlab.mochidsuki.medicalsystemcore.util.MedicalAuthorizationUtil;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -97,26 +98,28 @@ public class StretcherItem extends Item {
 
         // 新仕様の条件チェック: ストレッチャー持ち + 素手 + しゃがみ
         if (carriedStretcher != null && player.getMainHandItem().isEmpty() && player.isShiftKeyDown()) {
-            // クリックしたブロックの上に担架を設置
+            // クリックしたブロックの上に担架を設置（足パーツと、向いている方向の頭パーツの 2 ブロック分）
             BlockPos placePos = pos.above();
+            Direction playerDirection = player.getDirection();
+            BlockPos headPos = placePos.relative(playerDirection);
 
-            // 設置可能かチェック
-            if (!level.getBlockState(placePos).canBeReplaced()) {
-                player.sendSystemMessage(Component.literal("§cここには担架を設置できません。"));
+            // 設置可能かチェック（足と頭の両方）
+            if (!level.getBlockState(placePos).canBeReplaced() || !level.getBlockState(headPos).canBeReplaced()) {
+                player.sendSystemMessage(Component.literal("§cここには担架を設置できません。設置には2ブロック分のスペースが必要です。"));
                 return InteractionResult.FAIL;
             }
 
-            // 担架ブロックを設置
+            // 担架ブロックを 2 ブロック分設置
             BlockState stretcherState = Medicalsystemcore.STRETCHER_BLOCK.get().defaultBlockState()
-                    .setValue(StretcherBlock.FACING, player.getDirection());
-            level.setBlock(placePos, stretcherState, 3);
+                    .setValue(StretcherBlock.FACING, playerDirection);
+            StretcherBlock.placeDoubleBlock(level, placePos, stretcherState);
 
-            // プレイヤーが乗っていた場合の処理
-            if (carriedStretcher.getPassenger() != null) {
-                ServerPlayer ridingPlayer = (ServerPlayer) carriedStretcher.getPassenger();
+            // 足パーツのブロックエンティティを初期化し、患者が乗っていれば担架に移す
+            if (level.getBlockEntity(placePos) instanceof StretcherBlockEntity stretcherBE) {
+                stretcherBE.setBeingCollected(false);
 
-                // ブロックエンティティにプレイヤー情報を設定
-                if (level.getBlockEntity(placePos) instanceof StretcherBlockEntity stretcherBE) {
+                ServerPlayer ridingPlayer = carriedStretcher.getPassenger() instanceof ServerPlayer sp ? sp : null;
+                if (ridingPlayer != null) {
                     ridingPlayer.stopRiding();
                     ridingPlayer.teleportTo(placePos.getX() + 0.5, placePos.getY() + 0.3, placePos.getZ() + 0.5);
 

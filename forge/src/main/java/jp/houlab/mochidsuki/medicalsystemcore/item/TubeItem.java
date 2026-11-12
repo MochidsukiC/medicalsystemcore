@@ -93,8 +93,14 @@ public class TubeItem extends Item {
                         targetPlayer.sendSystemMessage(Component.literal("§eチューブが接続されました。"));
                     }
 
-                    nbt.remove(TAG_START_POS);
-                    pStack.shrink(1); // ケーブルを消費
+                    // クリエイティブでは pStack が Player.interactOn の作ったコピーなので、手持ちの実物のスタックを操作する
+                    ItemStack heldStack = pPlayer.getItemInHand(pHand);
+                    if (heldStack.hasTag()) {
+                        heldStack.getTag().remove(TAG_START_POS);
+                    }
+                    if (!pPlayer.getAbilities().instabuild) {
+                        heldStack.shrink(1); // チューブを消費
+                    }
                     return InteractionResult.SUCCESS;
                 }
                 pPlayer.sendSystemMessage(Component.literal("§cエラー: 点滴スタンドが見つかりません。"));

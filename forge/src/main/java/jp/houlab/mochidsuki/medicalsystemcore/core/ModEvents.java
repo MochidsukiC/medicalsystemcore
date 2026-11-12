@@ -245,14 +245,14 @@ public class ModEvents {
 
         // 電極が投げ捨てられた場合の特別処理（既存のロジック）
         if (tossedItem.is(Medicalsystemcore.ELECTRODE.get())) {
-            CompoundTag nbt = tossedItem.getTag();
-            if (nbt != null && nbt.contains("DefibrillatorPos")) {
-                BlockPos defibrillatorPos = NbtUtils.readBlockPos(nbt.getCompound("DefibrillatorPos"));
-
+            BlockPos defibrillatorPos = jp.houlab.mochidsuki.medicalsystemcore.item.ElectrodeItem.getLinkedPos(tossedItem);
+            if (defibrillatorPos != null) {
                 if (event.getPlayer().level() instanceof ServerLevel serverLevel) {
                     BlockEntity be = serverLevel.getBlockEntity(defibrillatorPos);
-                    if (be instanceof jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity defibrillator) {
-                        defibrillator.arePadsTaken = false;
+                    // 現在発行中の電極だけが除細動器へ戻る(再発行で無効になった電極・他機の電極は普通のアイテムとして落ちる)
+                    if (be instanceof jp.houlab.mochidsuki.medicalsystemcore.blockentity.DefibrillatorBlockEntity defibrillator
+                            && jp.houlab.mochidsuki.medicalsystemcore.item.ElectrodeItem.isLinkedTo(tossedItem, defibrillator)) {
+                        defibrillator.returnPads();
                         if (defibrillator.getLevel() != null) {
                             defibrillator.getLevel().setBlock(
                                     defibrillatorPos,
@@ -357,6 +357,11 @@ public class ModEvents {
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             PoseController.clearPoseControl(serverPlayer);
+            // 担架に乗った状態でログアウトすると、PlayerList.remove が担架ごと保存・除去し、運搬者に返却されない。
+            // PlayerLoggedOutEvent はそれより前に発火するので、ここで降ろして担架を運搬者へ返す
+            if (serverPlayer.getVehicle() instanceof jp.houlab.mochidsuki.medicalsystemcore.entity.StretcherEntity stretcher) {
+                stretcher.releaseOnPassengerLogout();
+            }
         }
     }
 
