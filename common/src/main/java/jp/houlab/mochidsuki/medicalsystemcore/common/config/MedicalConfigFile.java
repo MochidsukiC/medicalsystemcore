@@ -45,6 +45,9 @@ public final class MedicalConfigFile {
         UNREADABLE
     }
 
+    /** 直前の load で JSON として読めなかったファイル。次の load が成功するまで、このファイルへの save を拒否する。 */
+    private static Path unreadablePath;
+
     private MedicalConfigFile() {
     }
 
@@ -55,12 +58,14 @@ public final class MedicalConfigFile {
      *   <li>欠けているキーは既定値で補い、ファイルへ書き戻す。</li>
      *   <li>不正な値(型違い・範囲外)はそのキーを既定値にする。キー間制約違反は閾値 4 キーすべてを既定値に戻す。いずれも WARN を出す。</li>
      *   <li>未知のキーは WARN を出して無視する。</li>
-     *   <li>JSON として読めない場合は ERROR を出し、既定値で動作する。ユーザーの設定を失わないようファイルは上書きしない。</li>
+     *   <li>JSON として読めない場合は ERROR を出し、既定値で動作する。ユーザーの設定を失わないようファイルは上書きしない。
+     *       この状態は保持され、次に load が成功するまで同じファイルへの {@link #save} は IllegalStateException で拒否される。</li>
      * </ul>
      */
     public static synchronized LoadStatus load(Path path) {
         if (!Files.exists(path)) {
             MedicalConfig.setAll(defaultsById());
+            unreadablePath = null;
             save(path);
             LOGGER.info("設定ファイルが無いため既定値で作成した: {}", path);
             return LoadStatus.CREATED;
@@ -76,6 +81,8 @@ public final class MedicalConfigFile {
         } catch (JsonParseException e) {
             LOGGER.error("設定ファイルを JSON として読めない。既定値で動作し、ファイルは上書きしない: {}", path, e);
             MedicalConfig.setAll(defaultsById());
+            // 後続の save() がこのファイルを既定値で上書きしないよう、読めなかった状態を保持する
+            unreadablePath = path.toAbsolutePath().normalize();
             return LoadStatus.UNREADABLE;
         } catch (IOException e) {
             throw new UncheckedIOException("設定ファイルを読めない: " + path, e);
@@ -119,6 +126,7 @@ public final class MedicalConfigFile {
         }
 
         MedicalConfig.setAll(corrected);
+        unreadablePath = null;
         if (missing) {
             LOGGER.info("設定ファイルに無いキーを既定値で補って書き戻す: {}", path);
             save(path);
@@ -128,6 +136,10 @@ public final class MedicalConfigFile {
 
     /** 現在の設定値をファイルへ書く(一時ファイルへ書いてから置き換える)。 */
     public static synchronized void save(Path path) {
+        if (path.toAbsolutePath().normalize().equals(unreadablePath)) {
+            LOGGER.error("直前の load で JSON として読めなかったファイルのため、保存を拒否する: {}", path);
+            throw new IllegalStateException("設定ファイルが読めない状態のため保存を拒否した(修正して再読み込みするまで保存できない): " + path);
+        }
         Map<String, Map<String, Object>> sections = new LinkedHashMap<>();
         Map<String, Object> snapshot = MedicalConfig.snapshot();
         for (ConfigKey<?> key : MedicalConfigKeys.ALL) {
