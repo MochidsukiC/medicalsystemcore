@@ -52,6 +52,17 @@ public class ClientQTEManager {
         targetId = -1;
     }
 
+    /**
+     * 結果を送らずに QTE の状態だけを消す(切断時)。
+     * サーバーは接続の切断で QTE の記録を破棄しチャージを解除するため、ここでは何も送らない。
+     */
+    public static void reset() {
+        isActive = false;
+        targetId = -1;
+        barPosition = 0.0f;
+        direction = 1;
+    }
+
     public static void tick() {
         if (!isActive) return;
 

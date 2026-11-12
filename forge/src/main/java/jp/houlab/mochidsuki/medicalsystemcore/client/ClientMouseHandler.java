@@ -57,6 +57,15 @@ public class ClientMouseHandler {
         }
     }
 
+    /**
+     * 意識不明中の視点固定の状態を消す(切断時。次の接続に古い向きを持ち越さない)
+     */
+    public static void reset() {
+        fixedYaw = 0.0f;
+        fixedPitch = 0.0f;
+        wasUnconscious = false;
+    }
+
     public static boolean isPlayerVisuallyFixed() {
         return wasUnconscious;
     }

@@ -15,14 +15,16 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.Direction;
 import org.joml.Matrix4f;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 public class HeadsideMonitorBlockEntityRenderer implements BlockEntityRenderer<HeadsideMonitorBlockEntity> {
     private final Font font;
 
-    // モニターごとの波形履歴を管理
-    private static final Map<HeadsideMonitorBlockEntity, WaveformHistory> waveformHistories = new HashMap<>();
+    // モニターごとの波形履歴を管理。
+    // キーは弱参照(WeakHashMap)にして、BlockEntity が破棄された(チャンクのアンロード、ワールドの切り替え等)ら履歴も解放されるようにする。
+    // 値(WaveformHistory)は BlockEntity を参照しないので、値がキーを引き留めることはない。描画スレッドからしか触らない。
+    private static final Map<HeadsideMonitorBlockEntity, WaveformHistory> waveformHistories = new WeakHashMap<>();
 
 
 

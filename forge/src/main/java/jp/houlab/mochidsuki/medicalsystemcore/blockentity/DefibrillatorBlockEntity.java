@@ -19,6 +19,12 @@ public class DefibrillatorBlockEntity extends BlockEntity {
     private int chargeProgress = 0;
     public boolean arePadsTaken = false;
     private long cooldownEndTick = 0;
+    /**
+     * NBT から読んだクールダウンの残り tick のうち、まだ cooldownEndTick に換算していない分。
+     * load() はレベルが設定される前(チャンク読み込み時)に呼ばれ、ゲーム時間を参照できない。
+     * その場合は残り tick をここに持ち、レベルが設定された後の onLoad() で換算する。
+     */
+    private long pendingCooldownTicks = 0;
 
     public DefibrillatorBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(Medicalsystemcore.DEFIBRILLATOR_BLOCK_ENTITY.get(), pPos, pBlockState);
@@ -30,11 +36,13 @@ public class DefibrillatorBlockEntity extends BlockEntity {
     // 修正: クールダウンタイマーの計算を改善
     public boolean isOnCooldown() {
         if (level == null) return false;
+        resolvePendingCooldown();
         return level.getGameTime() < this.cooldownEndTick;
     }
 
     public long getCooldownSecondsLeft() {
         if (level == null) return 0;
+        resolvePendingCooldown();
         long ticksLeft = this.cooldownEndTick - level.getGameTime();
         return Math.max(0, ticksLeft / 20);
     }
@@ -103,6 +111,7 @@ public class DefibrillatorBlockEntity extends BlockEntity {
     }
 
     public void startCooldown() {
+        this.pendingCooldownTicks = 0;
         if (level != null) {
             this.cooldownEndTick = level.getGameTime() + (MedicalConfig.get(MedicalConfigKeys.DEFIBRILLATOR_COOLDOWN) * 20L);
         }
@@ -122,13 +131,13 @@ public class DefibrillatorBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag pTag) {
         pTag.putInt("ChargeProgress", this.chargeProgress);
         pTag.putBoolean("ArePadsTaken", this.arePadsTaken);
-        // 修正: 相対時間でクールダウンを保存
-        if (level != null && isOnCooldown()) {
-            long remainingTicks = this.cooldownEndTick - level.getGameTime();
-            pTag.putLong("CooldownRemainingTicks", remainingTicks);
-        } else {
-            pTag.putLong("CooldownRemainingTicks", 0);
-        }
+        // クールダウンは絶対時刻ではなく残り tick で保存する(ワールドのゲーム時間に依存しない)。
+        // 読み込んだ値が未換算(レベル設定前)なら、先に換算するか、換算できなければそのまま書き戻す(0 で上書きしない)。
+        resolvePendingCooldown();
+        long remainingTicks = level != null
+                ? Math.max(0, this.cooldownEndTick - level.getGameTime())
+                : this.pendingCooldownTicks;
+        pTag.putLong("CooldownRemainingTicks", remainingTicks);
         super.saveAdditional(pTag);
     }
 
@@ -138,12 +147,29 @@ public class DefibrillatorBlockEntity extends BlockEntity {
         this.chargeProgress = pTag.getInt("ChargeProgress");
         this.arePadsTaken = pTag.getBoolean("ArePadsTaken");
 
-        // 修正: 相対時間でクールダウンを復元
-        long remainingTicks = pTag.getLong("CooldownRemainingTicks");
-        if (remainingTicks > 0 && level != null) {
-            this.cooldownEndTick = level.getGameTime() + remainingTicks;
+        long remainingTicks = Math.max(0, pTag.getLong("CooldownRemainingTicks"));
+        if (level != null) {
+            // クライアントへの同期パケット(onDataPacket)など、レベルが既にある場合はその場で換算する
+            this.cooldownEndTick = remainingTicks > 0 ? level.getGameTime() + remainingTicks : 0;
+            this.pendingCooldownTicks = 0;
         } else {
+            // チャンク読み込み時はレベル未設定。onLoad() で換算する
             this.cooldownEndTick = 0;
+            this.pendingCooldownTicks = remainingTicks;
+        }
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        resolvePendingCooldown();
+    }
+
+    /** 未換算の読み込み値があり、レベルが使えるなら cooldownEndTick に換算する。 */
+    private void resolvePendingCooldown() {
+        if (this.pendingCooldownTicks > 0 && level != null) {
+            this.cooldownEndTick = level.getGameTime() + this.pendingCooldownTicks;
+            this.pendingCooldownTicks = 0;
         }
     }
 

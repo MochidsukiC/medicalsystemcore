@@ -27,7 +27,7 @@ import java.util.UUID;
 /**
  * サーバーが「除細動 QTE の開始」を記録する。メモリ上のみで保存しない。
  * 結果パケット(ServerboundQTETResultPacket)はこの記録に対して 1 回だけ受け付ける。
- * 記録は {@link QteRules#RESULT_TIMEOUT_TICKS} を過ぎると破棄され、そのとき除細動器のチャージを解除してクールダウンを始める。
+ * 記録は {@link QteRules#RESULT_TIMEOUT_TICKS} を過ぎるか healer がログアウトすると破棄され、そのとき除細動器のチャージを解除してクールダウンを始める。
  * すべてサーバースレッド上で触るため同期は不要。
  */
 @Mod.EventBusSubscriber(modid = Medicalsystemcore.MODID)
@@ -113,7 +113,12 @@ public final class PendingQteManager {
 
     @SubscribeEvent
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        PENDING.remove(event.getEntity().getUUID());
+        // 開始した QTE は必ず放電(チャージ解除とクールダウン)で終わる。ログアウトも期限切れと同じ後始末をする。
+        // 記録を消すだけだと除細動器が CHARGED のまま残る。
+        Pending pending = PENDING.remove(event.getEntity().getUUID());
+        if (pending != null && event.getEntity() instanceof ServerPlayer healer) {
+            expire(healer.server, pending);
+        }
     }
 
     @SubscribeEvent

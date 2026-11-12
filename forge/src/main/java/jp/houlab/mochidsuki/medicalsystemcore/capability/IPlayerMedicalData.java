@@ -62,6 +62,16 @@ public interface IPlayerMedicalData {
     float getHeartVectorY();
     void setHeartVectorY(float y);
 
+    // --- クライアントへの状態同期の記録(保存しない) ---
+    /**
+     * ClientboundCoreStatsPacket を今送るべきか。
+     * 前回送った時点から heartStatus か意識が変わった、まだ一度も送っていない、または前回から intervalTicks 以上経った場合に true。
+     */
+    boolean needsCoreStatsSync(long gameTime, int intervalTicks);
+
+    /** 現在の heartStatus と意識を「送信済み」として記録する。 */
+    void markCoreStatsSynced(long gameTime);
+
     // --- データの保存と読み込み ---
     void saveNBTData(CompoundTag nbt);
     void loadNBTData(CompoundTag nbt);

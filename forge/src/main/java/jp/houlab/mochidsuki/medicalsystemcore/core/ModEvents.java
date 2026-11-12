@@ -22,7 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -49,11 +49,16 @@ public class ModEvents {
     public static void onLivingDeath(LivingDeathEvent event) {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                if (medicalData.getHeartStatus() != HeartStatus.NORMAL) {
+                // 心停止中の死亡、または奈落・/kill のような無敵貫通ダメージによる死亡は、そのまま死なせる。
+                // 無敵貫通ダメージを心停止にすり替えると、奈落の下で救助不能のまま落ち続けるため(DamageTypeTags.BYPASSES_INVULNERABILITY は
+                // 1.20.1 では out_of_world と generic_kill)。onLivingHurt の免疫の例外と同じ判定を使う。
+                boolean cannotBeSaved = event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY);
+                if (medicalData.getHeartStatus() != HeartStatus.NORMAL || cannotBeSaved) {
                     medicalData.setHeartStatus(HeartStatus.NORMAL);
                     medicalData.setDamageImmune(false);
                     medicalData.setConscious(true);
-                    // 姿勢制御をクリアして泳ぎ姿勢を解除し、全クライアントに同期
+                    // 姿勢制御をクリアして泳ぎ姿勢を解除し、全クライアントに同期。
+                    // 意識不明(HP が低い NORMAL)のまま奈落で死ぬ場合もあるので、心停止でなくても必ず解除する。
                     if (player instanceof ServerPlayer serverPlayer) {
                         PoseController.clearPoseControl(serverPlayer);
                         ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
@@ -85,11 +90,119 @@ public class ModEvents {
     public static void onLivingHurt(LivingHurtEvent event) {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                if (medicalData.isDamageImmune() && !event.getSource().is(DamageTypes.GENERIC_KILL)) {
+                // 心停止中の免疫でも、奈落・/kill のような無敵貫通ダメージは通す(onLivingDeath で死亡を成立させる)
+                if (medicalData.isDamageImmune() && !event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
                     event.setCanceled(true);
                 }
             });
         }
+    }
+
+    /**
+     * 医療データのコピー(エンドからの帰還)。
+     * 死亡時(isWasDeath=true)は仕様どおりコピーしない(新しいプレイヤーは初期値から始まる)。
+     * 帰還時(isWasDeath=false)は旧プレイヤーの医療データを新しいプレイヤーへ引き継ぐ。
+     *
+     * <p>Forge 1.20.1 では旧プレイヤーは removed になり capability が無効化されているため、
+     * 読む間だけ reviveCaps() で復活させ、終わったら invalidateCaps() で戻す。
+     * コピーは saveNBTData/loadNBTData の対を通す(保存形式と同じ内容が引き継がれ、点滴の接続先も含む)。
+     * 姿勢とクライアント同期は、直後の PlayerRespawnEvent と次の tick で医療データから再導出される。</p>
+     */
+    @SubscribeEvent
+    public static void onPlayerClone(PlayerEvent.Clone event) {
+        if (event.isWasDeath()) {
+            return;
+        }
+        Player original = event.getOriginal();
+        original.reviveCaps();
+        try {
+            original.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(oldData ->
+                    event.getEntity().getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(newData -> {
+                        CompoundTag copy = new CompoundTag();
+                        oldData.saveNBTData(copy);
+                        newData.loadNBTData(copy);
+                    }));
+        } finally {
+            original.invalidateCaps();
+        }
+    }
+
+    // 以下のイベントでは、サーバー側の強制姿勢を医療データから組み立て直す。
+    // 強制姿勢(Entity#forcedPose)と PoseController の状態は保存されないため、
+    // 医療データ(isConscious)だけが残る再ログイン・サーバー再起動・リスポーンで失われる。
+
+    @SubscribeEvent
+    public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            restorePoseFromMedicalData(serverPlayer);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        // 死亡後のリスポーンでは医療データが初期値なので姿勢制御は解除され、
+        // エンドからの帰還ではコピーされた医療データに合わせて再設定される。
+        // PoseController の状態は UUID で保持されるので、前のインスタンスの状態が残らないよう必ず作り直す。
+        if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            restorePoseFromMedicalData(serverPlayer);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        // クライアントはレベルの切り替えで姿勢制御の状態を消す(ClientWorldHandler)ので、すぐ送り直す
+        if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA)
+                    .ifPresent(medicalData -> syncCoreStats(serverPlayer, medicalData));
+        }
+    }
+
+    /** 他のプレイヤーが追跡を始めたとき、その人に対象の現在の状態を 1 回送る(以後は変化時と定期再送で届く)。 */
+    @SubscribeEvent
+    public static void onStartTracking(PlayerEvent.StartTracking event) {
+        if (event.getTarget() instanceof ServerPlayer target && event.getEntity() instanceof ServerPlayer tracker) {
+            target.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData ->
+                    ModPackets.sendToPlayer(new ClientboundCoreStatsPacket(
+                            target.getUUID(), medicalData.getHeartStatus(), medicalData), tracker));
+        }
+    }
+
+    private static void restorePoseFromMedicalData(ServerPlayer serverPlayer) {
+        PoseController.clearPoseControl(serverPlayer);
+        serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
+            if (!medicalData.isConscious()) {
+                PoseController.setUnconsciousPose(serverPlayer, true);
+            }
+        });
+    }
+
+    /**
+     * CoreStats の同期(B32)。毎 tick 全員へ送るとプレイヤー数の二乗で増えるため、次のときだけ送る。
+     * <ul>
+     *   <li>heartStatus か意識が変わったとき(即時)。クライアントはこの 2 つで姿勢制御を切り替える。</li>
+     *   <li>前回から {@link #CORE_STATS_RESYNC_INTERVAL_TICKS} tick 経ったとき(再送)。
+     *       クライアントはレベル切り替えで姿勢制御の状態を消すため、取りこぼしを自己修復する安全網。</li>
+     *   <li>追跡開始時・ディメンション移動時(個別のイベントで 1 回)。</li>
+     * </ul>
+     * クライアントが CoreStats から読むのは isConscious/heartStatus(姿勢制御)だけで、補間は要らない。
+     * HUD の進捗バーはクライアントのタイマー、ヘッドサイドモニター・心電図は BlockEntity の同期で動き、このパケットを使わない。
+     * 血液量などの数値は現状どの表示も参照しない。
+     */
+    private static final int CORE_STATS_RESYNC_INTERVAL_TICKS = 20;
+
+    private static void syncCoreStatsIfNeeded(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        if (medicalData.needsCoreStatsSync(serverPlayer.level().getGameTime(), CORE_STATS_RESYNC_INTERVAL_TICKS)) {
+            syncCoreStats(serverPlayer, medicalData);
+        }
+    }
+
+    private static void syncCoreStats(ServerPlayer serverPlayer, IPlayerMedicalData medicalData) {
+        ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
+                serverPlayer.getUUID(),
+                medicalData.getHeartStatus(),
+                medicalData
+        ), serverPlayer);
+        medicalData.markCoreStatsSynced(serverPlayer.level().getGameTime());
     }
 
     @SubscribeEvent
@@ -193,6 +306,11 @@ public class ModEvents {
         }
         if (!(event.player instanceof ServerPlayer serverPlayer)) return;
 
+        // 死亡後、リスポーンするまでの間も PlayerTickEvent は発火する。
+        // この間に意識判定や姿勢維持を走らせると、死亡時に解除した UNCONSCIOUS 姿勢が再登録され、
+        // リスポーン後の新しいプレイヤー(同じ UUID)に残ってしまう(B07)。
+        if (!serverPlayer.isAlive()) return;
+
         serverPlayer.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
             handleIVTransfusion(serverPlayer, medicalData);
 
@@ -200,10 +318,14 @@ public class ModEvents {
             medicalData.setTickCounter(ticks + 1);
 
             handleCardiacArrest(serverPlayer, medicalData);
+            // handleCardiacArrest の kill() と handleBloodDamage の hurt() はこの tick の中で死亡させ得る。
+            // 死亡したら以降(意識判定・姿勢維持・同期)は走らせない。
+            if (!serverPlayer.isAlive()) return;
             handleBleedingRecovery(serverPlayer, medicalData);
             handleBloodLoss(serverPlayer, medicalData);
             handleBleedingEffect(serverPlayer, medicalData);
             handleBloodDamage(serverPlayer, medicalData);
+            if (!serverPlayer.isAlive()) return;
             handleConsciousnessState(serverPlayer, medicalData);
             handleUnconsciousFloating(serverPlayer, medicalData);
             handleECGSimulation(serverPlayer, medicalData);
@@ -211,11 +333,7 @@ public class ModEvents {
             // *** 一元姿勢管理システムによる姿勢制御の維持 ***
             PoseController.maintainPoseControl(serverPlayer);
 
-            ModPackets.sendToAllTracking(new ClientboundCoreStatsPacket(
-                    serverPlayer.getUUID(),
-                    medicalData.getHeartStatus(),
-                    medicalData
-            ), serverPlayer);
+            syncCoreStatsIfNeeded(serverPlayer, medicalData);
         });
     }
 

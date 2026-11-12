@@ -23,6 +23,13 @@ public class ClientMedicalDataManager {
     }
 
     /**
+     * 保持している全プレイヤーのデータを消す(切断時。次の接続先・ワールドへ持ち越さない)
+     */
+    public static void clear() {
+        PLAYER_DATA_MAP.clear();
+    }
+
+    /**
      * Optionalで安全にプレイヤーデータを取得
      */
     public static Optional<ClientMedicalData> getPlayerData(Player player) {
