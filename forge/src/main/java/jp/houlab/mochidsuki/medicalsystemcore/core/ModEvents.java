@@ -23,6 +23,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -49,10 +50,10 @@ public class ModEvents {
     public static void onLivingDeath(LivingDeathEvent event) {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof Player player) {
             player.getCapability(PlayerMedicalDataProvider.PLAYER_MEDICAL_DATA).ifPresent(medicalData -> {
-                // 心停止中の死亡、または奈落・/kill のような無敵貫通ダメージによる死亡は、そのまま死なせる。
-                // 無敵貫通ダメージを心停止にすり替えると、奈落の下で救助不能のまま落ち続けるため(DamageTypeTags.BYPASSES_INVULNERABILITY は
-                // 1.20.1 では out_of_world と generic_kill)。onLivingHurt の免疫の例外と同じ判定を使う。
-                boolean cannotBeSaved = event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY);
+                // 心停止中の死亡と、奈落による死亡はそのまま死なせる。
+                // 奈落を心停止にすり替えると、奈落の下で救助不能のまま落ち続けるため。
+                // /kill(generic_kill)は仕様により、通常時は心停止になり、心停止中なら死亡する(上の HeartStatus 判定で成立)。
+                boolean cannotBeSaved = event.getSource().is(DamageTypes.FELL_OUT_OF_WORLD);
                 if (medicalData.getHeartStatus() != HeartStatus.NORMAL || cannotBeSaved) {
                     medicalData.setHeartStatus(HeartStatus.NORMAL);
                     medicalData.setDamageImmune(false);
