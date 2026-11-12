@@ -342,4 +342,14 @@ public class StretcherEntity extends Entity {
         return stretcher;
     }
 
+    /**
+     * 乗客の接続点。Forge と同じく、乗客の姿勢によらず足元を担架の Y - 0.25(ModEntities の passengerAttachments)にする。
+     * 26.2 は乗客の足元 = 担架の原点 + この値 - 乗客の車両接続点(Entity#positionRider)で、プレイヤーの車両接続点は
+     * 姿勢により 0.6 変わる(STANDING・CROUCHING は 0.6、SWIMMING・SLEEPING は 0)。その分をここで足して打ち消す。
+     */
+    @Override
+    protected Vec3 getPassengerAttachmentPoint(Entity passenger, net.minecraft.world.entity.EntityDimensions dimensions, float scale) {
+        return super.getPassengerAttachmentPoint(passenger, dimensions, scale)
+                .add(0.0, passenger.getVehicleAttachmentPoint(this).y, 0.0);
+    }
 }

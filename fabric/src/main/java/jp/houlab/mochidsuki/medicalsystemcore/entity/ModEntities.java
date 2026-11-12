@@ -22,12 +22,12 @@ public final class ModEntities {
                     .clientTrackingRange(64)      // Forge のまま。単位はチャンク(Forge のコメントの「64ブロック」は誤り)
                     .updateInterval(1)            // 毎ティック更新（20→1）で滑らかな動作
                     .alwaysUpdateVelocity(true)   // 速度更新を受信(Forge の setShouldReceiveVelocityUpdates)
-                    // 乗客の座る高さ(未確定。段 5 でレンダラーと合わせて調整すること)。Forge の getPassengersRidingOffset() は 0.1。
-                    // 26.2 では乗客の足元 = 担架の原点 + この値 - 乗客の車両接続点で、プレイヤーの車両接続点は STANDING・CROUCHING が
-                    // (0, 0.6, 0)、SWIMMING・SLEEPING などは接続点なし(Avatar.java)。つまり姿勢で最大 0.6 ずれる。
-                    // 0.35 は Forge のプレイヤー側オフセット(-0.35、記憶に基づく)を足して「立ち姿勢で Forge と同じ」になるよう
-                    // 導いた値。もう一方の候補は 0.1(Forge の値をそのまま移す)。
-                    .passengerAttachments(0.35F));
+                    // 乗客の座る高さ。Forge は乗客の足元 = 担架の Y + getPassengersRidingOffset()(0.1) + Player#getMyRidingOffset()(-0.35、
+                    // 1.20.1 の Player バイトコードで確認) = 担架の Y - 0.25 で、姿勢によらない。
+                    // 26.2 は乗客の足元 = 担架の原点 + この値 - 乗客の車両接続点。プレイヤーの車両接続点は STANDING・CROUCHING が (0, 0.6, 0)、
+                    // SWIMMING・SLEEPING は接続点なし(原点 = 足元)で、姿勢により 0.6 ずれる(Avatar.java)。
+                    // この値を足元の高さ(-0.25)とし、姿勢による車両接続点の差は StretcherEntity#getPassengerAttachmentPoint で打ち消す。
+                    .passengerAttachments(-0.25F));
 
     private static <T extends Entity> EntityType<T> register(String name, EntityType.Builder<T> builder) {
         ResourceKey<EntityType<?>> key = ResourceKey.create(Registries.ENTITY_TYPE, Medicalsystemcore.id(name));

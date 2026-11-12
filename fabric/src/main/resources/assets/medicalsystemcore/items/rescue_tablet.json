@@ -1,6 +1,36 @@
 {
   "model": {
-    "type": "minecraft:model",
-    "model": "medicalsystemcore:item/rescue_tablet_base"
+    "type": "minecraft:composite",
+    "models": [
+      {
+        "type": "minecraft:model",
+        "model": "medicalsystemcore:item/rescue_tablet_base"
+      },
+      {
+        "type": "minecraft:select",
+        "property": "minecraft:display_context",
+        "cases": [
+          {
+            "when": [
+              "firstperson_righthand",
+              "firstperson_lefthand",
+              "thirdperson_righthand",
+              "thirdperson_lefthand",
+              "gui"
+            ],
+            "model": {
+              "type": "minecraft:special",
+              "base": "medicalsystemcore:item/rescue_tablet_base",
+              "model": {
+                "type": "medicalsystemcore:rescue_tablet_overlay"
+              }
+            }
+          }
+        ],
+        "fallback": {
+          "type": "minecraft:empty"
+        }
+      }
+    ]
   }
 }
