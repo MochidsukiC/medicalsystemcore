@@ -104,7 +104,7 @@ public class EmergencyCallCommand {
             case SUPPORT:
                 // 応援通報は医師だけが送れる
                 if (!MedicalAuthorizationUtil.checkMedicalAuthorizationSilent(player)) {
-                    source.sendFailure(Component.literal("§c応援通報は医師のみ可能です。"));
+                    source.sendFailure(Component.literal("§c「" + callType.getCommandName() + "」は医師のみ使えます。"));
                     return false;
                 }
                 break;
@@ -113,7 +113,7 @@ public class EmergencyCallCommand {
                 if (false) { // 仮の判定
                     // 権限OK
                 } else {
-                    source.sendFailure(Component.literal("§c警察連携通報は警察官のみ可能です。"));
+                    source.sendFailure(Component.literal("§c「" + callType.getCommandName() + "」は警察官のみ使えます。"));
                     return false;
                 }
                 break;
@@ -122,7 +122,7 @@ public class EmergencyCallCommand {
                 if (false) { // 仮の判定
                     // 権限OK
                 } else {
-                    source.sendFailure(Component.literal("§c予防的医療事案通報は指令本部のみ可能です。"));
+                    source.sendFailure(Component.literal("§c「" + callType.getCommandName() + "」は指令本部のみ使えます。"));
                     return false;
                 }
                 break;
